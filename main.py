@@ -13,7 +13,9 @@ from tkinter import filedialog
 
 import anthropic
 import dateutil.parser as dparser
-import pandas as pd
+from odf import opendocument, table, text
+from odf.namespaces import OFFICENS
+from odf.opendocument import load
 
 ODS_FILE = "/home/juli/Downloads/Alltags-Ausgaben.ods"
 
@@ -87,63 +89,52 @@ def ask_pdfs():
     return file_paths
 
 
+def get_cell_value(cell):
+    """Extract value from ODS cell"""
+    # Try to get the value attribute
+    value_attr = cell.getAttrNS(OFFICENS, "value")
+    if value_attr:
+        return float(value_attr)
+
+    date_value_attr = cell.getAttrNS(OFFICENS, "date-value")
+    if date_value_attr:
+        return date_value_attr
+
+    string_value_attr = cell.getAttrNS(OFFICENS, "string-value")
+    if string_value_attr:
+        return string_value_attr
+
+    # Fallback: get text content
+    text_content = []
+    for p_element in cell.getElementsByType(text.P):
+        text_content.append(str(p_element))
+    return "".join(text_content) if text_content else ""
+
+
+def set_cell_value(cell, value):
+    """Set value in ODS cell while preserving style"""
+    # Clear existing content
+    for child in list(cell.childNodes):
+        cell.removeChild(child)
+
+    # Add new text content
+    p = text.P(text=str(value))
+    cell.appendChild(p)
+
+    # Set appropriate value type
+    if isinstance(value, (int, float)):
+        cell.setAttrNS(OFFICENS, "value-type", "float")
+        cell.setAttrNS(OFFICENS, "value", str(value))
+    else:
+        cell.setAttrNS(OFFICENS, "value-type", "string")
+
+
 def read_ods(data):
     date_str = data["date"]
-    date = dparser.parse(date_str, dayfirst=True)
-    month = date.strftime("%b")
-    year = date.strftime("%y")
+    date_parsed = dparser.parse(date_str, dayfirst=True)
+    month = date_parsed.strftime("%b")
+    year = date_parsed.strftime("%y")
     sheet_name = f"{month} {year}"
-
-    # Read the sheet
-    df = pd.read_excel(ODS_FILE, engine="odf", sheet_name=sheet_name)
-
-    # Convert column 1 to date for comparison
-    date_column = pd.to_datetime(df.iloc[:, 1], errors="coerce").dt.date
-
-    # Find the row with matching date (column index 1)
-    mask = date_column == date.date()
-    found_indices = df.index[mask]
-
-    if len(found_indices) == 0:
-        print(f"⚠ No row found for date {date.date()}")
-        return
-
-    # Get the first matching row index
-    row_idx = found_indices[0]
-
-    # Fill the first row with date, store, first item, and first price
-    first_item = data["item"][0]
-    df.iloc[row_idx, 2] = data["store"]  # Store name in column 2
-    df.iloc[row_idx, 3] = first_item["name"]  # First item in column 3
-    df.iloc[row_idx, 4] = first_item["price"]  # First price in column 4
-
-    # Create new rows for remaining items
-    rows_to_insert = []
-    for item in data["item"][1:]:
-        # Create a new row with empty strings (not None) for better ODS compatibility
-        new_row = pd.Series([""] * len(df.columns), index=df.columns)
-        new_row.iloc[3] = item["name"]  # Item name in column 3
-        new_row.iloc[4] = item["price"]  # Price in column 4
-        rows_to_insert.append(new_row)
-
-    # Add final row with total price
-    total_row = pd.Series([""] * len(df.columns), index=df.columns)
-    total_row.iloc[4] = data["total"]  # Total in column 4
-    rows_to_insert.append(total_row)
-
-    # Insert all new rows after the found row
-    if rows_to_insert:
-        df_before = df.iloc[: row_idx + 1]
-        df_after = df.iloc[row_idx + 1 :]
-        df_new_rows = pd.DataFrame(rows_to_insert)
-        df = pd.concat([df_before, df_new_rows, df_after], ignore_index=True)
-
-    # Replace NaN with empty strings for ODS compatibility
-    df = df.fillna("")
-
-    print(
-        f"✓ Inserted {len(data['item'])} items + total for {data['store']} on {date.date()}"
-    )
 
     # Create backup before writing
     backup_file = ODS_FILE.replace(
@@ -152,27 +143,124 @@ def read_ods(data):
     print(f"Creating backup: {backup_file}")
     shutil.copy2(ODS_FILE, backup_file)
 
-    # Write to a temporary file first
-    temp_file = ODS_FILE.replace(".ods", "_temp.ods")
-
     try:
-        print("Reading all sheets...")
-        all_sheets = pd.read_excel(ODS_FILE, engine="odf", sheet_name=None)
-        all_sheets[sheet_name] = df  # Update the modified sheet
+        # Load ODS document
+        print(f"Loading ODS file...")
+        doc = load(ODS_FILE)
 
-        print(f"Writing to temporary file (this may take a while)...")
-        with pd.ExcelWriter(temp_file, engine="odf") as writer:
-            for name, sheet_df in all_sheets.items():
-                print(f"  Writing sheet: {name}")
-                sheet_df.to_excel(writer, sheet_name=name, index=False)
+        # Find the correct sheet
+        sheets = doc.spreadsheet.getElementsByType(table.Table)
+        target_sheet = None
+        for sheet in sheets:
+            from odf.namespaces import TABLENS
 
-        # If successful, replace original with temp file
-        print("Finalizing...")
-        shutil.move(temp_file, ODS_FILE)
+            sheet_name_attr = sheet.getAttrNS(TABLENS, "name")
+            if sheet_name_attr == sheet_name:
+                target_sheet = sheet
+                break
+
+        if not target_sheet:
+            print(f"⚠ Sheet '{sheet_name}' not found")
+            return
+
+        # Find the row with matching date
+        rows = target_sheet.getElementsByType(table.TableRow)
+        target_row_idx = None
+
+        for idx, row in enumerate(rows):
+            cells = row.getElementsByType(table.TableCell)
+            if len(cells) > 1:
+                cell_value = get_cell_value(cells[1])
+                # Try to parse as date
+                try:
+                    if isinstance(cell_value, str) and cell_value.startswith("20"):
+                        # ISO date format
+                        cell_date = dparser.parse(cell_value).date()
+                        if cell_date == date_parsed.date():
+                            target_row_idx = idx
+                            break
+                except:
+                    pass
+
+        if target_row_idx is None:
+            print(f"⚠ No row found for date {date_parsed.date()}")
+            return
+
+        target_row = rows[target_row_idx]
+        cells = target_row.getElementsByType(table.TableCell)
+
+        # Fill the first row with store, first item, and first price
+        first_item = data["item"][0]
+        set_cell_value(cells[2], data["store"])
+        set_cell_value(cells[3], first_item["name"])
+        set_cell_value(cells[4], first_item["price"])
+
+        # Insert new rows for remaining items
+        for item in data["item"][1:]:
+            from odf.namespaces import TABLENS
+
+            new_row = table.TableRow()
+
+            # Copy style from target row
+            row_style = target_row.getAttrNS(TABLENS, "style-name")
+            if row_style:
+                new_row.setAttrNS(TABLENS, "style-name", row_style)
+
+            # Create cells (copy structure from target row)
+            for col_idx in range(len(cells)):
+                new_cell = table.TableCell()
+
+                # Copy style from original cell
+                cell_style = cells[col_idx].getAttrNS(TABLENS, "style-name")
+                if cell_style:
+                    new_cell.setAttrNS(TABLENS, "style-name", cell_style)
+
+                # Set values for item and price columns
+                if col_idx == 3:
+                    set_cell_value(new_cell, item["name"])
+                elif col_idx == 4:
+                    set_cell_value(new_cell, item["price"])
+                else:
+                    # Empty cell with preserved style
+                    new_cell.appendChild(text.P(text=""))
+
+                new_row.appendChild(new_cell)
+
+            # Insert after target row
+            target_sheet.insertBefore(new_row, rows[target_row_idx + 1])
+
+        # Add final row with total
+        from odf.namespaces import TABLENS
+
+        total_row = table.TableRow()
+        row_style = target_row.getAttrNS(TABLENS, "style-name")
+        if row_style:
+            total_row.setAttrNS(TABLENS, "style-name", row_style)
+
+        for col_idx in range(len(cells)):
+            new_cell = table.TableCell()
+            cell_style = cells[col_idx].getAttrNS(TABLENS, "style-name")
+            if cell_style:
+                new_cell.setAttrNS(TABLENS, "style-name", cell_style)
+
+            if col_idx == 4:
+                set_cell_value(new_cell, data["total"])
+            else:
+                new_cell.appendChild(text.P(text=""))
+
+            total_row.appendChild(new_cell)
+
+        target_sheet.insertBefore(total_row, rows[target_row_idx + 1])
+
+        print(f"✓ Inserted {len(data['item'])} items + total for {data['store']}")
+
+        # Save the document
+        print("Saving document...")
+        doc.save(ODS_FILE)
         print(f"✓ Successfully saved to {ODS_FILE}")
 
     except Exception as e:
-        print(f"✗ Error saving file: {e}")
+        print(f"✗ Error: {e}")
         print(f"Restoring from backup...")
         shutil.copy2(backup_file, ODS_FILE)
         print(f"✓ Restored from backup")
