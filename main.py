@@ -189,7 +189,19 @@ def read_ods(data):
         target_row = rows[target_row_idx]
         cells = target_row.getElementsByType(table.TableCell)
 
-        # Fill the first row with store, first item, and first price
+        # Step 1: Save existing data from the date row (to move it down later)
+        old_data_exists = False
+        old_row_data = []
+        for col_idx in range(len(cells)):
+            cell_value = get_cell_value(cells[col_idx])
+            # Check if there's data in columns 2-5 (store, item, price, total)
+            if col_idx >= 2 and cell_value and str(cell_value).strip():
+                old_data_exists = True
+            old_row_data.append(
+                (cell_value, cells[col_idx].getAttrNS(TABLENS, "style-name"))
+            )
+
+        # Step 2: Fill the date row with the FIRST new item
         first_item = data["item"][0]
         set_cell_value(cells[2], data["store"])
         set_cell_value(cells[3], first_item["name"])
@@ -198,10 +210,17 @@ def read_ods(data):
         # If only one item, add total to first row
         if len(data["item"]) == 1:
             set_cell_value(cells[5], data["total"])
+        else:
+            # Clear column 5 if there are more items
+            set_cell_value(cells[5], "")
 
-        # Insert new rows for remaining items
-        for idx, item in enumerate(data["item"][1:]):
-            is_last_item = idx == len(data["item"][1:]) - 1
+        # Step 3: Insert remaining items as new rows
+        reference_row = (
+            rows[target_row_idx + 1] if target_row_idx + 1 < len(rows) else None
+        )
+
+        for idx, item in enumerate(reversed(data["item"][1:])):
+            is_last_item = idx == 0  # First in reversed = last in original
 
             new_row = table.TableRow()
 
@@ -210,7 +229,7 @@ def read_ods(data):
             if row_style:
                 new_row.setAttrNS(TABLENS, "style-name", row_style)
 
-            # Create cells (copy structure from target row)
+            # Create cells
             for col_idx in range(len(cells)):
                 new_cell = table.TableCell()
 
@@ -219,22 +238,68 @@ def read_ods(data):
                 if cell_style:
                     new_cell.setAttrNS(TABLENS, "style-name", cell_style)
 
-                # Set values for item and price columns
+                # Set values for columns
                 if col_idx == 3:
                     set_cell_value(new_cell, item["name"])
                 elif col_idx == 4:
                     set_cell_value(new_cell, item["price"])
                 elif col_idx == 5 and is_last_item:
-                    # Add total price in column 5 of the last item row
                     set_cell_value(new_cell, data["total"])
                 else:
-                    # Empty cell with preserved style
                     new_cell.appendChild(text.P(text=""))
 
                 new_row.appendChild(new_cell)
 
-            # Insert after target row
-            target_sheet.insertBefore(new_row, rows[target_row_idx + 1])
+            # Insert the new row
+            if reference_row is not None:
+                target_sheet.insertBefore(new_row, reference_row)
+            else:
+                target_sheet.addElement(new_row)
+
+        # Step 4: If there was old data, add a blank line and then move old data down
+        if old_data_exists:
+            # Insert blank separator row
+            blank_row = table.TableRow()
+            row_style = target_row.getAttrNS(TABLENS, "style-name")
+            if row_style:
+                blank_row.setAttrNS(TABLENS, "style-name", row_style)
+
+            for col_idx in range(len(cells)):
+                blank_cell = table.TableCell()
+                cell_style = cells[col_idx].getAttrNS(TABLENS, "style-name")
+                if cell_style:
+                    blank_cell.setAttrNS(TABLENS, "style-name", cell_style)
+                blank_cell.appendChild(text.P(text=""))
+                blank_row.appendChild(blank_cell)
+
+            if reference_row is not None:
+                target_sheet.insertBefore(blank_row, reference_row)
+            else:
+                target_sheet.addElement(blank_row)
+
+            # Insert old data row after the blank line
+            old_row = table.TableRow()
+            if row_style:
+                old_row.setAttrNS(TABLENS, "style-name", row_style)
+
+            for col_idx, (old_value, old_style) in enumerate(old_row_data):
+                new_cell = table.TableCell()
+                if old_style:
+                    new_cell.setAttrNS(TABLENS, "style-name", old_style)
+
+                # Skip date column (0 and 1), only preserve columns 2-5
+                if col_idx >= 2 and old_value and str(old_value).strip():
+                    set_cell_value(new_cell, old_value)
+                else:
+                    new_cell.appendChild(text.P(text=""))
+
+                old_row.appendChild(new_cell)
+
+            # Insert old data row after the blank line
+            if reference_row is not None:
+                target_sheet.insertBefore(old_row, reference_row)
+            else:
+                target_sheet.addElement(old_row)
 
         print(f"✓ Inserted {len(data['item'])} items + total for {data['store']}")
 
