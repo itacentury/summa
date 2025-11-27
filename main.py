@@ -259,6 +259,11 @@ def read_ods(data):
         doc.save(ODS_FILE)
         print(f"✓ Successfully saved to {ODS_FILE}")
 
+        # Delete backup after successful save
+        if os.path.exists(backup_file):
+            os.remove(backup_file)
+            print(f"✓ Removed backup file")
+
     except Exception as e:
         print(f"✗ Error: {e}")
         print(f"Restoring from backup...")
