@@ -7,7 +7,7 @@ inserts them into an ODS spreadsheet with proper formatting preservation.
 
 import json
 
-from bill_analyzer.bill_inserter import insert_bill_into_ods
+from bill_analyzer.bill_inserter import process_multiple_bills
 from bill_analyzer.claude_api import analyze_bill_pdf
 from bill_analyzer.json_utils import parse_json_from_markdown
 from bill_analyzer.ui import select_pdf_files
@@ -23,9 +23,10 @@ def main():
         print("No files selected.")
         return
 
-    # Process each PDF
+    # Analyze all PDFs and collect bill data
+    bills_data = []
     for pdf in pdfs:
-        print(f"\nProcessing: {pdf}")
+        print(f"\nAnalyzing: {pdf}")
 
         # Analyze PDF with Claude
         response = analyze_bill_pdf(pdf)
@@ -34,8 +35,14 @@ def main():
         bill_data = parse_json_from_markdown(response)
         print(json.dumps(bill_data, indent=2, ensure_ascii=False))
 
-        # Insert into ODS
-        insert_bill_into_ods(bill_data)
+        bills_data.append(bill_data)
+
+    # Insert all bills into ODS in a single batch operation
+    if bills_data:
+        print("\n" + "=" * 60)
+        print(f"Inserting {len(bills_data)} bill(s) into ODS file...")
+        print("=" * 60)
+        process_multiple_bills(bills_data)
 
 
 if __name__ == "__main__":

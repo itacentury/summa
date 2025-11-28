@@ -13,8 +13,8 @@ ODS_FILE = "/home/juli/Downloads/Alltags-Ausgaben.ods"
 # CLAUDE API CONFIGURATION
 # ==============================================================================
 
-CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
-# CLAUDE_MODEL = "claude-opus-4-5-20251101"
+# CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+CLAUDE_MODEL = "claude-opus-4-5-20251101"
 CLAUDE_MAX_TOKENS = 2048
 
 

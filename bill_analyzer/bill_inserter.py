@@ -26,23 +26,22 @@ from .ods_sheets import (
 )
 
 
-def insert_bill_into_ods(bill_data: dict[str, Any]) -> None:
+def _insert_single_bill_data(
+    doc: Any, bill_data: dict[str, Any], verbose: bool = True
+) -> None:
     """
-    Insert bill data into the ODS file.
+    Insert a single bill's data into an already-loaded ODS document.
 
-    This function:
-    1. Creates a backup of the ODS file
-    2. Finds the correct sheet and row based on date
-    3. Overwrites the date row with new data
-    4. Inserts additional item rows
-    5. Moves existing data down with a separator
-    6. Saves the document and removes backup on success
+    This is an internal function that performs the actual data insertion
+    without handling file I/O (loading/saving/backup).
 
     Args:
-        bill_data: Dictionary containing 'store', 'date', 'item', 'total'
+        doc: Loaded ODS document object
+        bill_data: Dictionary containing 'store', 'date', 'items', 'total'
+        verbose: Whether to print progress messages
 
     Raises:
-        Exception: If any step fails (backup is automatically restored)
+        Exception: If sheet is not found or data insertion fails
     """
     # Parse date and determine sheet name
     date_parsed = dparser.parse(bill_data["date"], dayfirst=True)
@@ -50,92 +49,125 @@ def insert_bill_into_ods(bill_data: dict[str, Any]) -> None:
     year = date_parsed.strftime("%y")
     sheet_name = f"{month} {year}"
 
-    # Create backup
-    backup_path = create_backup(ODS_FILE)
+    # Find sheet
+    target_sheet = find_sheet_by_name(doc, sheet_name)
+    if not target_sheet:
+        if verbose:
+            print(f"⚠ Sheet '{sheet_name}' not found - skipping bill")
+        return
 
-    try:
-        # Load document
-        print(f"Loading ODS file...")
-        doc = load(ODS_FILE)
-
-        # Find sheet
-        target_sheet = find_sheet_by_name(doc, sheet_name)
-        if not target_sheet:
-            print(f"⚠ Sheet '{sheet_name}' not found")
-            return
-
-        # Find or create date row
-        target_row_idx = find_date_row(target_sheet, date_parsed.date())
-        if target_row_idx is None:
-            # Date not found - create new row at the end
+    # Find or create date row
+    target_row_idx = find_date_row(target_sheet, date_parsed.date())
+    if target_row_idx is None:
+        # Date not found - create new row at the end
+        if verbose:
             print(f"Creating new row for date {date_parsed.date()}")
-            target_row_idx = create_new_date_row(target_sheet, date_parsed.date(), doc)
+        target_row_idx = create_new_date_row(target_sheet, date_parsed.date(), doc)
 
-        # Get row and cells
-        rows = target_sheet.getElementsByType(table.TableRow)
-        target_row = rows[target_row_idx]
-        cells = target_row.getElementsByType(table.TableCell)
-        row_style = target_row.getAttrNS(TABLENS, "style-name")
+    # Get row and cells
+    rows = target_sheet.getElementsByType(table.TableRow)
+    target_row = rows[target_row_idx]
+    cells = target_row.getElementsByType(table.TableCell)
+    row_style = target_row.getAttrNS(TABLENS, "style-name")
 
-        # Save existing data (will be empty for newly created rows)
-        old_data_exists = has_existing_data(cells)
-        old_row_data = save_existing_row_data(cells) if old_data_exists else None
+    # Save existing data (will be empty for newly created rows)
+    old_data_exists = has_existing_data(cells)
+    old_row_data = save_existing_row_data(cells) if old_data_exists else None
 
-        # Overwrite date row with first item
-        first_item = bill_data["items"][0]
-        set_cell_value(cells[COL_STORE], bill_data["store"])
-        set_cell_value(cells[COL_ITEM], first_item["name"])
-        set_cell_value(cells[COL_PRICE], first_item["price"])
+    # Overwrite date row with first item
+    first_item = bill_data["items"][0]
+    set_cell_value(cells[COL_STORE], bill_data["store"])
+    set_cell_value(cells[COL_ITEM], first_item["name"])
+    set_cell_value(cells[COL_PRICE], first_item["price"])
 
-        # Clear total column
-        for col_idx in range(COL_TOTAL, len(cells)):
-            clear_cell_completely(cells[col_idx])
+    # Clear total column
+    for col_idx in range(COL_TOTAL, len(cells)):
+        clear_cell_completely(cells[col_idx])
 
-        # Add total if only one item
-        if len(bill_data["items"]) == 1 and len(cells) > COL_TOTAL:
-            set_cell_value(cells[COL_TOTAL], bill_data["total"])
+    # Add total if only one item
+    if len(bill_data["items"]) == 1 and len(cells) > COL_TOTAL:
+        set_cell_value(cells[COL_TOTAL], bill_data["total"])
 
-        # Insert remaining items as new rows
-        reference_row = (
-            rows[target_row_idx + 1] if target_row_idx + 1 < len(rows) else None
+    # Insert remaining items as new rows
+    reference_row = rows[target_row_idx + 1] if target_row_idx + 1 < len(rows) else None
+
+    remaining_items = bill_data["items"][1:]
+    for idx, item in enumerate(remaining_items):
+        is_last_item = idx == len(remaining_items) - 1
+        total = bill_data["total"] if is_last_item else None
+
+        new_row = create_item_row(
+            cells, row_style, item["name"], item["price"], total_price=total
         )
 
-        remaining_items = bill_data["items"][1:]
-        for idx, item in enumerate(remaining_items):
-            is_last_item = idx == len(remaining_items) - 1
-            total = bill_data["total"] if is_last_item else None
+        if reference_row is not None:
+            target_sheet.insertBefore(new_row, reference_row)
+        else:
+            target_sheet.addElement(new_row)
 
-            new_row = create_item_row(
-                cells, row_style, item["name"], item["price"], total_price=total
-            )
+    # Insert separator and old data if it exists
+    if old_data_exists:
+        blank_row = create_blank_separator_row(cells, row_style)
+        if reference_row is not None:
+            target_sheet.insertBefore(blank_row, reference_row)
+        else:
+            target_sheet.addElement(blank_row)
 
-            if reference_row is not None:
-                target_sheet.insertBefore(new_row, reference_row)
-            else:
-                target_sheet.addElement(new_row)
+        old_row = restore_row_as_new(old_row_data, row_style)
+        if reference_row is not None:
+            target_sheet.insertBefore(old_row, reference_row)
+        else:
+            target_sheet.addElement(old_row)
 
-        # Insert separator and old data if it exists
-        if old_data_exists:
-            blank_row = create_blank_separator_row(cells, row_style)
-            if reference_row is not None:
-                target_sheet.insertBefore(blank_row, reference_row)
-            else:
-                target_sheet.addElement(blank_row)
-
-            old_row = restore_row_as_new(old_row_data, row_style)
-            if reference_row is not None:
-                target_sheet.insertBefore(old_row, reference_row)
-            else:
-                target_sheet.addElement(old_row)
-
+    if verbose:
         print(
             f"✓ Inserted {len(bill_data['items'])} items + total for {bill_data['store']}"
         )
 
-        # Save document
-        print("Saving document...")
+
+def process_multiple_bills(bills_data: list[dict[str, Any]]) -> None:
+    """
+    Process multiple bills and insert them into the ODS file in a single transaction.
+
+    This function:
+    1. Creates a backup of the ODS file (once)
+    2. Loads the document (once)
+    3. Inserts all bills into the document
+    4. Saves the document (once)
+    5. Removes backup on success
+
+    This is more efficient than calling insert_bill_into_ods() multiple times,
+    as it only performs file I/O once instead of for each bill.
+
+    Args:
+        bills_data: List of bill dictionaries, each containing 'store', 'date', 'items', 'total'
+
+    Raises:
+        Exception: If any step fails (backup is automatically restored)
+    """
+    if not bills_data:
+        print("No bills to process.")
+        return
+
+    # Create backup
+    backup_path = create_backup(ODS_FILE)
+
+    try:
+        # Load document once
+        print(f"Loading ODS file...")
+        doc = load(ODS_FILE)
+
+        # Insert all bills
+        for idx, bill_data in enumerate(bills_data, 1):
+            print(
+                f"\n[{idx}/{len(bills_data)}] Processing {bill_data.get('store', 'Unknown')}..."
+            )
+            _insert_single_bill_data(doc, bill_data, verbose=True)
+
+        # Save document once
+        print(f"\nSaving all changes to document...")
         doc.save(ODS_FILE)
-        print(f"✓ Successfully saved to {ODS_FILE}")
+        print(f"✓ Successfully saved {len(bills_data)} bill(s) to {ODS_FILE}")
 
         # Remove backup
         remove_backup(backup_path)
@@ -144,3 +176,20 @@ def insert_bill_into_ods(bill_data: dict[str, Any]) -> None:
         print(f"✗ Error: {e}")
         restore_from_backup(backup_path, ODS_FILE)
         raise
+
+
+def insert_bill_into_ods(bill_data: dict[str, Any]) -> None:
+    """
+    Insert a single bill into the ODS file.
+
+    This is a convenience wrapper around process_multiple_bills() for
+    processing a single bill. For processing multiple bills, use
+    process_multiple_bills() directly for better performance.
+
+    Args:
+        bill_data: Dictionary containing 'store', 'date', 'items', 'total'
+
+    Raises:
+        Exception: If any step fails (backup is automatically restored)
+    """
+    process_multiple_bills([bill_data])
