@@ -26,12 +26,7 @@
         // Files to exclude from explorer
         "files.exclude": {
             "**/__pycache__": true,
-            "**/*.pyc": true,
-            "**/.pytest_cache": true,
-            "**/.mypy_cache": true,
-            "**/.ruff_cache": true,
-            "**/.coverage": true,
-            "**/.DS_Store": true
+            "**/.venv": true,
         },
 
         // Terminal
