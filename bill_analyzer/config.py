@@ -34,10 +34,13 @@ COL_TOTAL = 5
 # ==============================================================================
 
 EXTRACTION_PROMPT = """Bitte extrahiere folgende Daten aus der Rechnung:
-1. Name des Supermarkts, ohne Gewerbeform, also nur 'REWE' oder 'Edeka'.
+1. Name des Supermarkts, ohne Gewerbeform o.ä., also nur 'REWE' oder 'Edeka'.
 2. Datum ohne Uhrzeit.
-3. Alle Artikel inklusive Preis, ein Artikel pro Zeile, Artikel in korrekter deutschen Groß- und Kleinschreibung.
+3. Alle Artikel inklusive Preis, Artikel in korrekter deutschen Groß- und Kleinschreibung.
 4. Gesamtpreis.
+
+Addiere den Pfand direkt auf den Preis des dazugehörigen Getränks.
+Schreibe das Gewicht bei zum Beispiel Gemüse oder Obst, hinten an den Namen des dazugehörigen Gemüse oder Obstes.
 
 Gebe mir die Daten im JSON-Format zurück, mit folgenden Namen und Datentypen:
 'store' (str), 'date' (str), 'items' (list[dict[str, str | float]]), 'total' (float)."""
