@@ -64,7 +64,12 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
     """
     # Clear existing content
     for child in list(cell.childNodes):
-        cell.removeChild(child)
+        try:
+            cell.removeChild(child)
+        except ValueError:
+            # Handle case where element is not in the document's internal cache
+            # This can happen when cells have been previously manipulated
+            pass
 
     # Handle different value types
     # Note: Check datetime before date since datetime is a subclass of date
@@ -128,7 +133,12 @@ def clear_cell_completely(cell: table.TableCell) -> None:
     """
     # Remove all child nodes
     for child in list(cell.childNodes):
-        cell.removeChild(child)
+        try:
+            cell.removeChild(child)
+        except ValueError:
+            # Handle case where element is not in the document's internal cache
+            # This can happen when cells have been previously manipulated
+            pass
 
     # Remove office: value attributes
     for attr_name in OFFICE_ATTRS_TO_CLEAR:
