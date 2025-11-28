@@ -2,38 +2,42 @@
 Configuration constants for the AI Bill Analyzer
 """
 
+from typing import Final
+
 # ==============================================================================
 # FILE PATHS
 # ==============================================================================
 
-ODS_FILE = "/home/juli/Downloads/Alltags-Ausgaben.ods"
+ODS_FILE: Final[str] = "/home/juli/Downloads/Alltags-Ausgaben.ods"
 
 
 # ==============================================================================
 # CLAUDE API CONFIGURATION
 # ==============================================================================
 
-# CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
-CLAUDE_MODEL = "claude-opus-4-5-20251101"
-CLAUDE_MAX_TOKENS = 2048
+# CLAUDE_MODEL: Final[str] = "claude-sonnet-4-5-20250929"
+CLAUDE_MODEL: Final[str] = "claude-opus-4-5-20251101"
+CLAUDE_MAX_TOKENS: Final[int] = 2048
 
 
 # ==============================================================================
 # ODS COLUMN INDICES
 # ==============================================================================
 
-COL_DATE = 1
-COL_STORE = 2
-COL_ITEM = 3
-COL_PRICE = 4
-COL_TOTAL = 5
+COL_DATE: Final[int] = 1
+COL_STORE: Final[int] = 2
+COL_ITEM: Final[int] = 3
+COL_PRICE: Final[int] = 4
+COL_TOTAL: Final[int] = 5
 
 
 # ==============================================================================
 # EXTRACTION PROMPT
 # ==============================================================================
 
-EXTRACTION_PROMPT = """Bitte extrahiere folgende Daten aus der Rechnung:
+EXTRACTION_PROMPT: Final[
+    str
+] = """Bitte extrahiere folgende Daten aus der Rechnung:
 1. Name des Supermarkts, ohne Gewerbeform o.ä., also nur 'REWE' oder 'Edeka'.
 2. Datum ohne Uhrzeit.
 3. Alle Artikel inklusive Preis, Artikel in korrekter deutschen Groß- und Kleinschreibung.
@@ -52,14 +56,16 @@ Gebe mir die Daten im JSON-Format zurück, mit folgenden Namen und Datentypen:
 # ODS NAMESPACES
 # ==============================================================================
 
-CALCEXT_NS = "urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
+CALCEXT_NS: Final[str] = (
+    "urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
+)
 
 
 # ==============================================================================
 # ODS ATTRIBUTE LISTS FOR CELL CLEARING
 # ==============================================================================
 
-OFFICE_ATTRS_TO_CLEAR = [
+OFFICE_ATTRS_TO_CLEAR: Final[list[str]] = [
     "value",
     "date-value",
     "time-value",
@@ -69,6 +75,6 @@ OFFICE_ATTRS_TO_CLEAR = [
     "currency",
 ]
 
-TABLE_ATTRS_TO_CLEAR = ["formula"]
+TABLE_ATTRS_TO_CLEAR: Final[list[str]] = ["formula"]
 
-CALCEXT_ATTRS_TO_CLEAR = ["value-type"]
+CALCEXT_ATTRS_TO_CLEAR: Final[list[str]] = ["value-type"]

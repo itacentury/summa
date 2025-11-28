@@ -30,22 +30,22 @@ def get_cell_value(cell: table.TableCell) -> Any:
     :rtype: Any
     """
     # Try numeric value
-    value_attr = cell.getAttrNS(OFFICENS, "value")
+    value_attr: str | None = cell.getAttrNS(OFFICENS, "value")
     if value_attr:
         return float(value_attr)
 
     # Try date value
-    date_value_attr = cell.getAttrNS(OFFICENS, "date-value")
+    date_value_attr: str | None = cell.getAttrNS(OFFICENS, "date-value")
     if date_value_attr:
         return date_value_attr
 
     # Try string value
-    string_value_attr = cell.getAttrNS(OFFICENS, "string-value")
+    string_value_attr: str | None = cell.getAttrNS(OFFICENS, "string-value")
     if string_value_attr:
         return string_value_attr
 
     # Fallback: get text content
-    text_content = []
+    text_content: list[str] = []
     for p_element in cell.getElementsByType(text.P):
         text_content.append(str(p_element))
     return "".join(text_content) if text_content else ""
@@ -74,10 +74,10 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
     # Note: Check datetime before date since datetime is a subclass of date
     if isinstance(value, dt):
         # Datetime object - store as date with ISO format
-        date_iso = value.strftime("%Y-%m-%d")
-        date_display = value.strftime("%d.%m.%y")
+        date_iso: str = value.strftime("%Y-%m-%d")
+        date_display: str = value.strftime("%d.%m.%y")
 
-        p = text.P(text=date_display)
+        p: text.P = text.P(text=date_display)
         cell.appendChild(p)
 
         cell.setAttrNS(OFFICENS, "value-type", "date")
@@ -85,14 +85,14 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
 
         # Apply date-only style if doc is provided
         if doc:
-            style_name = ensure_date_style_exists(doc)
+            style_name: str = ensure_date_style_exists(doc)
             cell.setAttrNS(TABLENS, "style-name", style_name)
     elif isinstance(value, date):
         # Date object - store as date with ISO format
-        date_iso = value.strftime("%Y-%m-%d")
+        date_iso: str = value.strftime("%Y-%m-%d")
 
         # Don't set display text - let the style format it
-        p = text.P(text="")
+        p: text.P = text.P(text="")
         cell.appendChild(p)
 
         cell.setAttrNS(OFFICENS, "value-type", "date")
@@ -100,11 +100,11 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
 
         # Apply date-only style if doc is provided
         if doc:
-            style_name = ensure_date_style_exists(doc)
+            style_name: str = ensure_date_style_exists(doc)
             cell.setAttrNS(TABLENS, "style-name", style_name)
     elif isinstance(value, (int, float)):
         # Numeric value
-        p = text.P(text=str(value))
+        p: text.P = text.P(text=str(value))
         cell.appendChild(p)
 
         cell.setAttrNS(OFFICENS, "value-type", "float")
@@ -115,11 +115,11 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
         if value.startswith("="):
             # Formula value
             # Add empty paragraph - LibreOffice will calculate and display the result
-            p = text.P(text="")
+            p: text.P = text.P(text="")
             cell.appendChild(p)
 
             # Convert commas to dots in formula (LibreOffice requires dots as decimal separator)
-            formula = value.replace(",", ".")
+            formula: str = value.replace(",", ".")
 
             # Set formula attribute
             cell.setAttrNS(TABLENS, "formula", f"of:{formula}")
@@ -128,23 +128,23 @@ def set_cell_value(cell: table.TableCell, value: Any, doc: Any | None = None) ->
             # Try to parse as numeric value
             try:
                 # Replace comma with dot for parsing
-                numeric_value = float(value.replace(",", "."))
+                numeric_value: float = float(value.replace(",", "."))
 
                 # It's a valid number - treat as float
-                p = text.P(text=str(numeric_value))
+                p: text.P = text.P(text=str(numeric_value))
                 cell.appendChild(p)
 
                 cell.setAttrNS(OFFICENS, "value-type", "float")
                 cell.setAttrNS(OFFICENS, "value", str(numeric_value))
             except (ValueError, AttributeError):
                 # Not a number - treat as string
-                p = text.P(text=str(value))
+                p: text.P = text.P(text=str(value))
                 cell.appendChild(p)
 
                 cell.setAttrNS(OFFICENS, "value-type", "string")
     else:
         # Fallback: treat as string
-        p = text.P(text=str(value))
+        p: text.P = text.P(text=str(value))
         cell.appendChild(p)
 
         cell.setAttrNS(OFFICENS, "value-type", "string")
@@ -203,10 +203,10 @@ def create_empty_cell_with_style(
     :return: New empty cell with copied style
     :rtype: table.TableCell
     """
-    new_cell = table.TableCell()
+    new_cell: table.TableCell = table.TableCell()
 
     # Copy style
-    cell_style = reference_cell.getAttrNS(TABLENS, "style-name")
+    cell_style: str | None = reference_cell.getAttrNS(TABLENS, "style-name")
     if cell_style:
         new_cell.setAttrNS(TABLENS, "style-name", cell_style)
 

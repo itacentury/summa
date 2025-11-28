@@ -10,7 +10,7 @@ import anthropic
 from .config import CLAUDE_MAX_TOKENS, CLAUDE_MODEL, EXTRACTION_PROMPT
 
 # Initialize Anthropic API client
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client: anthropic.Anthropic = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
 def analyze_bill_pdf(pdf_path: str) -> str:
@@ -24,9 +24,9 @@ def analyze_bill_pdf(pdf_path: str) -> str:
     :raises anthropic.APIError: If Claude API call fails
     """
     with open(pdf_path, "rb") as pdf_file:
-        pdf_data = base64.standard_b64encode(pdf_file.read()).decode("utf-8")
+        pdf_data: str = base64.standard_b64encode(pdf_file.read()).decode("utf-8")
 
-    message = client.messages.create(
+    message: anthropic.types.Message = client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=CLAUDE_MAX_TOKENS,
         messages=[

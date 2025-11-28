@@ -26,7 +26,7 @@ def evaluate_price_value(price_value: float | int | str) -> float:
         # Check if it's a formula (starts with =)
         if price_value.startswith("="):
             # Remove the = sign
-            formula = price_value[1:]
+            formula: str = price_value[1:]
 
             # Replace comma with dot for Python evaluation
             formula = formula.replace(",", ".")
@@ -59,8 +59,8 @@ def validate_bill_total(
     :raises ValueError: If any price value cannot be evaluated
     """
     # Extract data
-    items = bill_data.get("items", [])
-    declared_total = bill_data.get("total")
+    items: list = bill_data.get("items", [])
+    declared_total: float | int | str | None = bill_data.get("total")
 
     if declared_total is None:
         raise KeyError("Bill data is missing 'total' key")
@@ -69,9 +69,9 @@ def validate_bill_total(
         raise KeyError("Bill data is missing 'items' or items list is empty")
 
     # Calculate sum of all item prices
-    calculated_sum = 0.0
+    calculated_sum: float = 0.0
     for item in items:
-        price = item.get("price")
+        price: float | int | str | None = item.get("price")
         if price is None:
             raise KeyError(
                 f"Item '{item.get('name', 'Unknown')}' is missing 'price' key"
@@ -80,16 +80,16 @@ def validate_bill_total(
         calculated_sum += evaluate_price_value(price)
 
     # Evaluate the declared total (in case it's a string)
-    declared_total_value = evaluate_price_value(declared_total)
+    declared_total_value: float = evaluate_price_value(declared_total)
 
     # Calculate difference
-    difference = abs(calculated_sum - declared_total_value)
+    difference: float = abs(calculated_sum - declared_total_value)
 
     # Check if is valid
-    is_valid = difference == 0
+    is_valid: bool = difference == 0
 
     # Create result
-    result = {
+    result: dict[str, bool | float | str] = {
         "valid": is_valid,
         "calculated_sum": round(calculated_sum, 2),
         "declared_total": round(declared_total_value, 2),
