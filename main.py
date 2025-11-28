@@ -11,6 +11,7 @@ from bill_analyzer.bill_inserter import process_multiple_bills
 from bill_analyzer.claude_api import analyze_bill_pdf
 from bill_analyzer.json_utils import parse_json_from_markdown
 from bill_analyzer.ui import select_pdf_files
+from bill_analyzer.validators import validate_bill_total
 
 
 def main():
@@ -34,6 +35,21 @@ def main():
         # Parse JSON from response
         bill_data = parse_json_from_markdown(response)
         print(json.dumps(bill_data, indent=2, ensure_ascii=False))
+
+        # Validate that sum of item prices equals total
+        try:
+            validation_result = validate_bill_total(bill_data)
+            print(f"\n{validation_result['message']}")
+
+            if not validation_result["valid"]:
+                print(
+                    f"  Calculated sum: {validation_result['calculated_sum']}€"
+                )
+                print(f"  Declared total: {validation_result['declared_total']}€")
+                print(f"  Difference: {validation_result['difference']}€")
+                print("  ⚠ Warning: Price validation failed - data may be incorrect!")
+        except (KeyError, ValueError) as e:
+            print(f"⚠ Validation error: {e}")
 
         bills_data.append(bill_data)
 
