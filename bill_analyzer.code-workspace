@@ -7,6 +7,7 @@
     "settings": {
         // Python Interpreter
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.analysis.typeCheckingMode":"standard",
 
         // isort Settings
         "isort.args":["--profile", "black"],
