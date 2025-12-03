@@ -9,7 +9,7 @@ from typing import Final
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(".env.bill_analyzer")
 
 # ==============================================================================
 # FILE PATHS
