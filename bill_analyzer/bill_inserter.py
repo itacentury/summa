@@ -11,9 +11,9 @@ from odf import table
 from odf.namespaces import TABLENS
 from odf.opendocument import load
 
-from .config import COL_ITEM, COL_PRICE, COL_STORE, COL_TOTAL, ODS_FILE
+from .config import COL_DATE, COL_ITEM, COL_PRICE, COL_STORE, COL_TOTAL, ODS_FILE
 from .file_utils import create_backup, remove_backup, restore_from_backup
-from .ods_cells import clear_cell_completely, set_cell_value
+from .ods_cells import clear_cell_completely, get_cell_value, set_cell_value
 from .ods_rows import (
     create_blank_separator_row,
     create_item_row,
@@ -26,6 +26,85 @@ from .ods_sheets import (
     find_sheet_by_name,
     has_existing_data,
 )
+
+
+def _row_matches_bill(  # pylint: disable=too-many-return-statements
+    cells: list[table.TableCell],
+    target_date_str: str,
+    target_store: str,
+    target_total: float,
+) -> bool:
+    """Check if a row matches the target bill criteria.
+
+    :param cells: Row cells to check
+    :param target_date_str: Target date in ISO format (YYYY-MM-DD)
+    :param target_store: Target store name
+    :param target_total: Target total amount
+    :return: True if row matches, False otherwise
+    """
+    if len(cells) <= max(COL_STORE, COL_TOTAL):
+        return False
+
+    # Get cell values
+    date_value: Any = get_cell_value(cells[COL_DATE])
+    store_value: Any = get_cell_value(cells[COL_STORE])
+    total_value: Any = get_cell_value(cells[COL_TOTAL])
+
+    # Parse and check date
+    try:
+        if not isinstance(date_value, str) or not date_value.strip():
+            return False
+        row_date = dparser.parse(date_value, dayfirst=True).date()
+        row_date_str = row_date.strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+    # Check if date and store match
+    if row_date_str != target_date_str or store_value != target_store:
+        return False
+
+    # Check if total matches
+    if total_value is None:
+        return False
+
+    try:
+        return float(total_value) == target_total
+    except (ValueError, TypeError):
+        return False
+
+
+def _check_duplicate_bill(doc: Any, bill_data: dict[str, Any]) -> bool:
+    """Check if a bill with same store, date, and total already exists.
+
+    :param doc: ODS document object
+    :type doc: Any
+    :param bill_data: Bill data dictionary
+    :type bill_data: dict[str, Any]
+    :return: True if duplicate exists, False otherwise
+    :rtype: bool
+    """
+    # Parse date and determine sheet name
+    date_parsed = dparser.parse(bill_data["date"], dayfirst=True)
+    sheet_name = f"{date_parsed.strftime('%b')} {date_parsed.strftime('%y')}"
+
+    # Find sheet
+    target_sheet = find_sheet_by_name(doc, sheet_name)
+    if not target_sheet:
+        return False
+
+    # Prepare search criteria
+    target_date_str = date_parsed.date().strftime("%Y-%m-%d")
+    target_store = bill_data["store"]
+    target_total = bill_data["total"]
+
+    # Search for matching row
+    rows = target_sheet.getElementsByType(table.TableRow)
+    for row in rows:
+        cells = row.getElementsByType(table.TableCell)
+        if _row_matches_bill(cells, target_date_str, target_store, target_total):
+            return True
+
+    return False
 
 
 def _find_target_sheet_and_row(
@@ -173,6 +252,15 @@ def _insert_single_bill_data(
     :type verbose: bool
     :raises Exception: If sheet is not found or data insertion fails
     """
+    # Check for duplicate bill
+    if _check_duplicate_bill(doc, bill_data):
+        if verbose:
+            print(
+                f"⚠ Skipping duplicate: {bill_data['store']} on {bill_data['date']} "
+                f"with total {bill_data['total']}€"
+            )
+        return
+
     # Find target sheet and row
     target_sheet, target_row_idx = _find_target_sheet_and_row(doc, bill_data, verbose)
     if target_sheet is None or target_row_idx is None:
