@@ -105,11 +105,13 @@ def upload_bill_to_paperless(pdf: str, bill_data: dict[str, Any]) -> None:
         print(f"⚠ PDF file not found: {e}")
 
 
-def validate_and_print_bill(bill_data: dict[str, Any]) -> None:
+def validate_and_print_bill(bill_data: dict[str, Any]) -> bool:
     """Validate bill total and print validation results.
 
     :param bill_data: Extracted bill data to validate
     :type bill_data: dict[str, Any]
+    :return: True if validation passed, False otherwise
+    :rtype: bool
     """
     try:
         validation_result: dict[str, bool | float | str] = validate_bill_total(
@@ -122,8 +124,11 @@ def validate_and_print_bill(bill_data: dict[str, Any]) -> None:
             print(f"  Declared total: {validation_result['declared_total']}€")
             print(f"  Difference: {validation_result['difference']}€")
             print("  ⚠ Warning: Price validation failed - data may be incorrect!")
+
+        return bool(validation_result["valid"])
     except (KeyError, ValueError) as e:
         print(f"⚠ Validation error: {e}")
+        return False
 
 
 def main() -> None:
@@ -149,12 +154,18 @@ def main() -> None:
         print(json.dumps(bill_data, indent=2, ensure_ascii=False))
 
         # Validate that sum of item prices equals total
-        validate_and_print_bill(bill_data)
+        is_valid = validate_and_print_bill(bill_data)
 
-        # Upload to Paperless-ngx if enabled
-        upload_bill_to_paperless(pdf, bill_data)
-
-        bills_data.append(bill_data)
+        # Only process bill further if validation passed
+        if is_valid:
+            # Upload to Paperless-ngx if enabled
+            upload_bill_to_paperless(pdf, bill_data)
+            # Add to list for ODS insertion
+            bills_data.append(bill_data)
+        else:
+            print(
+                "  ⚠ Skipping Paperless upload and ODS insertion due to validation failure"
+            )
 
     # Insert all bills into ODS in a single batch operation
     if bills_data:
