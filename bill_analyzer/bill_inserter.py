@@ -27,62 +27,106 @@ from .ods_sheets import (
     has_existing_data,
 )
 
+# Export the duplicate check function for use in other modules
+__all__ = ["process_multiple_bills", "insert_bill_into_ods", "check_duplicate_bill"]
 
-def _row_matches_bill(  # pylint: disable=too-many-return-statements
-    cells: list[table.TableCell],
-    target_date_str: str,
-    target_store: str,
-    target_total: float,
+
+def _is_bill_start_row(
+    cells: list[table.TableCell], target_date_str: str, target_store: str
 ) -> bool:
-    """Check if a row matches the target bill criteria.
+    """Check if a row is the start of a bill entry (has date and store).
 
     :param cells: Row cells to check
     :param target_date_str: Target date in ISO format (YYYY-MM-DD)
     :param target_store: Target store name
-    :param target_total: Target total amount
-    :return: True if row matches, False otherwise
+    :return: True if row is a bill start with matching date and store
     """
-    if len(cells) <= max(COL_STORE, COL_TOTAL):
+    if len(cells) <= max(COL_DATE, COL_STORE):
         return False
 
     # Get cell values
     date_value: Any = get_cell_value(cells[COL_DATE])
     store_value: Any = get_cell_value(cells[COL_STORE])
-    total_value: Any = get_cell_value(cells[COL_TOTAL])
 
     # Parse and check date
     try:
         if not isinstance(date_value, str) or not date_value.strip():
             return False
-        row_date = dparser.parse(date_value, dayfirst=True).date()
-        row_date_str = row_date.strftime("%Y-%m-%d")
+
+        # Check if date is already in ISO format (YYYY-MM-DD)
+        # If so, use it directly to avoid misinterpretation with dayfirst=True
+        if len(date_value) == 10 and date_value[4] == "-" and date_value[7] == "-":
+            row_date_str = date_value
+        else:
+            # Parse non-ISO format (e.g., "10.12.25") with dayfirst=True
+            row_date = dparser.parse(date_value, dayfirst=True).date()
+            row_date_str = row_date.strftime("%Y-%m-%d")
     except (ValueError, TypeError, OverflowError):
         return False
 
     # Check if date and store match
-    if row_date_str != target_date_str or store_value != target_store:
-        return False
-
-    # Check if total matches
-    if total_value is None:
-        return False
-
-    try:
-        return float(total_value) == target_total
-    except (ValueError, TypeError):
-        return False
+    return row_date_str == target_date_str and store_value == target_store
 
 
-def _check_duplicate_bill(doc: Any, bill_data: dict[str, Any]) -> bool:
+def _find_total_in_bill_group(
+    rows: list[table.TableRow], start_idx: int
+) -> float | None:
+    """Find the total price in a bill group starting from the given row.
+
+    A bill group consists of multiple rows (one per item), with the total
+    appearing in the last row of the group.
+
+    :param rows: All rows in the sheet
+    :param start_idx: Index of the first row of the bill group
+    :return: Total price if found, None otherwise
+    """
+    # Scan forward from start_idx to find the row with a total value
+    for idx in range(start_idx, len(rows)):
+        cells = rows[idx].getElementsByType(table.TableCell)
+
+        if len(cells) <= COL_TOTAL:
+            continue
+
+        total_value = get_cell_value(cells[COL_TOTAL])
+
+        # If we find a total value, this is the last row of the bill
+        if total_value is not None and total_value != "":
+            try:
+                return float(total_value)
+            except (ValueError, TypeError):
+                # Invalid total value, continue searching
+                pass
+
+        # Stop if we encounter a new bill entry (has a date)
+        if len(cells) > COL_DATE:
+            date_value = get_cell_value(cells[COL_DATE])
+            if isinstance(date_value, str) and date_value.strip() and idx != start_idx:
+                # Found a new bill entry, stop searching
+                return None
+
+    return None
+
+
+def _check_duplicate_bill(
+    doc: Any, bill_data: dict[str, Any], verbose: bool = False
+) -> bool:
     """Check if a bill with same store, date, and total already exists.
+
+    This function searches for bill entries that span multiple rows.
+    Each bill starts with a row containing date and store, followed by
+    item rows, with the total appearing in the last row.
 
     :param doc: ODS document object
     :type doc: Any
     :param bill_data: Bill data dictionary
     :type bill_data: dict[str, Any]
+    :param verbose: Whether to print debug information
+    :type verbose: bool
     :return: True if duplicate exists, False otherwise
     :rtype: bool
     """
+    epsilon = 0.01  # 1 cent tolerance for float comparison
+
     # Parse date and determine sheet name
     date_parsed = dparser.parse(bill_data["date"], dayfirst=True)
     sheet_name = f"{date_parsed.strftime('%b')} {date_parsed.strftime('%y')}"
@@ -90,6 +134,11 @@ def _check_duplicate_bill(doc: Any, bill_data: dict[str, Any]) -> bool:
     # Find sheet
     target_sheet = find_sheet_by_name(doc, sheet_name)
     if not target_sheet:
+        if verbose:
+            print(
+                f"  [Duplicate Check] Sheet '{sheet_name}' not found "
+                "- not a duplicate"
+            )
         return False
 
     # Prepare search criteria
@@ -97,13 +146,34 @@ def _check_duplicate_bill(doc: Any, bill_data: dict[str, Any]) -> bool:
     target_store = bill_data["store"]
     target_total = bill_data["total"]
 
-    # Search for matching row
-    rows = target_sheet.getElementsByType(table.TableRow)
-    for row in rows:
-        cells = row.getElementsByType(table.TableCell)
-        if _row_matches_bill(cells, target_date_str, target_store, target_total):
-            return True
+    if verbose:
+        print(
+            f"  [Duplicate Check] Searching for: "
+            f"{target_store} | {target_date_str} | {target_total}€"
+        )
 
+    # Search for matching bill start rows
+    rows = target_sheet.getElementsByType(table.TableRow)
+    for idx, row in enumerate(rows):
+        cells = row.getElementsByType(table.TableCell)
+
+        # Check if this row starts a bill with matching date and store
+        if _is_bill_start_row(cells, target_date_str, target_store):
+            # Find the total price in this bill group
+            found_total = _find_total_in_bill_group(rows, idx)
+
+            if found_total is not None:
+                # Compare with target total using epsilon tolerance
+                if abs(found_total - target_total) < epsilon:
+                    if verbose:
+                        print(
+                            "  [Duplicate Check] ✓ Found matching bill "
+                            "- IS DUPLICATE"
+                        )
+                    return True
+
+    if verbose:
+        print("  [Duplicate Check] No match found - not a duplicate")
     return False
 
 
@@ -244,6 +314,9 @@ def _insert_single_bill_data(
     This is an internal function that performs the actual data insertion
     without handling file I/O (loading/saving/backup).
 
+    NOTE: Duplicate checking should be performed BEFORE calling this function
+    (e.g., in main.py). This function assumes the bill_data is already validated.
+
     :param doc: Loaded ODS document object
     :type doc: Any
     :param bill_data: Dictionary containing 'store', 'date', 'items', 'total'
@@ -252,15 +325,6 @@ def _insert_single_bill_data(
     :type verbose: bool
     :raises Exception: If sheet is not found or data insertion fails
     """
-    # Check for duplicate bill
-    if _check_duplicate_bill(doc, bill_data):
-        if verbose:
-            print(
-                f"⚠ Skipping duplicate: {bill_data['store']} on {bill_data['date']} "
-                f"with total {bill_data['total']}€"
-            )
-        return
-
     # Find target sheet and row
     target_sheet, target_row_idx = _find_target_sheet_and_row(doc, bill_data, verbose)
     if target_sheet is None or target_row_idx is None:
@@ -367,3 +431,21 @@ def insert_bill_into_ods(bill_data: dict[str, Any]) -> None:
     :raises Exception: If any step fails (backup is automatically restored)
     """
     process_multiple_bills([bill_data])
+
+
+def check_duplicate_bill(bill_data: dict[str, Any], verbose: bool = False) -> bool:
+    """Check if a bill is a duplicate by loading and checking the ODS file.
+
+    This is a convenience function that loads the ODS file, checks for duplicates,
+    and returns the result. Use this before uploading to external services.
+
+    :param bill_data: Dictionary containing 'store', 'date', 'items', 'total'
+    :type bill_data: dict[str, Any]
+    :param verbose: Whether to print debug information
+    :type verbose: bool
+    :return: True if duplicate exists, False otherwise
+    :rtype: bool
+    :raises Exception: If ODS file cannot be loaded
+    """
+    doc = load(ODS_FILE)
+    return _check_duplicate_bill(doc, bill_data, verbose=verbose)

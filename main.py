@@ -11,7 +11,7 @@ from typing import Any
 
 import requests
 
-from bill_analyzer.bill_inserter import process_multiple_bills
+from bill_analyzer.bill_inserter import check_duplicate_bill, process_multiple_bills
 from bill_analyzer.claude_api import analyze_bill_pdf
 from bill_analyzer.config import PAPERLESS_TOKEN, PAPERLESS_URL
 from bill_analyzer.json_utils import parse_json_from_markdown
@@ -158,10 +158,21 @@ def main() -> None:
 
         # Only process bill further if validation passed
         if is_valid:
-            # Upload to Paperless-ngx if enabled
-            upload_bill_to_paperless(pdf, bill_data)
-            # Add to list for ODS insertion
-            bills_data.append(bill_data)
+            # Check for duplicates in ODS before uploading to Paperless
+            print("\n🔍 Checking for duplicates...")
+            is_duplicate = check_duplicate_bill(bill_data, verbose=True)
+
+            if is_duplicate:
+                print(
+                    f"⚠ Skipping duplicate bill: {bill_data['store']} on {bill_data['date']} "
+                    f"with total {bill_data['total']}€"
+                )
+                print("  ⚠ Not uploading to Paperless or inserting into ODS")
+            else:
+                # Upload to Paperless-ngx if enabled and not a duplicate
+                upload_bill_to_paperless(pdf, bill_data)
+                # Add to list for ODS insertion
+                bills_data.append(bill_data)
         else:
             print(
                 "  ⚠ Skipping Paperless upload and ODS insertion due to validation failure"
