@@ -2,6 +2,8 @@
 ODS cell operations
 """
 
+# pyright: reportGeneralTypeIssues=false
+
 from datetime import date
 from datetime import datetime as dt
 from typing import Any
@@ -123,7 +125,7 @@ def _set_string_value(cell: table.TableCell, value: str) -> None:
         cell.setAttrNS(OFFICENS, "value-type", "string")
 
 
-def get_cell_value(cell: table.TableCell) -> Any:
+def get_cell_value(cell: table.TableCell) -> str | float:
     """Extract the value from an ODS cell.
 
     Tries multiple attribute types (value, date-value, string-value)
@@ -132,7 +134,7 @@ def get_cell_value(cell: table.TableCell) -> Any:
     :param cell: ODS table cell
     :type cell: table.TableCell
     :return: Cell value (float, str, or empty string)
-    :rtype: Any
+    :rtype: str | float
     """
     # Try numeric value
     value_attr: str | None = cell.getAttrNS(OFFICENS, "value")
