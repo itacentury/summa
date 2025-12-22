@@ -21,6 +21,32 @@ from .config import (
 from .ods_styles import ensure_date_style_exists
 
 
+def get_cell_value(cell: table.TableCell) -> str:
+    """Read type-independant cell value"""
+    value_type: str = cell.getAttrNS(OFFICENS, "value-type")
+
+    match value_type:
+        case "float" | "currency" | "percentage":
+            value: str = cell.getAttrNS(OFFICENS, "value")
+            return value
+        case "string" | "text" | None:
+            paragraphs: list[str] = cell.getElementsByType(text.P)
+            if paragraphs:
+                text_val: str = str(paragraphs[0])
+                return text_val
+        case "date":
+            date_value: str = cell.getAttrNS(OFFICENS, "date-value")
+            return date_value
+        case "time":
+            time_value: str = cell.getAttrNS(OFFICENS, "time-value")
+            return time_value
+        case "boolean":
+            bool_value: str = cell.getAttrNS(OFFICENS, "boolean-value")
+            return bool_value
+
+    return ""
+
+
 def _set_datetime_value(cell: table.TableCell, value: dt, doc: Any | None) -> None:
     """Set a datetime value in a cell.
 

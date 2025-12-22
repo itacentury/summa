@@ -169,6 +169,7 @@ def main() -> None:
                 )
                 print("  ⚠ Not uploading to Paperless or inserting into ODS")
             else:
+                print("✓ No duplicate found")
                 # Upload to Paperless-ngx if enabled and not a duplicate
                 upload_bill_to_paperless(pdf, bill_data)
                 # Add to list for ODS insertion

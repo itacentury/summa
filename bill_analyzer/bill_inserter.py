@@ -15,7 +15,7 @@ from odf.opendocument import OpenDocument, load
 from . import config
 
 # from .config import COL_DATE, COL_ITEM, COL_PRICE, COL_STORE, COL_TOTAL, ODS_FILE
-from .ods_cells import clear_cell_completely, set_cell_value
+from .ods_cells import clear_cell_completely, get_cell_value, set_cell_value
 from .ods_rows import create_item_row
 from .ods_sheets import (
     find_chronological_insertion_point,
@@ -47,22 +47,15 @@ class _BillSearchCriteria:
 
 
 def _has_matching_date(cells: list[table.TableCell], target_date_str: str) -> bool:
-    """Check if a row contains a date matching the target date.
-
-    This function extracts the date value from the date column and compares it
-    to the target date. It supports both ISO format dates (YYYY-MM-DD) and
-    non-ISO formats (e.g., "10.12.25") by attempting ISO parsing first, then
-    falling back to flexible date parsing with day-first convention.
-
-    :param cells: Row cells to check
-    :param target_date_str: Target date in ISO format (YYYY-MM-DD)
-    :return: True if the row's date matches the target date, False otherwise
+    """
+    Check if a row contains a date matching the target date.
+    Returns True if the row's date matches the target date, False otherwise.
     """
     if len(cells) <= config.COL_DATE:
         return False
 
     # Get date value
-    date_value: str = str(cells[config.COL_DATE])
+    date_value: str = get_cell_value(cells[config.COL_DATE])
 
     # Parse and check date
     if not date_value:
@@ -86,10 +79,7 @@ def _get_store_from_bill_start(
     the specified store name. It stops when it encounters another date entry
     (indicating the start of a different bill) or reaches the end of rows.
 
-    :param rows: All rows in the sheet
-    :param start_idx: Row index to start searching from
-    :param store: Normalized store name to search for (lowercase, trimmed)
-    :return: Row index containing the matching store, or None if not found
+    Returns row index containing the matching store, or None if not found
     """
     for idx in range(start_idx, len(rows)):
         cells: list[table.TableCell] = rows[idx].getElementsByType(table.TableCell)
@@ -97,10 +87,10 @@ def _get_store_from_bill_start(
         if len(cells) <= config.COL_STORE:
             continue
 
-        if start_idx != idx and str(cells[config.COL_DATE]):
+        if start_idx != idx and get_cell_value(cells[config.COL_DATE]):
             return None
 
-        found_store: str = str(cells[config.COL_STORE])
+        found_store: str = get_cell_value(cells[config.COL_STORE])
         if not found_store:
             continue
 
@@ -122,10 +112,7 @@ def _find_total_in_bill_group(
     the specified total amount. It stops when it encounters a new bill marker
     (date or store entry on a different row) or reaches the end of rows.
 
-    :param rows: All rows in the sheet
-    :param start_idx: Row index to start searching from
-    :param total: Total price to search for (exact float match)
-    :return: Row index containing the matching total, or None if not found or mismatch
+    Returns row index containing the matching total, or None if not found or mismatch
     """
     for idx in range(start_idx, len(rows)):
         cells: list[table.TableCell] = rows[idx].getElementsByType(table.TableCell)
@@ -134,11 +121,12 @@ def _find_total_in_bill_group(
             continue
 
         if start_idx != idx and (
-            str(cells[config.COL_DATE]) or str(cells[config.COL_STORE])
+            get_cell_value(cells[config.COL_DATE])
+            or get_cell_value(cells[config.COL_STORE])
         ):
             return None
 
-        found_total: str = str(cells[config.COL_TOTAL])
+        found_total: str = get_cell_value(cells[config.COL_TOTAL])
         if not found_total:
             continue
 
@@ -156,31 +144,45 @@ def _find_total_in_bill_group(
 
 def _process_bill_row_for_duplicate(
     rows: list[table.TableRow],
-    idx: int,
+    start_idx: int,
     criteria: _BillSearchCriteria,
 ) -> bool:
-    """Process a single row to check if it represents a duplicate bill.
-
-    This function checks if the row at idx contains a bill that matches the
-    search criteria (date, store, and total). It uses helper functions to
-    search within the bill group for matching store and total values.
-
-    :param rows: All rows in the sheet
-    :param idx: Current row index to check
-    :param criteria: Search criteria containing target date, store, and total
-    :return: True if a matching duplicate bill is found, False otherwise
     """
-    cells: list[table.TableCell] = rows[idx].getElementsByType(table.TableCell)
+    Process a single row to check if it represents a duplicate bill.
+    Returns True if a matching duplicate bill is found, False otherwise.
+    """
+    cells: list[table.TableCell] = rows[start_idx].getElementsByType(table.TableCell)
 
-    # Check if this row has the target date
     if not _has_matching_date(cells, criteria.date_str):
         return False
 
+    idx: int = start_idx
     new_idx: int | None = None
+    end_idx: int = -1
+
+    # get index of next date row, to indicate end of bill entries for the current date
+    for i in range(start_idx + 1, len(rows)):
+        search_cells: list[table.TableCell] = rows[i].getElementsByType(table.TableCell)
+
+        if len(search_cells) <= config.COL_DATE:
+            continue
+
+        if get_cell_value(search_cells[config.COL_DATE]):
+            end_idx = i
+            break
 
     while new_idx is None:
         new_idx = _get_store_from_bill_start(rows, idx, criteria.store_normalized)
         if new_idx is None:
+            return False
+
+        # same date bill entries cannot be above the date row (smaller index)
+        if new_idx < start_idx:
+            return False
+
+        # if index is at or beyond a new date row, return
+        # duplicates must have the same date
+        if end_idx != -1 and new_idx >= end_idx:
             return False
 
         idx = new_idx
@@ -194,15 +196,10 @@ def _check_duplicate_bill(doc: OpenDocument, bill_data: dict[str, Any]) -> bool:
     """Check if a bill with same store, date, and total already exists.
 
     This function searches for bill entries that span multiple rows.
-    Each bill starts with a row containing date and store, followed by
+    Each bill starts with a row containing the store, followed by
     item rows, with the total appearing in the last row.
 
-    :param doc: ODS document object
-    :type doc: OpenDocument
-    :param bill_data: Bill data dictionary
-    :type bill_data: dict[str, Any]
-    :return: True if duplicate exists, False otherwise
-    :rtype: bool
+    Returns True if duplicate exists, False otherwise
     """
     # Parse date and determine sheet name
     date_parsed: dt.datetime = dparser.parse(bill_data["date"], dayfirst=True)
