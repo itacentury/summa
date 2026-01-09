@@ -1018,6 +1018,7 @@
         // State
         let invoices = [];
         let currentMonth = new Date(); // Current month being viewed
+        let editingInvoiceId = null; // Track if we're editing an invoice
 
         // DOM Elements
         const invoiceList = document.getElementById('invoice-list');
@@ -1153,6 +1154,13 @@
                                 `).join('')}
                             </div>
                             <div class="invoice-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="editInvoice(${invoice.id})" style="margin-right: 0.5rem;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                    Bearbeiten
+                                </button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteInvoice(${invoice.id})">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="3 6 5 6 21 6"/>
@@ -1183,6 +1191,8 @@
 
         // Modal Functions
         function openAddModal() {
+            editingInvoiceId = null;
+            document.querySelector('#add-modal .modal-title').textContent = 'Neue Rechnung';
             document.getElementById('add-modal').classList.add('active');
             document.getElementById('invoice-date').valueAsDate = new Date();
             resetAddForm();
@@ -1190,7 +1200,54 @@
 
         function closeAddModal() {
             document.getElementById('add-modal').classList.remove('active');
+            editingInvoiceId = null;
             resetAddForm();
+        }
+
+        async function editInvoice(id) {
+            editingInvoiceId = id;
+            const invoice = invoices.find(inv => inv.id === id);
+
+            if (!invoice) {
+                showToast('Rechnung nicht gefunden', 'error');
+                return;
+            }
+
+            // Update modal title
+            document.querySelector('#add-modal .modal-title').textContent = 'Rechnung bearbeiten';
+
+            // Fill in the form
+            document.getElementById('invoice-date').value = invoice.date;
+            document.getElementById('invoice-store').value = invoice.store;
+
+            // Clear and populate items
+            const itemsContainer = document.getElementById('items-container');
+            itemsContainer.innerHTML = '';
+
+            invoice.items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'item-input-row';
+                row.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Artikelname</label>
+                        <input type="text" class="form-input item-name" placeholder="Produktname" value="${escapeHtml(item.item_name)}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Preis (€)</label>
+                        <input type="number" step="0.01" class="form-input item-price" placeholder="0.00" value="${item.item_price}">
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeItemRow(this)" style="margin-bottom: 0.375rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                `;
+                itemsContainer.appendChild(row);
+            });
+
+            calculateTotal();
+            document.getElementById('add-modal').classList.add('active');
         }
 
         function resetAddForm() {
@@ -1292,14 +1349,24 @@
             const total = items.reduce((sum, item) => sum + parseFloat(item.item_price), 0);
 
             try {
-                const response = await fetch('/api/invoices', {
-                    method: 'POST',
+                let url = '/api/invoices';
+                let method = 'POST';
+                let successMessage = 'Rechnung gespeichert';
+
+                if (editingInvoiceId) {
+                    url = `/api/invoices/${editingInvoiceId}`;
+                    method = 'PUT';
+                    successMessage = 'Rechnung aktualisiert';
+                }
+
+                const response = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ date, store, total, items })
                 });
 
                 if (response.ok) {
-                    showToast('Rechnung gespeichert', 'success');
+                    showToast(successMessage, 'success');
                     closeAddModal();
                     loadInvoices();
                     loadStores();

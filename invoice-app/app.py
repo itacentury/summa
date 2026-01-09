@@ -203,6 +203,38 @@ def import_invoices():
         conn.close()
 
 
+@app.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
+def update_invoice(invoice_id):
+    data = request.json
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        # Update invoice
+        cursor.execute(
+            "UPDATE invoices SET date = ?, store = ?, total = ? WHERE id = ?",
+            (data["date"], data["store"], float(data["total"]), invoice_id),
+        )
+
+        # Delete existing items
+        cursor.execute("DELETE FROM invoice_items WHERE invoice_id = ?", (invoice_id,))
+
+        # Insert new items
+        for item in data.get("items", []):
+            cursor.execute(
+                "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
+                (invoice_id, item["item_name"], float(item["item_price"])),
+            )
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
 def delete_invoice(invoice_id):
     conn = get_db()
