@@ -825,22 +825,6 @@
     </header>
 
     <main class="container">
-        <!-- Stats -->
-        <div class="stats-grid" id="stats">
-            <div class="stat-card">
-                <div class="stat-label">Rechnungen</div>
-                <div class="stat-value" id="stat-count">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Gesamtsumme</div>
-                <div class="stat-value currency" id="stat-total">0.00</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Geschäfte</div>
-                <div class="stat-value" id="stat-stores">0</div>
-            </div>
-        </div>
-
         <!-- Filters -->
         <div class="filters">
             <!-- Month Navigator -->
@@ -1036,7 +1020,6 @@
             setCurrentMonth();
             loadInvoices();
             loadStores();
-            loadStats();
             setupEventListeners();
         });
 
@@ -1116,18 +1099,6 @@
                 });
             } catch (error) {
                 console.error('Error loading stores:', error);
-            }
-        }
-
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/stats');
-                const stats = await response.json();
-                document.getElementById('stat-count').textContent = stats.total_invoices;
-                document.getElementById('stat-total').textContent = stats.total_amount.toFixed(2);
-                document.getElementById('stat-stores').textContent = stats.unique_stores;
-            } catch (error) {
-                console.error('Error loading stats:', error);
             }
         }
 
@@ -1314,7 +1285,6 @@
                     closeAddModal();
                     loadInvoices();
                     loadStores();
-                    loadStats();
                 } else {
                     showToast('Fehler beim Speichern', 'error');
                 }
@@ -1332,7 +1302,6 @@
                     showToast('Rechnung gelöscht', 'success');
                     loadInvoices();
                     loadStores();
-                    loadStats();
                 } else {
                     showToast('Fehler beim Löschen', 'error');
                 }
@@ -1447,7 +1416,6 @@
                     closeImportModal();
                     loadInvoices();
                     loadStores();
-                    loadStats();
                 } else {
                     showToast('Fehler beim Import', 'error');
                 }
