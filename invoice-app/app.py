@@ -6,6 +6,9 @@ from flask import Flask, Response, jsonify, render_template, request
 app: Flask = Flask(__name__)
 DATABASE: Final[str] = "invoices.db"
 
+# Type alias for API responses that may include HTTP status codes
+ApiResponse = Response | tuple[Response, int]
+
 
 def get_db() -> sqlite3.Connection:
     conn: sqlite3.Connection = sqlite3.connect(DATABASE, timeout=30.0)
@@ -164,7 +167,7 @@ def add_invoice() -> Response:
 
 
 @app.route("/api/invoices/import", methods=["POST"])
-def import_invoices() -> Response:
+def import_invoices() -> ApiResponse:
     data: Any = request.json
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -213,13 +216,13 @@ def import_invoices() -> Response:
         )
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
-def update_invoice(invoice_id) -> Response:
+def update_invoice(invoice_id: int) -> ApiResponse:
     data: Any = request.json
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -245,13 +248,13 @@ def update_invoice(invoice_id) -> Response:
         return jsonify({"success": True})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
-def delete_invoice(invoice_id) -> Response:
+def delete_invoice(invoice_id: int) -> Response:
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
     # Soft delete: set deleted_at timestamp instead of removing from database
@@ -265,40 +268,41 @@ def delete_invoice(invoice_id) -> Response:
 
 
 @app.route("/api/invoices/bulk-update", methods=["PUT"])
-def bulk_update_invoices() -> Response:
+def bulk_update_invoices() -> ApiResponse:
     data: Any = request.json
-    invoice_ids: list[str] = data.get("ids", [])
+    invoice_ids: list[int] = data.get("ids", [])
     new_store: str = data.get("store")
 
     if not invoice_ids or not new_store:
-        return jsonify({"success": False, "error": "Missing ids or store"})
+        return jsonify({"success": False, "error": "Missing ids or store"}), 400
 
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
 
     try:
         placeholders: str = ",".join("?" * len(invoice_ids))
+        params: list[str | int] = [new_store, *invoice_ids]
         cursor.execute(
             f"UPDATE invoices SET store = ? WHERE id IN ({placeholders})",
-            [new_store] + invoice_ids,
+            params,
         )
         updated_count: int = cursor.rowcount
         conn.commit()
         return jsonify({"success": True, "updated": updated_count})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/bulk-delete", methods=["POST"])
-def bulk_delete_invoices() -> Response:
+def bulk_delete_invoices() -> ApiResponse:
     data: Any = request.json
-    invoice_ids: list[str] = data.get("ids", [])
+    invoice_ids: list[int] = data.get("ids", [])
 
     if not invoice_ids:
-        return jsonify({"success": False, "error": "Missing ids"})
+        return jsonify({"success": False, "error": "Missing ids"}), 400
 
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -315,7 +319,7 @@ def bulk_delete_invoices() -> Response:
         return jsonify({"success": True, "deleted": deleted_count})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
