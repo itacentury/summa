@@ -25,7 +25,8 @@ def init_db():
             date TEXT NOT NULL,
             store TEXT NOT NULL,
             total REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP DEFAULT NULL
         )
     """
     )
@@ -41,6 +42,14 @@ def init_db():
         )
     """
     )
+
+    # Migration: Add deleted_at column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(invoices)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "deleted_at" not in columns:
+        cursor.execute(
+            "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
+        )
 
     conn.commit()
     conn.close()
@@ -64,8 +73,8 @@ def get_invoices():
     sort_by = request.args.get("sort_by", "date")
     sort_order = request.args.get("sort_order", "desc")
 
-    # Build query
-    query = "SELECT * FROM invoices WHERE 1=1"
+    # Build query - exclude soft-deleted invoices
+    query = "SELECT * FROM invoices WHERE deleted_at IS NULL"
     params = []
 
     if search:
@@ -120,7 +129,9 @@ def get_invoices():
 def get_stores():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT store FROM invoices ORDER BY store")
+    cursor.execute(
+        "SELECT DISTINCT store FROM invoices WHERE deleted_at IS NULL ORDER BY store"
+    )
     stores = [row["store"] for row in cursor.fetchall()]
     conn.close()
     return jsonify(stores)
@@ -239,8 +250,11 @@ def update_invoice(invoice_id):
 def delete_invoice(invoice_id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM invoice_items WHERE invoice_id = ?", (invoice_id,))
-    cursor.execute("DELETE FROM invoices WHERE id = ?", (invoice_id,))
+    # Soft delete: set deleted_at timestamp instead of removing from database
+    cursor.execute(
+        "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (invoice_id,),
+    )
     conn.commit()
     conn.close()
     return jsonify({"success": True})
@@ -287,14 +301,9 @@ def bulk_delete_invoices():
 
     try:
         placeholders = ",".join("?" * len(invoice_ids))
-        # Delete items first (foreign key constraint)
+        # Soft delete: set deleted_at timestamp instead of removing from database
         cursor.execute(
-            f"DELETE FROM invoice_items WHERE invoice_id IN ({placeholders})",
-            invoice_ids,
-        )
-        # Delete invoices
-        cursor.execute(
-            f"DELETE FROM invoices WHERE id IN ({placeholders})",
+            f"UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
             invoice_ids,
         )
         deleted_count = cursor.rowcount
@@ -312,13 +321,16 @@ def get_stats():
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) as count FROM invoices")
+    # Only count non-deleted invoices
+    cursor.execute("SELECT COUNT(*) as count FROM invoices WHERE deleted_at IS NULL")
     total_invoices = cursor.fetchone()["count"]
 
-    cursor.execute("SELECT SUM(total) as sum FROM invoices")
+    cursor.execute("SELECT SUM(total) as sum FROM invoices WHERE deleted_at IS NULL")
     total_amount = cursor.fetchone()["sum"] or 0
 
-    cursor.execute("SELECT COUNT(DISTINCT store) as count FROM invoices")
+    cursor.execute(
+        "SELECT COUNT(DISTINCT store) as count FROM invoices WHERE deleted_at IS NULL"
+    )
     unique_stores = cursor.fetchone()["count"]
 
     conn.close()
