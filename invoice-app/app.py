@@ -1,22 +1,23 @@
 import sqlite3
+from typing import Any, Final
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
-app = Flask(__name__)
-DATABASE = "invoices.db"
+app: Flask = Flask(__name__)
+DATABASE: Final[str] = "invoices.db"
 
 
-def get_db():
-    conn = sqlite3.connect(DATABASE, timeout=30.0)
+def get_db() -> sqlite3.Connection:
+    conn: sqlite3.Connection = sqlite3.connect(DATABASE, timeout=30.0)
     conn.row_factory = sqlite3.Row
     # Enable WAL mode for better concurrency
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
+def init_db() -> None:
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     cursor.execute(
         """
@@ -45,7 +46,7 @@ def init_db():
 
     # Migration: Add deleted_at column if it doesn't exist (for existing databases)
     cursor.execute("PRAGMA table_info(invoices)")
-    columns = [column[1] for column in cursor.fetchall()]
+    columns: list[str] = [column[1] for column in cursor.fetchall()]
     if "deleted_at" not in columns:
         cursor.execute(
             "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
@@ -56,17 +57,17 @@ def init_db():
 
 
 @app.route("/")
-def index():
+def index() -> str:
     return render_template("index.html")
 
 
 @app.route("/api/invoices", methods=["GET"])
-def get_invoices():
-    conn = get_db()
-    cursor = conn.cursor()
+def get_invoices() -> Response:
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     # Get filter parameters
-    filters = {
+    filters: dict[str, str] = {
         "search": request.args.get("search", ""),
         "store": request.args.get("store", ""),
         "date_from": request.args.get("date_from", ""),
@@ -76,8 +77,8 @@ def get_invoices():
     }
 
     # Build query - exclude soft-deleted invoices
-    query = "SELECT * FROM invoices WHERE deleted_at IS NULL"
-    params = []
+    query: str = "SELECT * FROM invoices WHERE deleted_at IS NULL"
+    params: list[str] = []
 
     if filters["search"]:
         query += (
@@ -100,12 +101,12 @@ def get_invoices():
 
     # Sorting
     if filters["sort_by"] in ["date", "store", "total"]:
-        order = "DESC" if filters["sort_order"] == "desc" else "ASC"
+        order: str = "DESC" if filters["sort_order"] == "desc" else "ASC"
         query += f" ORDER BY {filters['sort_by']} {order}"
 
     cursor.execute(query, params)
 
-    result = []
+    result: list[dict[str, str | list[dict[str, str]]]] = []
     for invoice in cursor.fetchall():
         cursor.execute(
             "SELECT * FROM invoice_items WHERE invoice_id = ?", (invoice["id"],)
@@ -128,28 +129,28 @@ def get_invoices():
 
 
 @app.route("/api/stores", methods=["GET"])
-def get_stores():
-    conn = get_db()
-    cursor = conn.cursor()
+def get_stores() -> Response:
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
     cursor.execute(
         "SELECT DISTINCT store FROM invoices WHERE deleted_at IS NULL ORDER BY store"
     )
-    stores = [row["store"] for row in cursor.fetchall()]
+    stores: list[str] = [row["store"] for row in cursor.fetchall()]
     conn.close()
     return jsonify(stores)
 
 
 @app.route("/api/invoices", methods=["POST"])
-def add_invoice():
-    data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
+def add_invoice() -> Response:
+    data: Any = request.json
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     cursor.execute(
         "INSERT INTO invoices (date, store, total) VALUES (?, ?, ?)",
         (data["date"], data["store"], float(data["total"])),
     )
-    invoice_id = cursor.lastrowid
+    invoice_id: int | None = cursor.lastrowid
 
     for item in data.get("items", []):
         cursor.execute(
@@ -163,13 +164,13 @@ def add_invoice():
 
 
 @app.route("/api/invoices/import", methods=["POST"])
-def import_invoices():
-    data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
+def import_invoices() -> Response:
+    data: Any = request.json
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
-    imported_count = 0
-    skipped_count = 0
+    imported_count: int = 0
+    skipped_count: int = 0
 
     try:
         for invoice_data in data:
@@ -182,7 +183,7 @@ def import_invoices():
                     float(invoice_data["total"]),
                 ),
             )
-            existing = cursor.fetchone()
+            existing: Any = cursor.fetchone()
 
             if existing:
                 skipped_count += 1
@@ -196,7 +197,7 @@ def import_invoices():
                     float(invoice_data["total"]),
                 ),
             )
-            invoice_id = cursor.lastrowid
+            invoice_id: int | None = cursor.lastrowid
 
             for item in invoice_data.get("items", []):
                 cursor.execute(
@@ -212,16 +213,16 @@ def import_invoices():
         )
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)})
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
-def update_invoice(invoice_id):
-    data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
+def update_invoice(invoice_id) -> Response:
+    data: Any = request.json
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     try:
         # Update invoice
@@ -244,15 +245,15 @@ def update_invoice(invoice_id):
         return jsonify({"success": True})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)})
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
-def delete_invoice(invoice_id):
-    conn = get_db()
-    cursor = conn.cursor()
+def delete_invoice(invoice_id) -> Response:
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
     # Soft delete: set deleted_at timestamp instead of removing from database
     cursor.execute(
         "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -264,77 +265,77 @@ def delete_invoice(invoice_id):
 
 
 @app.route("/api/invoices/bulk-update", methods=["PUT"])
-def bulk_update_invoices():
-    data = request.json
-    invoice_ids = data.get("ids", [])
-    new_store = data.get("store")
+def bulk_update_invoices() -> Response:
+    data: Any = request.json
+    invoice_ids: list[str] = data.get("ids", [])
+    new_store: str = data.get("store")
 
     if not invoice_ids or not new_store:
-        return jsonify({"success": False, "error": "Missing ids or store"}), 400
+        return jsonify({"success": False, "error": "Missing ids or store"})
 
-    conn = get_db()
-    cursor = conn.cursor()
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     try:
-        placeholders = ",".join("?" * len(invoice_ids))
+        placeholders: str = ",".join("?" * len(invoice_ids))
         cursor.execute(
             f"UPDATE invoices SET store = ? WHERE id IN ({placeholders})",
             [new_store] + invoice_ids,
         )
-        updated_count = cursor.rowcount
+        updated_count: int = cursor.rowcount
         conn.commit()
         return jsonify({"success": True, "updated": updated_count})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)})
     finally:
         conn.close()
 
 
 @app.route("/api/invoices/bulk-delete", methods=["POST"])
-def bulk_delete_invoices():
-    data = request.json
-    invoice_ids = data.get("ids", [])
+def bulk_delete_invoices() -> Response:
+    data: Any = request.json
+    invoice_ids: list[str] = data.get("ids", [])
 
     if not invoice_ids:
-        return jsonify({"success": False, "error": "Missing ids"}), 400
+        return jsonify({"success": False, "error": "Missing ids"})
 
-    conn = get_db()
-    cursor = conn.cursor()
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     try:
-        placeholders = ",".join("?" * len(invoice_ids))
+        placeholders: str = ",".join("?" * len(invoice_ids))
         # Soft delete: set deleted_at timestamp instead of removing from database
         cursor.execute(
             f"UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
             invoice_ids,
         )
-        deleted_count = cursor.rowcount
+        deleted_count: int = cursor.rowcount
         conn.commit()
         return jsonify({"success": True, "deleted": deleted_count})
     except sqlite3.Error as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)})
     finally:
         conn.close()
 
 
 @app.route("/api/stats", methods=["GET"])
-def get_stats():
-    conn = get_db()
-    cursor = conn.cursor()
+def get_stats() -> Response:
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
 
     # Only count non-deleted invoices
     cursor.execute("SELECT COUNT(*) as count FROM invoices WHERE deleted_at IS NULL")
-    total_invoices = cursor.fetchone()["count"]
+    total_invoices: int = cursor.fetchone()["count"]
 
     cursor.execute("SELECT SUM(total) as sum FROM invoices WHERE deleted_at IS NULL")
-    total_amount = cursor.fetchone()["sum"] or 0
+    total_amount: int = cursor.fetchone()["sum"] or 0
 
     cursor.execute(
         "SELECT COUNT(DISTINCT store) as count FROM invoices WHERE deleted_at IS NULL"
     )
-    unique_stores = cursor.fetchone()["count"]
+    unique_stores: int = cursor.fetchone()["count"]
 
     conn.close()
     return jsonify(
@@ -346,6 +347,10 @@ def get_stats():
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
     init_db()
     app.run(debug=True, port=5000)
+
+
+if __name__ == "__main__":
+    main()
