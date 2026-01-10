@@ -66,48 +66,50 @@ def get_invoices():
     cursor = conn.cursor()
 
     # Get filter parameters
-    search = request.args.get("search", "")
-    store_filter = request.args.get("store", "")
-    date_from = request.args.get("date_from", "")
-    date_to = request.args.get("date_to", "")
-    sort_by = request.args.get("sort_by", "date")
-    sort_order = request.args.get("sort_order", "desc")
+    filters = {
+        "search": request.args.get("search", ""),
+        "store": request.args.get("store", ""),
+        "date_from": request.args.get("date_from", ""),
+        "date_to": request.args.get("date_to", ""),
+        "sort_by": request.args.get("sort_by", "date"),
+        "sort_order": request.args.get("sort_order", "desc"),
+    }
 
     # Build query - exclude soft-deleted invoices
     query = "SELECT * FROM invoices WHERE deleted_at IS NULL"
     params = []
 
-    if search:
-        query += " AND (store LIKE ? OR id IN (SELECT invoice_id FROM invoice_items WHERE item_name LIKE ?))"
-        params.extend([f"%{search}%", f"%{search}%"])
+    if filters["search"]:
+        query += (
+            " AND (store LIKE ? OR id IN "
+            "(SELECT invoice_id FROM invoice_items WHERE item_name LIKE ?))"
+        )
+        params.extend([f"%{filters['search']}%", f"%{filters['search']}%"])
 
-    if store_filter:
+    if filters["store"]:
         query += " AND store = ?"
-        params.append(store_filter)
+        params.append(filters["store"])
 
-    if date_from:
+    if filters["date_from"]:
         query += " AND date >= ?"
-        params.append(date_from)
+        params.append(filters["date_from"])
 
-    if date_to:
+    if filters["date_to"]:
         query += " AND date <= ?"
-        params.append(date_to)
+        params.append(filters["date_to"])
 
     # Sorting
-    valid_sort_columns = ["date", "store", "total"]
-    if sort_by in valid_sort_columns:
-        order = "DESC" if sort_order == "desc" else "ASC"
-        query += f" ORDER BY {sort_by} {order}"
+    if filters["sort_by"] in ["date", "store", "total"]:
+        order = "DESC" if filters["sort_order"] == "desc" else "ASC"
+        query += f" ORDER BY {filters['sort_by']} {order}"
 
     cursor.execute(query, params)
-    invoices = cursor.fetchall()
 
     result = []
-    for invoice in invoices:
+    for invoice in cursor.fetchall():
         cursor.execute(
             "SELECT * FROM invoice_items WHERE invoice_id = ?", (invoice["id"],)
         )
-        items = cursor.fetchall()
         result.append(
             {
                 "id": invoice["id"],
@@ -116,7 +118,7 @@ def get_invoices():
                 "total": invoice["total"],
                 "items": [
                     {"item_name": item["item_name"], "item_price": item["item_price"]}
-                    for item in items
+                    for item in cursor.fetchall()
                 ],
             }
         )
@@ -198,7 +200,8 @@ def import_invoices():
 
             for item in invoice_data.get("items", []):
                 cursor.execute(
-                    "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
+                    "INSERT INTO invoice_items "
+                    "(invoice_id, item_name, item_price) VALUES (?, ?, ?)",
                     (invoice_id, item["item_name"], float(item["item_price"])),
                 )
             imported_count += 1
@@ -207,7 +210,7 @@ def import_invoices():
         return jsonify(
             {"success": True, "imported": imported_count, "skipped": skipped_count}
         )
-    except Exception as e:
+    except sqlite3.Error as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
@@ -239,7 +242,7 @@ def update_invoice(invoice_id):
 
         conn.commit()
         return jsonify({"success": True})
-    except Exception as e:
+    except sqlite3.Error as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
@@ -281,7 +284,7 @@ def bulk_update_invoices():
         updated_count = cursor.rowcount
         conn.commit()
         return jsonify({"success": True, "updated": updated_count})
-    except Exception as e:
+    except sqlite3.Error as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
@@ -309,7 +312,7 @@ def bulk_delete_invoices():
         deleted_count = cursor.rowcount
         conn.commit()
         return jsonify({"success": True, "deleted": deleted_count})
-    except Exception as e:
+    except sqlite3.Error as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
