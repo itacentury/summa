@@ -245,6 +245,44 @@ body {
     color: white;
 }
 
+/* Quick Filter Buttons */
+.quick-filters {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.quick-filter-btn {
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.quick-filter-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+.quick-filter-btn.active {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.quick-filter-btn.active:hover {
+    background: var(--accent);
+    color: white;
+}
+
 .filters-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr auto auto;

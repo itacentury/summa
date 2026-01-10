@@ -39,20 +39,28 @@
     <main class="container">
         <!-- Filters -->
         <div class="filters">
-            <!-- Month Navigator -->
+            <!-- Quick Filters -->
+            <div class="quick-filters">
+                <button class="quick-filter-btn" data-filter="week" onclick="applyFilter('week'); loadInvoices();">Woche</button>
+                <button class="quick-filter-btn active" data-filter="month" onclick="applyFilter('month'); loadInvoices();">Monat</button>
+                <button class="quick-filter-btn" data-filter="year" onclick="applyFilter('year'); loadInvoices();">Jahr</button>
+                <button class="quick-filter-btn" data-filter="all" onclick="applyFilter('all'); loadInvoices();">Alle</button>
+            </div>
+
+            <!-- Period Navigator -->
             <div class="month-navigator">
-                <button class="month-nav-btn" onclick="navigateToPreviousMonth()">
+                <button class="month-nav-btn" onclick="navigateToPrevious()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="15 18 9 12 15 6"/>
                     </svg>
                 </button>
                 <div class="month-display" id="month-display">Januar 2026</div>
-                <button class="month-nav-btn" onclick="navigateToNextMonth()">
+                <button class="month-nav-btn" onclick="navigateToNext()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="9 18 15 12 9 6"/>
                     </svg>
                 </button>
-                <button class="month-reset-btn" onclick="resetToCurrentMonth()">Aktueller Monat</button>
+                <button class="month-reset-btn" onclick="resetToCurrent()">Aktueller Monat</button>
             </div>
 
             <div class="filters-grid">

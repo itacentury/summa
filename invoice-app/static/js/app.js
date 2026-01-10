@@ -1,7 +1,8 @@
 // State
 let invoices = [];
-let currentMonth = new Date(); // Current month being viewed
+let currentDate = new Date(); // Current date for navigation reference
 let editingInvoiceId = null; // Track if we're editing an invoice
+let filterMode = 'month'; // 'week', 'month', 'year', 'all', 'custom'
 
 // DOM Elements
 const invoiceList = document.getElementById('invoice-list');
@@ -15,7 +16,7 @@ const monthDisplay = document.getElementById('month-display');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    setCurrentMonth();
+    applyFilter('month');
     loadInvoices();
     loadStores();
     setupEventListeners();
@@ -24,8 +25,23 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
     searchInput.addEventListener('input', debounce(loadInvoices, 300));
     storeFilter.addEventListener('change', loadInvoices);
-    dateFrom.addEventListener('change', loadInvoices);
-    dateTo.addEventListener('change', loadInvoices);
+    // When user manually changes date filters, switch to custom mode
+    dateFrom.addEventListener('change', () => {
+        if (filterMode !== 'custom') {
+            filterMode = 'custom';
+            updateFilterDisplay();
+            updateQuickFilterButtons();
+        }
+        loadInvoices();
+    });
+    dateTo.addEventListener('change', () => {
+        if (filterMode !== 'custom') {
+            filterMode = 'custom';
+            updateFilterDisplay();
+            updateQuickFilterButtons();
+        }
+        loadInvoices();
+    });
     sortBy.addEventListener('change', loadInvoices);
     sortOrder.addEventListener('change', loadInvoices);
 
@@ -496,42 +512,178 @@ async function importJson() {
     }
 }
 
-// Month Navigation Functions
-function setCurrentMonth() {
-    updateMonthDisplay();
-    setDateFiltersForMonth(currentMonth);
+// Filter and Navigation Functions
+
+// Apply a specific filter mode
+function applyFilter(mode) {
+    filterMode = mode;
+    currentDate = new Date();
+    updateFilterDisplay();
+    setDateFiltersForMode();
+    updateQuickFilterButtons();
 }
 
-function navigateToPreviousMonth() {
-    currentMonth.setMonth(currentMonth.getMonth() - 1);
-    updateMonthDisplay();
-    setDateFiltersForMonth(currentMonth);
+// Navigate to previous period based on filter mode
+function navigateToPrevious() {
+    if (filterMode === 'all' || filterMode === 'custom') return;
+
+    switch (filterMode) {
+        case 'week':
+            currentDate.setDate(currentDate.getDate() - 7);
+            break;
+        case 'month':
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            break;
+        case 'year':
+            currentDate.setFullYear(currentDate.getFullYear() - 1);
+            break;
+    }
+    updateFilterDisplay();
+    setDateFiltersForMode();
     loadInvoices();
 }
 
-function navigateToNextMonth() {
-    currentMonth.setMonth(currentMonth.getMonth() + 1);
-    updateMonthDisplay();
-    setDateFiltersForMonth(currentMonth);
+// Navigate to next period based on filter mode
+function navigateToNext() {
+    if (filterMode === 'all' || filterMode === 'custom') return;
+
+    switch (filterMode) {
+        case 'week':
+            currentDate.setDate(currentDate.getDate() + 7);
+            break;
+        case 'month':
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            break;
+        case 'year':
+            currentDate.setFullYear(currentDate.getFullYear() + 1);
+            break;
+    }
+    updateFilterDisplay();
+    setDateFiltersForMode();
     loadInvoices();
 }
 
-function resetToCurrentMonth() {
-    currentMonth = new Date();
-    setCurrentMonth();
+// Reset to current period for active filter mode
+function resetToCurrent() {
+    currentDate = new Date();
+    updateFilterDisplay();
+    setDateFiltersForMode();
     loadInvoices();
 }
 
-function updateMonthDisplay() {
+// Update the navigation display based on filter mode
+function updateFilterDisplay() {
     const monthNames = [
         'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
         'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
     ];
-    const monthName = monthNames[currentMonth.getMonth()];
-    const year = currentMonth.getFullYear();
-    monthDisplay.textContent = `${monthName} ${year}`;
+
+    const navButtons = document.querySelectorAll('.month-nav-btn');
+    const resetBtn = document.querySelector('.month-reset-btn');
+
+    switch (filterMode) {
+        case 'week':
+            const weekNum = getISOWeek(currentDate);
+            const weekYear = getISOWeekYear(currentDate);
+            monthDisplay.textContent = `KW ${weekNum} / ${weekYear}`;
+            navButtons.forEach(btn => btn.style.visibility = 'visible');
+            resetBtn.textContent = 'Aktuelle Woche';
+            resetBtn.style.display = '';
+            break;
+        case 'month':
+            const monthName = monthNames[currentDate.getMonth()];
+            const year = currentDate.getFullYear();
+            monthDisplay.textContent = `${monthName} ${year}`;
+            navButtons.forEach(btn => btn.style.visibility = 'visible');
+            resetBtn.textContent = 'Aktueller Monat';
+            resetBtn.style.display = '';
+            break;
+        case 'year':
+            monthDisplay.textContent = `${currentDate.getFullYear()}`;
+            navButtons.forEach(btn => btn.style.visibility = 'visible');
+            resetBtn.textContent = 'Aktuelles Jahr';
+            resetBtn.style.display = '';
+            break;
+        case 'all':
+            monthDisplay.textContent = 'Alle Rechnungen';
+            navButtons.forEach(btn => btn.style.visibility = 'hidden');
+            resetBtn.style.display = 'none';
+            break;
+        case 'custom':
+            monthDisplay.textContent = 'Benutzerdefiniert';
+            navButtons.forEach(btn => btn.style.visibility = 'hidden');
+            resetBtn.style.display = 'none';
+            break;
+    }
 }
 
+// Update quick filter button active state
+function updateQuickFilterButtons() {
+    const buttons = document.querySelectorAll('.quick-filter-btn');
+    buttons.forEach(btn => {
+        const btnMode = btn.getAttribute('data-filter');
+        btn.classList.toggle('active', btnMode === filterMode);
+    });
+}
+
+// Set date filters based on current mode
+function setDateFiltersForMode() {
+    switch (filterMode) {
+        case 'week':
+            setDateFiltersForWeek(currentDate);
+            break;
+        case 'month':
+            setDateFiltersForMonth(currentDate);
+            break;
+        case 'year':
+            setDateFiltersForYear(currentDate);
+            break;
+        case 'all':
+            dateFrom.value = '';
+            dateTo.value = '';
+            break;
+        case 'custom':
+            // Don't change the date filters for custom mode
+            break;
+    }
+}
+
+// Calculate ISO week number (weeks start on Monday)
+function getISOWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Get the year that the ISO week belongs to
+function getISOWeekYear(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    return d.getUTCFullYear();
+}
+
+// Get Monday of the week for a given date
+function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+}
+
+// Set date filters for a week (Monday to Sunday)
+function setDateFiltersForWeek(date) {
+    const monday = getMonday(date);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    dateFrom.value = monday.toISOString().split('T')[0];
+    dateTo.value = sunday.toISOString().split('T')[0];
+}
+
+// Set date filters for a month
 function setDateFiltersForMonth(date) {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -546,6 +698,17 @@ function setDateFiltersForMonth(date) {
 
     dateFrom.value = firstDayStr;
     dateTo.value = lastDayStr;
+}
+
+// Set date filters for a year
+function setDateFiltersForYear(date) {
+    const year = date.getFullYear();
+
+    const firstDay = new Date(year, 0, 1);
+    const lastDay = new Date(year, 11, 31);
+
+    dateFrom.value = firstDay.toISOString().split('T')[0];
+    dateTo.value = lastDay.toISOString().split('T')[0];
 }
 
 // Utility Functions
