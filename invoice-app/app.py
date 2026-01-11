@@ -1,3 +1,9 @@
+"""Flask web application for managing and analyzing invoices.
+
+Provides REST API endpoints for CRUD operations on invoices,
+bulk operations, statistics, and a web interface for visualization.
+"""
+
 import sqlite3
 from typing import Any, Final
 
@@ -11,6 +17,7 @@ ApiResponse = Response | tuple[Response, int]
 
 
 def get_db() -> sqlite3.Connection:
+    """Create and return a database connection with WAL mode enabled."""
     conn: sqlite3.Connection = sqlite3.connect(DATABASE, timeout=30.0)
     conn.row_factory = sqlite3.Row
     # Enable WAL mode for better concurrency
@@ -19,6 +26,7 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Initialize the database schema and apply migrations if needed."""
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
 
@@ -61,11 +69,13 @@ def init_db() -> None:
 
 @app.route("/")
 def index() -> str:
+    """Render the main web interface."""
     return render_template("index.html")
 
 
 @app.route("/api/invoices", methods=["GET"])
 def get_invoices() -> Response:
+    """Retrieve all invoices with optional filtering and sorting."""
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
 
@@ -133,6 +143,7 @@ def get_invoices() -> Response:
 
 @app.route("/api/stores", methods=["GET"])
 def get_stores() -> Response:
+    """Return a list of all unique store names."""
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
     cursor.execute(
@@ -145,6 +156,7 @@ def get_stores() -> Response:
 
 @app.route("/api/invoices", methods=["POST"])
 def add_invoice() -> Response:
+    """Create a new invoice with its associated items."""
     data: Any = request.json
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -168,6 +180,7 @@ def add_invoice() -> Response:
 
 @app.route("/api/invoices/import", methods=["POST"])
 def import_invoices() -> ApiResponse:
+    """Bulk import invoices, skipping duplicates based on date, store, and total."""
     data: Any = request.json
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -223,6 +236,7 @@ def import_invoices() -> ApiResponse:
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
 def update_invoice(invoice_id: int) -> ApiResponse:
+    """Update an existing invoice and replace all its items."""
     data: Any = request.json
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
@@ -255,6 +269,7 @@ def update_invoice(invoice_id: int) -> ApiResponse:
 
 @app.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
 def delete_invoice(invoice_id: int) -> Response:
+    """Soft-delete an invoice by setting its deleted_at timestamp."""
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
     # Soft delete: set deleted_at timestamp instead of removing from database
@@ -269,6 +284,7 @@ def delete_invoice(invoice_id: int) -> Response:
 
 @app.route("/api/invoices/bulk-update", methods=["PUT"])
 def bulk_update_invoices() -> ApiResponse:
+    """Update the store name for multiple invoices at once."""
     data: Any = request.json
     invoice_ids: list[int] = data.get("ids", [])
     new_store: str = data.get("store")
@@ -298,6 +314,7 @@ def bulk_update_invoices() -> ApiResponse:
 
 @app.route("/api/invoices/bulk-delete", methods=["POST"])
 def bulk_delete_invoices() -> ApiResponse:
+    """Soft-delete multiple invoices at once."""
     data: Any = request.json
     invoice_ids: list[int] = data.get("ids", [])
 
@@ -326,6 +343,7 @@ def bulk_delete_invoices() -> ApiResponse:
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats() -> Response:
+    """Return aggregate statistics about all active invoices."""
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
 
@@ -352,6 +370,7 @@ def get_stats() -> Response:
 
 
 def main() -> None:
+    """Initialize the database and start the Flask development server."""
     init_db()
     app.run(debug=True, port=5000)
 
