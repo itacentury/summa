@@ -4,13 +4,14 @@ Provides REST API endpoints for CRUD operations on invoices,
 bulk operations, statistics, and a web interface for visualization.
 """
 
+import os
 import sqlite3
 from typing import Any, Final
 
 from flask import Flask, Response, jsonify, render_template, request
 
 app: Flask = Flask(__name__)
-DATABASE: Final[str] = "invoices.db"
+DATABASE: Final[str] = os.environ.get("DATABASE_PATH", "invoices.db")
 
 # Type alias for API responses that may include HTTP status codes
 ApiResponse = Response | tuple[Response, int]
@@ -371,9 +372,11 @@ def get_stats() -> Response:
 
 def main() -> None:
     """Initialize the database and start the Flask development server."""
-    init_db()
     app.run(debug=True, port=5000)
 
+
+# Initialize database on module load (works with gunicorn and dev server)
+init_db()
 
 if __name__ == "__main__":
     main()
