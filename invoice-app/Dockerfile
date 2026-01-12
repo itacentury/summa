@@ -26,8 +26,11 @@ LABEL org.opencontainers.image.source="https://github.com/yourusername/summa"
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser
+# Install gosu for proper user switching and create non-root user
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash appuser
 
 # Install dependencies
 COPY requirements.txt .
@@ -41,6 +44,10 @@ COPY static/ static/
 # Copy generated icons from builder stage
 COPY --from=builder /build/static/icons/ static/icons/
 
+# Copy and setup entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Create data directory for SQLite database
 RUN mkdir -p /data && chown appuser:appuser /data
 
@@ -50,9 +57,6 @@ ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_PATH=/data/invoices.db
 
-# Switch to non-root user
-USER appuser
-
 # Expose port
 EXPOSE 5000
 
@@ -60,5 +64,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
 
-# Run with gunicorn
+# Use entrypoint for permission handling, then run gunicorn
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "app:app"]
