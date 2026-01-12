@@ -44,8 +44,7 @@ jobs:
       - name: Build and push with cache
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./invoice-app/Dockerfile
+          context: ./invoice-app
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
