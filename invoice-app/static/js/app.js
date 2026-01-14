@@ -346,6 +346,33 @@ function openImportModal() {
   document.getElementById("import-modal").classList.add("active");
 }
 
+// Confirm Modal Functions
+let confirmModalResolve = null;
+
+/**
+ * Show a custom confirmation modal that matches the app design.
+ */
+function showConfirmModal(message, title = "Löschen bestätigen") {
+  document.getElementById("confirm-modal-title").textContent = title;
+  document.getElementById("confirm-modal-message").textContent = message;
+  document.getElementById("confirm-modal").classList.add("active");
+
+  return new Promise((resolve) => {
+    confirmModalResolve = resolve;
+  });
+}
+
+/**
+ * Close the confirmation modal and resolve with the user's choice.
+ */
+function closeConfirmModal(confirmed) {
+  document.getElementById("confirm-modal").classList.remove("active");
+  if (confirmModalResolve) {
+    confirmModalResolve(confirmed);
+    confirmModalResolve = null;
+  }
+}
+
 function closeImportModal() {
   document.getElementById("import-modal").classList.remove("active");
   document.getElementById("json-input").value = "";
@@ -453,7 +480,10 @@ async function saveInvoice() {
 }
 
 async function deleteInvoice(id) {
-  if (!confirm("Rechnung wirklich löschen?")) return;
+  const confirmed = await showConfirmModal(
+    "Möchtest du diese Rechnung wirklich löschen?"
+  );
+  if (!confirmed) return;
 
   try {
     const response = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
@@ -961,7 +991,7 @@ async function bulkDeleteInvoices() {
   const count = selectedInvoices.size;
   if (count === 0) return;
 
-  const confirmed = confirm(
+  const confirmed = await showConfirmModal(
     `Möchtest du wirklich ${count} Rechnung${
       count !== 1 ? "en" : ""
     } unwiderruflich löschen?`
