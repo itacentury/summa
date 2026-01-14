@@ -9,8 +9,10 @@ import sqlite3
 from typing import Any, Final
 
 from flask import Flask, Response, jsonify, render_template, request
+from flask_cors import CORS
 
 app: Flask = Flask(__name__)
+CORS(app)  # Enable CORS for all routes (required for native mobile apps)
 DATABASE: Final[str] = os.environ.get("DATABASE_PATH", "invoices.db")
 
 # Type alias for API responses that may include HTTP status codes
