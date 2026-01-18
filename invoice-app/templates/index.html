@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
@@ -100,28 +100,40 @@
           <button
             class="quick-filter-btn"
             data-filter="week"
-            onclick="applyFilter('week'); loadInvoices();"
+            onclick="
+              applyFilter('week');
+              loadInvoices();
+            "
           >
             Woche
           </button>
           <button
             class="quick-filter-btn active"
             data-filter="month"
-            onclick="applyFilter('month'); loadInvoices();"
+            onclick="
+              applyFilter('month');
+              loadInvoices();
+            "
           >
             Monat
           </button>
           <button
             class="quick-filter-btn"
             data-filter="year"
-            onclick="applyFilter('year'); loadInvoices();"
+            onclick="
+              applyFilter('year');
+              loadInvoices();
+            "
           >
             Jahr
           </button>
           <button
             class="quick-filter-btn"
             data-filter="all"
-            onclick="applyFilter('all'); loadInvoices();"
+            onclick="
+              applyFilter('all');
+              loadInvoices();
+            "
           >
             Alle
           </button>
@@ -219,6 +231,12 @@
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">Kategorie</label>
+            <select class="form-select" id="type-filter">
+              <option value="">Alle Kategorien</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">Von</label>
             <input type="date" class="form-input" id="date-from" />
           </div>
@@ -309,6 +327,17 @@
                   required
                 />
               </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem">
+              <label class="form-label">Kategorie</label>
+              <input
+                type="text"
+                class="form-input"
+                id="invoice-type"
+                placeholder="z.B. Lebensmittel, Restaurant, Elektronik"
+                list="type-suggestions"
+              />
+              <datalist id="type-suggestions"></datalist>
             </div>
 
             <div class="items-input-section">

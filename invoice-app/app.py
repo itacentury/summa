@@ -39,6 +39,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             store TEXT NOT NULL,
+            category TEXT DEFAULT NULL,
             total REAL NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             deleted_at TIMESTAMP DEFAULT NULL
@@ -66,6 +67,9 @@ def init_db() -> None:
             "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
         )
 
+    if "category" not in columns:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN category TEXT DEFAULT NULL")
+
     conn.commit()
     conn.close()
 
@@ -86,6 +90,7 @@ def get_invoices() -> Response:
     filters: dict[str, str] = {
         "search": request.args.get("search", ""),
         "store": request.args.get("store", ""),
+        "category": request.args.get("category", ""),
         "date_from": request.args.get("date_from", ""),
         "date_to": request.args.get("date_to", ""),
         "sort_by": request.args.get("sort_by", "date"),
@@ -106,6 +111,10 @@ def get_invoices() -> Response:
     if filters["store"]:
         query += " AND store = ?"
         params.append(filters["store"])
+
+    if filters["category"]:
+        query += " AND category = ?"
+        params.append(filters["category"])
 
     if filters["date_from"]:
         query += " AND date >= ?"
@@ -132,6 +141,7 @@ def get_invoices() -> Response:
                 "id": invoice["id"],
                 "date": invoice["date"],
                 "store": invoice["store"],
+                "category": invoice["category"],
                 "total": invoice["total"],
                 "items": [
                     {"item_name": item["item_name"], "item_price": item["item_price"]}
@@ -157,6 +167,20 @@ def get_stores() -> Response:
     return jsonify(stores)
 
 
+@app.route("/api/categories", methods=["GET"])
+def get_categories() -> Response:
+    """Return a list of all unique invoice categories."""
+    conn: sqlite3.Connection = get_db()
+    cursor: sqlite3.Cursor = conn.cursor()
+    cursor.execute(
+        "SELECT DISTINCT category FROM invoices "
+        "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
+    )
+    categories: list[str] = [row["category"] for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(categories)
+
+
 @app.route("/api/invoices", methods=["POST"])
 def add_invoice() -> Response:
     """Create a new invoice with its associated items."""
@@ -165,8 +189,8 @@ def add_invoice() -> Response:
     cursor: sqlite3.Cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO invoices (date, store, total) VALUES (?, ?, ?)",
-        (data["date"], data["store"], float(data["total"])),
+        "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
+        (data["date"], data["store"], data.get("category"), float(data["total"])),
     )
     invoice_id: int | None = cursor.lastrowid
 
@@ -209,10 +233,11 @@ def import_invoices() -> ApiResponse:
                 continue
 
             cursor.execute(
-                "INSERT INTO invoices (date, store, total) VALUES (?, ?, ?)",
+                "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
                 (
                     invoice_data["date"],
                     invoice_data["store"],
+                    invoice_data.get("category"),
                     float(invoice_data["total"]),
                 ),
             )
@@ -247,8 +272,14 @@ def update_invoice(invoice_id: int) -> ApiResponse:
     try:
         # Update invoice
         cursor.execute(
-            "UPDATE invoices SET date = ?, store = ?, total = ? WHERE id = ?",
-            (data["date"], data["store"], float(data["total"]), invoice_id),
+            "UPDATE invoices SET date = ?, store = ?, category = ?, total = ? WHERE id = ?",
+            (
+                data["date"],
+                data["store"],
+                data.get("category"),
+                float(data["total"]),
+                invoice_id,
+            ),
         )
 
         # Delete existing items

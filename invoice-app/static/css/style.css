@@ -31,7 +31,10 @@
 }
 
 body {
-  font-family: "DM Sans", -apple-system, sans-serif;
+  font-family:
+    "DM Sans",
+    -apple-system,
+    sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
@@ -285,14 +288,14 @@ body {
 
 .filters-grid {
   display: grid !important;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto auto;
   gap: 1rem;
   align-items: end;
 }
 
-@media (max-width: 1210px) {
+@media (max-width: 1400px) {
   .filters-grid {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
   }
 }
 
@@ -428,6 +431,17 @@ body {
 .invoice-store {
   font-weight: 500;
   font-size: 0.9375rem;
+}
+
+.invoice-type {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .invoice-meta {

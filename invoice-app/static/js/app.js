@@ -23,6 +23,7 @@ let selectedInvoices = new Set(); // Track selected invoice IDs for bulk operati
 const invoiceList = document.getElementById("invoice-list");
 const searchInput = document.getElementById("search");
 const storeFilter = document.getElementById("store-filter");
+const typeFilter = document.getElementById("type-filter");
 const dateFrom = document.getElementById("date-from");
 const dateTo = document.getElementById("date-to");
 const sortBy = document.getElementById("sort-by");
@@ -34,12 +35,14 @@ document.addEventListener("DOMContentLoaded", () => {
   applyFilter("month");
   loadInvoices();
   loadStores();
+  loadCategories();
   setupEventListeners();
 });
 
 function setupEventListeners() {
   searchInput.addEventListener("input", debounce(loadInvoices, 300));
   storeFilter.addEventListener("change", loadInvoices);
+  typeFilter.addEventListener("change", loadInvoices);
   // When user manually changes date filters, switch to custom mode
   dateFrom.addEventListener("change", () => {
     if (filterMode !== "custom") {
@@ -105,6 +108,7 @@ async function loadInvoices() {
   const params = new URLSearchParams({
     search: getSearchValue(),
     store: storeFilter.value,
+    category: typeFilter.value,
     date_from: dateFrom.value,
     date_to: dateTo.value,
     sort_by: sortBy.value,
@@ -130,6 +134,32 @@ async function loadStores() {
     });
   } catch (error) {
     console.error("Error loading stores:", error);
+  }
+}
+
+async function loadCategories() {
+  try {
+    const response = await fetch("/api/categories");
+    const categories = await response.json();
+
+    // Populate type filter dropdown
+    const typeFilter = document.getElementById("type-filter");
+    if (typeFilter) {
+      typeFilter.innerHTML = '<option value="">Alle Kategorien</option>';
+      categories.forEach((type) => {
+        typeFilter.innerHTML += `<option value="${type}">${type}</option>`;
+      });
+    }
+
+    // Populate datalist suggestions for add/edit form
+    const typeSuggestions = document.getElementById("type-suggestions");
+    if (typeSuggestions) {
+      typeSuggestions.innerHTML = categories
+        .map((type) => `<option value="${type}">`)
+        .join("");
+    }
+  } catch (error) {
+    console.error("Error loading categories:", error);
   }
 }
 
@@ -163,21 +193,22 @@ function renderInvoices() {
                         <input type="checkbox" ${
                           selectedInvoices.has(invoice.id) ? "checked" : ""
                         } onchange="toggleInvoiceSelection(${
-          invoice.id
-        }, this.checked)">
+                          invoice.id
+                        }, this.checked)">
                         <span class="checkbox-mark"></span>
                     </label>
                     <div class="invoice-main">
                         <span class="invoice-date">${formatDate(
-                          invoice.date
+                          invoice.date,
                         )}</span>
                         <span class="invoice-store">${escapeHtml(
-                          invoice.store
+                          invoice.store,
                         )}</span>
+                        ${invoice.category ? `<span class="invoice-type">${escapeHtml(invoice.category)}</span>` : ""}
                     </div>
                     <div class="invoice-meta">
                         <span class="invoice-total">${parseFloat(
-                          invoice.total
+                          invoice.total,
                         ).toFixed(2)}</span>
                         <div class="invoice-expand">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -193,13 +224,13 @@ function renderInvoices() {
                             (item) => `
                             <div class="item-row">
                                 <span class="item-name">${escapeHtml(
-                                  item.item_name
+                                  item.item_name,
                                 )}</span>
                                 <span class="item-price">€${parseFloat(
-                                  item.item_price
+                                  item.item_price,
                                 ).toFixed(2)}</span>
                             </div>
-                        `
+                        `,
                           )
                           .join("")}
                     </div>
@@ -228,7 +259,7 @@ function renderInvoices() {
                     </div>
                 </div>
             </div>
-        `
+        `,
       )
       .join("");
   }
@@ -236,7 +267,7 @@ function renderInvoices() {
   // Calculate total sum of displayed invoices
   const totalSum = invoices.reduce(
     (sum, invoice) => sum + parseFloat(invoice.total),
-    0
+    0,
   );
 
   document.getElementById("results-count").textContent = `${
@@ -284,6 +315,7 @@ async function editInvoice(id) {
   // Fill in the form
   document.getElementById("invoice-date").value = invoice.date;
   document.getElementById("invoice-store").value = invoice.store;
+  document.getElementById("invoice-type").value = invoice.category || "";
 
   // Clear and populate items
   const itemsContainer = document.getElementById("items-container");
@@ -296,7 +328,7 @@ async function editInvoice(id) {
             <div class="form-group">
                 <label class="form-label">Artikelname</label>
                 <input type="text" class="form-input item-name" placeholder="Produktname" value="${escapeHtml(
-                  item.item_name
+                  item.item_name,
                 )}">
             </div>
             <div class="form-group">
@@ -321,6 +353,7 @@ async function editInvoice(id) {
 
 function resetAddForm() {
   document.getElementById("add-form").reset();
+  document.getElementById("invoice-type").value = "";
   document.getElementById("items-container").innerHTML = `
         <div class="item-input-row">
             <div class="form-group">
@@ -420,7 +453,7 @@ function calculateTotal() {
     total += parseFloat(input.value) || 0;
   });
   document.getElementById("calculated-total").textContent = `€${total.toFixed(
-    2
+    2,
   )}`;
 }
 
@@ -428,6 +461,7 @@ function calculateTotal() {
 async function saveInvoice() {
   const date = document.getElementById("invoice-date").value;
   const store = document.getElementById("invoice-store").value;
+  const type = document.getElementById("invoice-type").value.trim() || null;
 
   if (!date || !store) {
     showToast("Bitte Datum und Geschäft ausfüllen", "error");
@@ -446,7 +480,7 @@ async function saveInvoice() {
 
   const total = items.reduce(
     (sum, item) => sum + parseFloat(item.item_price),
-    0
+    0,
   );
 
   try {
@@ -463,7 +497,7 @@ async function saveInvoice() {
     const response = await fetch(url, {
       method: method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, store, total, items }),
+      body: JSON.stringify({ date, store, category: type, total, items }),
     });
 
     if (response.ok) {
@@ -471,6 +505,7 @@ async function saveInvoice() {
       closeAddModal();
       loadInvoices();
       loadStores();
+      loadCategories();
     } else {
       showToast("Fehler beim Speichern", "error");
     }
@@ -481,7 +516,7 @@ async function saveInvoice() {
 
 async function deleteInvoice(id) {
   const confirmed = await showConfirmModal(
-    "Möchtest du diese Rechnung wirklich löschen?"
+    "Möchtest du diese Rechnung wirklich löschen?",
   );
   if (!confirmed) return;
 
@@ -530,11 +565,11 @@ function updateSelectedFilesDisplay() {
                 (f, i) => `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.375rem 0; border-bottom: 1px solid var(--border-subtle);">
                     <span style="font-size: 0.875rem;">📄 ${escapeHtml(
-                      f.name
+                      f.name,
                     )}</span>
                     <button type="button" class="btn btn-danger btn-sm" onclick="removeFile(${i})" style="padding: 0.25rem 0.5rem;">✕</button>
                 </div>
-            `
+            `,
               )
               .join("")}
         </div>
@@ -572,7 +607,7 @@ async function loadFilesIntoTextarea() {
   document.getElementById("json-input").value = JSON.stringify(
     allData,
     null,
-    2
+    2,
   );
 }
 
@@ -594,7 +629,7 @@ async function importJson() {
 
   // Get import button and show spinner
   const importButton = document.querySelector(
-    "#import-modal .modal-footer .btn-primary"
+    "#import-modal .modal-footer .btn-primary",
   );
   const originalContent = importButton.innerHTML;
   importButton.innerHTML = '<div class="spinner"></div>';
@@ -778,7 +813,7 @@ function setDateFiltersForMode() {
 // Calculate ISO week number (weeks start on Monday)
 function getISOWeek(date) {
   const d = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -789,7 +824,7 @@ function getISOWeek(date) {
 // Get the year that the ISO week belongs to
 function getISOWeekYear(date) {
   const d = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -868,7 +903,7 @@ function toggleInvoiceSelection(invoiceId, isSelected) {
 
   // Update visual state of the invoice item
   const invoiceItem = document.querySelector(
-    `.invoice-item[data-id="${invoiceId}"]`
+    `.invoice-item[data-id="${invoiceId}"]`,
   );
   if (invoiceItem) {
     invoiceItem.classList.toggle("selected", isSelected);
@@ -909,7 +944,7 @@ function updateBulkActionToolbar() {
 
   // Update "select all" checkbox state
   const selectAllCheckbox = document.querySelector(
-    "#select-all-checkbox input"
+    "#select-all-checkbox input",
   );
   if (selectAllCheckbox && invoices.length > 0) {
     const allSelected = invoices.every((inv) => selectedInvoices.has(inv.id));
@@ -994,7 +1029,7 @@ async function bulkDeleteInvoices() {
   const confirmed = await showConfirmModal(
     `Möchtest du wirklich ${count} Rechnung${
       count !== 1 ? "en" : ""
-    } unwiderruflich löschen?`
+    } unwiderruflich löschen?`,
   );
 
   if (!confirmed) return;
@@ -1065,7 +1100,7 @@ function syncSearchInputs() {
     debounce(() => {
       mobileSearch.value = desktopSearch.value;
       loadInvoices();
-    }, 300)
+    }, 300),
   );
 }
 
