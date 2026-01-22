@@ -324,22 +324,38 @@ def delete_invoice(invoice_id: int) -> Response:
 
 @app.route("/api/invoices/bulk-update", methods=["PUT"])
 def bulk_update_invoices() -> ApiResponse:
-    """Update the store name for multiple invoices at once."""
+    """Update store name and/or category for multiple invoices at once."""
     data: Any = request.json
     invoice_ids: list[int] = data.get("ids", [])
-    new_store: str = data.get("store")
+    new_store: str | None = data.get("store")
+    new_category: str | None = data.get("category")
 
-    if not invoice_ids or not new_store:
-        return jsonify({"success": False, "error": "Missing ids or store"}), 400
+    if not invoice_ids:
+        return jsonify({"success": False, "error": "Missing ids"}), 400
+
+    if not new_store and new_category is None:
+        return jsonify({"success": False, "error": "Missing store or category"}), 400
 
     conn: sqlite3.Connection = get_db()
     cursor: sqlite3.Cursor = conn.cursor()
 
     try:
         placeholders: str = ",".join("?" * len(invoice_ids))
-        params: list[str | int] = [new_store, *invoice_ids]
+        set_clauses: list[str] = []
+        params: list[str | int | None] = []
+
+        if new_store:
+            set_clauses.append("store = ?")
+            params.append(new_store)
+
+        if new_category is not None:
+            set_clauses.append("category = ?")
+            # Empty string means remove category (set to NULL)
+            params.append(new_category if new_category else None)
+
+        params.extend(invoice_ids)
         cursor.execute(
-            f"UPDATE invoices SET store = ? WHERE id IN ({placeholders})",
+            f"UPDATE invoices SET {', '.join(set_clauses)} WHERE id IN ({placeholders})",
             params,
         )
         updated_count: int = cursor.rowcount

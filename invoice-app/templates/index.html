@@ -498,7 +498,7 @@
     <div class="modal-overlay" id="bulk-edit-modal">
       <div class="modal" style="max-width: 400px">
         <div class="modal-header">
-          <h3 class="modal-title">Geschäftsname ändern</h3>
+          <h3 class="modal-title">Mehrfachbearbeitung</h3>
           <button class="modal-close" onclick="closeBulkEditModal()">
             <svg
               width="20"
@@ -523,8 +523,19 @@
               type="text"
               class="form-input"
               id="bulk-edit-store"
-              placeholder="z.B. Aldi"
+              placeholder="z.B. Aldi (leer lassen um nicht zu ändern)"
             />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Neue Kategorie</label>
+            <input
+              type="text"
+              class="form-input"
+              id="bulk-edit-category"
+              list="bulk-category-suggestions"
+              placeholder="z.B. Lebensmittel (leer lassen um nicht zu ändern)"
+            />
+            <datalist id="bulk-category-suggestions"></datalist>
           </div>
         </div>
         <div class="modal-footer">
@@ -573,7 +584,7 @@
                 d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
               />
             </svg>
-            Geschäftsname ändern
+            Bearbeiten
           </button>
           <button class="btn btn-danger btn-sm" onclick="bulkDeleteInvoices()">
             <svg

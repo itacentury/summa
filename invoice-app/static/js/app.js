@@ -962,11 +962,15 @@ function updateBulkActionToolbar() {
 function openBulkEditModal() {
   if (selectedInvoices.size === 0) return;
 
-  // Get the store names of selected invoices
+  // Get the store names and categories of selected invoices
   const selectedStores = new Set();
+  const selectedCategories = new Set();
   invoices.forEach((invoice) => {
     if (selectedInvoices.has(invoice.id)) {
       selectedStores.add(invoice.store);
+      if (invoice.category) {
+        selectedCategories.add(invoice.category);
+      }
     }
   });
 
@@ -979,32 +983,74 @@ function openBulkEditModal() {
     storeInput.placeholder = `${selectedStores.size} verschiedene Geschäfte`;
   }
 
+  // Pre-fill with the common category if all selected have the same category
+  const categoryInput = document.getElementById("bulk-edit-category");
+  if (selectedCategories.size === 1) {
+    categoryInput.value = [...selectedCategories][0];
+  } else if (selectedCategories.size > 1) {
+    categoryInput.value = "";
+    categoryInput.placeholder = `${selectedCategories.size} verschiedene Kategorien`;
+  } else {
+    categoryInput.value = "";
+    categoryInput.placeholder =
+      "z.B. Lebensmittel (leer lassen um nicht zu ändern)";
+  }
+
+  // Populate category suggestions
+  populateBulkCategorySuggestions();
+
   document.getElementById("bulk-edit-count").textContent =
     selectedInvoices.size;
   document.getElementById("bulk-edit-modal").classList.add("active");
   storeInput.focus();
 }
 
+async function populateBulkCategorySuggestions() {
+  try {
+    const response = await fetch("/api/categories");
+    const categories = await response.json();
+    const datalist = document.getElementById("bulk-category-suggestions");
+    datalist.innerHTML = categories
+      .map((cat) => `<option value="${escapeHtml(cat)}">`)
+      .join("");
+  } catch (error) {
+    console.error("Error loading categories:", error);
+  }
+}
+
 function closeBulkEditModal() {
   document.getElementById("bulk-edit-modal").classList.remove("active");
   document.getElementById("bulk-edit-store").value = "";
+  document.getElementById("bulk-edit-category").value = "";
 }
 
 async function saveBulkEdit() {
   const newStore = document.getElementById("bulk-edit-store").value.trim();
+  const newCategory = document
+    .getElementById("bulk-edit-category")
+    .value.trim();
 
-  if (!newStore) {
-    showToast("Bitte einen Geschäftsnamen eingeben", "error");
+  if (!newStore && !newCategory) {
+    showToast("Bitte mindestens ein Feld ausfüllen", "error");
     return;
   }
 
   const ids = [...selectedInvoices];
+  const payload = { ids };
+
+  if (newStore) {
+    payload.store = newStore;
+  }
+  if (newCategory) {
+    // Only send category if the field has a value
+    payload.category = newCategory;
+  }
 
   try {
     const response = await fetch("/api/invoices/bulk-update", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids, store: newStore }),
+      body: JSON.stringify(payload),
     });
 
     const result = await response.json();
@@ -1014,6 +1060,7 @@ async function saveBulkEdit() {
       selectedInvoices.clear();
       loadInvoices();
       loadStores();
+      loadCategories();
     } else {
       showToast("Fehler beim Aktualisieren", "error");
     }
