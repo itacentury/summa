@@ -176,16 +176,28 @@ async function loadStores() {
 
 async function loadCategories() {
   try {
+    const typeFilter = document.getElementById("type-filter");
+    const previousValue = typeFilter ? typeFilter.value : "";
+
     const response = await fetch("/api/categories");
     const categories = await response.json();
 
     // Populate type filter dropdown
-    const typeFilter = document.getElementById("type-filter");
     if (typeFilter) {
       typeFilter.innerHTML = '<option value="">Alle Kategorien</option>';
       categories.forEach((type) => {
         typeFilter.innerHTML += `<option value="${type}">${type}</option>`;
       });
+
+      // Restore filter or reset to "Alle Kategorien" if category no longer exists
+      if (previousValue) {
+        if (categories.includes(previousValue)) {
+          typeFilter.value = previousValue;
+        } else {
+          typeFilter.value = "";
+          loadInvoices();
+        }
+      }
     }
 
     // Populate datalist suggestions for add/edit form
