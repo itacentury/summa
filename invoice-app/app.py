@@ -29,6 +29,14 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+def strip_text(value: Any) -> str | None:
+    """Strip whitespace from text values, returning None for empty strings."""
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    return stripped if stripped else None
+
+
 def init_db() -> None:
     """Initialize the database schema and apply migrations if needed."""
     conn: sqlite3.Connection = get_db()
@@ -197,14 +205,19 @@ def add_invoice() -> Response:
 
     cursor.execute(
         "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-        (data["date"], data["store"], data.get("category"), float(data["total"])),
+        (
+            strip_text(data["date"]),
+            strip_text(data["store"]),
+            strip_text(data.get("category")),
+            float(data["total"]),
+        ),
     )
     invoice_id: int | None = cursor.lastrowid
 
     for item in data.get("items", []):
         cursor.execute(
             "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
-            (invoice_id, item["item_name"], float(item["item_price"])),
+            (invoice_id, strip_text(item["item_name"]), float(item["item_price"])),
         )
 
     conn.commit()
@@ -224,14 +237,15 @@ def import_invoices() -> ApiResponse:
 
     try:
         for invoice_data in data:
+            store = strip_text(invoice_data["store"])
+            date = strip_text(invoice_data["date"])
+            category = strip_text(invoice_data.get("category"))
+            total = float(invoice_data["total"])
+
             # Duplikatsprüfung: Gleiche Kombination aus Datum, Geschäft und Gesamtbetrag
             cursor.execute(
                 "SELECT id FROM invoices WHERE date = ? AND store = ? AND total = ?",
-                (
-                    invoice_data["date"],
-                    invoice_data["store"],
-                    float(invoice_data["total"]),
-                ),
+                (date, store, total),
             )
             existing: Any = cursor.fetchone()
 
@@ -241,12 +255,7 @@ def import_invoices() -> ApiResponse:
 
             cursor.execute(
                 "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-                (
-                    invoice_data["date"],
-                    invoice_data["store"],
-                    invoice_data.get("category"),
-                    float(invoice_data["total"]),
-                ),
+                (date, store, category, total),
             )
             invoice_id: int | None = cursor.lastrowid
 
@@ -254,7 +263,11 @@ def import_invoices() -> ApiResponse:
                 cursor.execute(
                     "INSERT INTO invoice_items "
                     "(invoice_id, item_name, item_price) VALUES (?, ?, ?)",
-                    (invoice_id, item["item_name"], float(item["item_price"])),
+                    (
+                        invoice_id,
+                        strip_text(item["item_name"]),
+                        float(item["item_price"]),
+                    ),
                 )
             imported_count += 1
 
@@ -281,9 +294,9 @@ def update_invoice(invoice_id: int) -> ApiResponse:
         cursor.execute(
             "UPDATE invoices SET date = ?, store = ?, category = ?, total = ? WHERE id = ?",
             (
-                data["date"],
-                data["store"],
-                data.get("category"),
+                strip_text(data["date"]),
+                strip_text(data["store"]),
+                strip_text(data.get("category")),
                 float(data["total"]),
                 invoice_id,
             ),
@@ -296,7 +309,7 @@ def update_invoice(invoice_id: int) -> ApiResponse:
         for item in data.get("items", []):
             cursor.execute(
                 "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
-                (invoice_id, item["item_name"], float(item["item_price"])),
+                (invoice_id, strip_text(item["item_name"]), float(item["item_price"])),
             )
 
         conn.commit()
@@ -328,7 +341,7 @@ def bulk_update_invoices() -> ApiResponse:
     """Update store name and/or category for multiple invoices at once."""
     data: Any = request.json
     invoice_ids: list[int] = data.get("ids", [])
-    new_store: str | None = data.get("store")
+    new_store: str | None = strip_text(data.get("store"))
     new_category: str | None = data.get("category")
 
     if not invoice_ids:
@@ -352,7 +365,7 @@ def bulk_update_invoices() -> ApiResponse:
         if new_category is not None:
             set_clauses.append("category = ?")
             # Empty string means remove category (set to NULL)
-            params.append(new_category if new_category else None)
+            params.append(strip_text(new_category))
 
         params.extend(invoice_ids)
         cursor.execute(
