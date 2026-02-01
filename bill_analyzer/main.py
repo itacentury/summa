@@ -49,30 +49,27 @@ def convert_date_to_iso8601(date_str: str | None) -> str | None:
 
 def upload_bills_to_paperless(
     valid_pdfs: list[str], valid_bills: list[dict[str, Any]]
-) -> None:
-    """Upload PDF bills to Paperless-ngx with metadata."""
+) -> tuple[int, int] | None:
+    """Upload PDF bills to Paperless-ngx. Return (success, failed) counts or None if skipped."""
     if not (PAPERLESS_TOKEN and PAPERLESS_URL):
         print("\n⚠ Paperless not configured. Skipping upload.")
-        return
+        return None
 
     if len(valid_pdfs) != len(valid_bills):
         print("\n⚠ PDFs and bills lists have different lengths. Skipping upload.")
-        return
+        return None
 
     print("\n📤 Uploading to Paperless-ngx...")
 
+    uploaded: int = 0
+    failed: int = 0
+
     for pdf, bill in zip(valid_pdfs, valid_bills):
         try:
-            # Create a title from store and date
             title: str = f"{bill.get('store', 'Bill')}"
-
-            # Get total price for custom field
             total_price: float = bill.get("total", 0.0)
-
-            # Format date for Paperless (requires ISO 8601 format)
             created_datetime: str | None = convert_date_to_iso8601(bill.get("date"))
 
-            # Upload the PDF
             task_uuid: str = upload_to_paperless(
                 pdf_path=pdf,
                 token=PAPERLESS_TOKEN,
@@ -83,9 +80,11 @@ def upload_bills_to_paperless(
             )
 
             print(f"  ✓ Uploaded successfully. (Task: {task_uuid})")
+            uploaded += 1
 
         except requests.HTTPError as e:
             print(f"  ⚠ Upload failed: {e}")
+            failed += 1
             if hasattr(e, "response") and e.response is not None:
                 try:
                     error_details = e.response.json()
@@ -94,8 +93,12 @@ def upload_bills_to_paperless(
                     print(f"    Response: {e.response.text}")
         except requests.RequestException as e:
             print(f"  ⚠ Upload failed: {e}")
+            failed += 1
         except FileNotFoundError as e:
             print(f"  ⚠ File not found: {e}")
+            failed += 1
+
+    return (uploaded, failed)
 
 
 def validate_bill(bill_data: dict[str, Any]) -> dict[str, bool | float | str] | None:
@@ -134,12 +137,26 @@ def save_bills_to_json(data: list[dict[str, Any]]) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=False)
 
 
-def print_statistics(valid_bills_length: int, all_bills_length: int) -> None:
+def print_statistics(
+    valid_count: int,
+    total_count: int,
+    failed_count: int,
+    upload_result: tuple[int, int] | None,
+) -> None:
     """Print summary statistics for processed bills."""
     print("\n" + "=" * 50)
     print("📊 STATISTICS")
     print("=" * 50)
-    print(f"  📄 Bills processed: {valid_bills_length} of {all_bills_length}")
+    print(f"  ✓ Valid bills:   {valid_count} of {total_count}")
+    print(f"  ✗ Failed bills:  {failed_count}")
+
+    if upload_result is None:
+        print("  ☁ Upload:        skipped")
+    else:
+        uploaded, upload_failed = upload_result
+        print(f"  ☁ Uploaded:      {uploaded} of {valid_count}")
+        if upload_failed > 0:
+            print(f"  ⚠ Upload errors: {upload_failed}")
 
 
 def main() -> None:
@@ -153,12 +170,15 @@ def main() -> None:
 
     valid_bills: list[dict[str, Any]] = []
     valid_pdfs: list[str] = []
+    failed_count: int = 0
+
     for pdf in pdfs:
         print(f"\n📄 Analyzing: {pdf}")
 
         response: str | None = analyze_bill_pdf(pdf)
 
         if response is None:
+            failed_count += 1
             continue
 
         bill_data: dict[str, Any] = parse_json_from_markdown(response)
@@ -167,19 +187,23 @@ def main() -> None:
         result: dict[str, bool | float | str] | None = validate_bill(bill_data)
 
         if result is None:
+            failed_count += 1
             continue
 
         print_bill(result)
 
         if not result["valid"]:
+            failed_count += 1
             continue
 
         valid_bills.append(bill_data)
         valid_pdfs.append(pdf)
 
     save_bills_to_json(valid_bills)
-    upload_bills_to_paperless(valid_pdfs, valid_bills)
-    print_statistics(len(valid_bills), len(pdfs))
+    upload_result: tuple[int, int] | None = upload_bills_to_paperless(
+        valid_pdfs, valid_bills
+    )
+    print_statistics(len(valid_bills), len(pdfs), failed_count, upload_result)
 
 
 if __name__ == "__main__":
