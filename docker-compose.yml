@@ -4,13 +4,13 @@ services:
     container_name: summa
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "8000:8000"
     volumes:
       - summa_data:/data
     environment:
       - DATABASE_PATH=/data/invoices.db
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 30s
       timeout: 10s
       retries: 3

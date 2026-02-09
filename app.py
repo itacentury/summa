@@ -513,7 +513,7 @@ def get_stats() -> Response:
 
 def main() -> None:
     """Initialize the database and start the Flask development server."""
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=8000)
 
 
 # Initialize database on module load (works with gunicorn and dev server)

@@ -15,7 +15,7 @@ Invoice management and expense tracking web application.
 docker compose up -d
 ```
 
-The application runs at `http://localhost:5000`. Data is persisted in a Docker volume.
+The application runs at `http://localhost:8000`. Data is persisted in a Docker volume.
 
 See [`docker-compose.yml`](docker-compose.yml) for the full configuration including health checks and volume setup.
 
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 flask run
 ```
 
-The application runs at `http://localhost:5000` with the database stored in `invoices.db`.
+The application runs at `http://localhost:8000` with the database stored in `invoices.db`.
 
 ## Configuration
 
