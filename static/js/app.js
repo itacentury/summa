@@ -771,6 +771,25 @@ function resetToCurrent() {
   loadInvoices();
 }
 
+// Reset all filters back to defaults (current month, no search/store/category)
+function resetAllFilters() {
+  // Clear search fields
+  const mobileSearch = document.getElementById("search");
+  const desktopSearch = document.getElementById("search-desktop");
+  if (mobileSearch) mobileSearch.value = "";
+  if (desktopSearch) desktopSearch.value = "";
+
+  // Reset dropdowns
+  storeFilter.value = "";
+  typeFilter.value = "";
+  sortBy.value = "date";
+  sortOrder.value = "desc";
+
+  // Reset to current month
+  applyFilter("month");
+  loadInvoices();
+}
+
 // Update the navigation display based on filter mode
 function updateFilterDisplay() {
   const monthNames = [

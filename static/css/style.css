@@ -293,6 +293,12 @@ body {
   align-items: end;
 }
 
+.filter-reset-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 1400px) {
   .filters-grid {
     grid-template-columns: 1fr 1fr 1fr 1fr;
