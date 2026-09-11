@@ -1,0 +1,45 @@
+/* Settings dialog rows */
+.settings-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--danger);
+  cursor: pointer;
+  background: var(--danger-subtle);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+}
+
+/* Same cascade fix as .sidebar-action-btn[hidden]: the class's `display` would
+   otherwise beat the UA `[hidden]` rule. */
+.settings-action[hidden] {
+  display: none;
+}
+
+.settings-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-action:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.settings-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: center;
+}

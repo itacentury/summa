@@ -26,6 +26,7 @@ const steps = vi.hoisted(() => {
     "refreshAllData",
     "setupFilterListeners",
     "setupModalListeners",
+    "setupSettingsListeners",
     "setupInvoiceListListeners",
     "setupPaginationListeners",
     "setupPageSizeListeners",
@@ -58,6 +59,9 @@ vi.mock("../../static/js/api.js", () => ({
 }));
 vi.mock("../../static/js/modals.js", () => ({
   setupModalListeners: steps.setupModalListeners,
+}));
+vi.mock("../../static/js/settings.js", () => ({
+  setupSettingsListeners: steps.setupSettingsListeners,
 }));
 vi.mock("../../static/js/render.js", () => ({
   setupInvoiceListListeners: steps.setupInvoiceListListeners,
@@ -112,6 +116,7 @@ const PRE_LOAD_STEPS = ["setupComboboxes", "applyFilter", "refreshAllData"];
 const WIRING_STEPS = [
   "setupFilterListeners",
   "setupModalListeners",
+  "setupSettingsListeners",
   "setupInvoiceListListeners",
   "setupPaginationListeners",
   "setupPageSizeListeners",

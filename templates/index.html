@@ -84,6 +84,10 @@
     />
     <link
       rel="stylesheet"
+      href="{{ url_for('static', filename='css/settings.css') }}"
+    />
+    <link
+      rel="stylesheet"
       href="{{ url_for('static', filename='css/components.css') }}"
     />
     <link
@@ -118,6 +122,7 @@
       {% include "partials/modals/categorize.html" %}
     {% endif %}
     {% include "partials/modals/shortcuts-help.html" %}
+    {% include "partials/modals/settings.html" %}
     {% include "partials/bulk-toolbar.html" %}
 
     <!-- Toasts must follow the bulk-action toolbar in the DOM so toast.css can

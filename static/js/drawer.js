@@ -72,7 +72,7 @@ export function setupDrawerListeners() {
   // dedicated handlers run on the same click; this only folds the drawer away.
   document.querySelector(".sidebar").addEventListener("click", (event) => {
     const actionable = event.target.closest(
-      '.nav-item, [data-action="open-add"], [data-action="open-import"]',
+      '.nav-item, [data-action="open-add"], [data-action="open-import"], [data-action="open-settings"]',
     );
     if (actionable) closeDrawer();
   });

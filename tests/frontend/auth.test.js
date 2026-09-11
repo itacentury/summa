@@ -17,8 +17,8 @@ import { jsonResponse } from "./helpers.js";
  * `import.meta.dirname` because happy-dom replaces the global `URL`, and
  * `node:fs` rejects its file URLs.
  */
-const sidebarCss = readFileSync(
-  join(import.meta.dirname, "../../static/css/sidebar.css"),
+const settingsCss = readFileSync(
+  join(import.meta.dirname, "../../static/css/settings.css"),
   "utf8",
 );
 
@@ -489,12 +489,12 @@ describe("reveal toggle", () => {
 describe("setupSignOut", () => {
   beforeEach(() => {
     // happy-dom ships no UA stylesheet, so the `[hidden]` default is stated
-    // here. It comes first, exactly as the UA origin would: sidebar.css can
+    // here. It comes first, exactly as the UA origin would: settings.css can
     // still override it by cascade order, which is the bug being guarded.
     document.body.innerHTML = `
       <style>[hidden] { display: none }</style>
-      <style>${sidebarCss}</style>
-      <button class="sidebar-action-btn" data-el="logout" hidden></button>`;
+      <style>${settingsCss}</style>
+      <button class="settings-action" data-el="logout" hidden></button>`;
   });
 
   it("reveals the control when the gate is enabled", () => {

@@ -27,6 +27,7 @@ import { setupComboboxes } from "./combobox.js";
 import { initToastListeners } from "./toast.js";
 import { setupKeyboardListeners } from "./keyboard.js";
 import { setupDrawerListeners } from "./drawer.js";
+import { setupSettingsListeners } from "./settings.js";
 import { setupSheetGestures } from "./sheet.js";
 import { setupViewportListeners } from "./viewport.js";
 import { setupPageSizeListeners } from "./pagesize.js";
@@ -117,6 +118,7 @@ function init() {
   const wiringSteps = [
     setupFilterListeners,
     setupModalListeners,
+    setupSettingsListeners,
     setupInvoiceListListeners,
     setupPaginationListeners,
     setupPageSizeListeners,
