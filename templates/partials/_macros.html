@@ -1,11 +1,12 @@
 {# Reusable markup snippets shared across the modal partials. #}
 
-{% macro modal_close_button() -%}
+{% macro modal_close_button(autofocus=false) -%}
   <button
     type="button"
     class="modal-close"
     aria-label="Close"
     title="Close (Esc)"
+    {% if autofocus %}data-autofocus{% endif %}
   >
     <svg
       width="20"

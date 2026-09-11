@@ -9,7 +9,9 @@
   >
     <div class="modal-header">
       <h3 class="modal-title" id="settings-title">Settings</h3>
-      {{ modal_close_button() }}
+      <!-- Focused on open so the destructive sign-out row below is never
+           one keystroke away. -->
+      {{ modal_close_button(autofocus=true) }}
     </div>
     <div class="modal-body">
       <!-- Revealed by the boot gate only when the password feature is enabled,
