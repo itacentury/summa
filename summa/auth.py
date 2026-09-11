@@ -100,7 +100,7 @@ def _hash_is_parseable(configured_hash: str) -> bool:
     """Return whether Werkzeug can read the configured hash at all.
 
     ``check_password_hash`` answers a hash it cannot split with a plain
-    ``False``, so a truncated or Compose-interpolated value is indistinguishable
+    ``False``, so a truncated or ``$``-expanded value is indistinguishable
     from a wrong password at login time. Checking the shape at startup turns
     that into one warning where an operator will look. It only proves the hash
     parses — not that it hashes any particular password.
@@ -139,7 +139,8 @@ def auth_config_warnings() -> list[str]:
     elif not _hash_is_parseable(configured_hash):
         warnings.append(
             f"{config.PASSWORD_HASH_ENV} is not a readable hash, so nobody can "
-            "log in — a Docker Compose-interpolated '$' is the usual cause "
+            "log in — an unquoted '$' expanded as a variable reference is the "
+            "usual cause, so single-quote the value in .env "
             "(regenerate one with: uv run python -m summa.hashpw)"
         )
     return warnings

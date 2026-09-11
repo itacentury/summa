@@ -185,12 +185,14 @@ per client (ten failures per five minutes).
   appears to come from the proxy, collapsing all clients into one bucket. Fixing
   that requires `ProxyFix` and a trusted-proxy list, which Summa does not
   currently configure.
-- **Docker Compose and `$`.** A password hash contains `$`, which Compose treats
-  as a variable reference. `docker-compose.yml` sets `format: raw` on the
-  `env_file` to disable interpolation; verify with
-  `docker exec summa printenv AUTH_PASSWORD_HASH`. If a mangled hash does reach
-  the app it logs `AUTH_PASSWORD_HASH is not a readable hash` at startup, so it
-  shows up in the container log rather than only as a login that never works.
+- **The password hash has to be quoted.** Both Docker Compose and
+  `uv run --env-file` read `.env` with dotenv rules, where an unquoted `$` is a
+  variable reference — and a hash contains two of them. Single-quote the value as
+  [`.env.example`](.env.example) shows; verify with
+  `docker exec summa printenv AUTH_PASSWORD_HASH`, which must print the hash with
+  both `$` intact and no surrounding quotes. If a mangled hash does reach the app
+  it logs `AUTH_PASSWORD_HASH is not a readable hash` at startup, so it shows up
+  in the container log rather than only as a login that never works.
 
 ## Configuration
 

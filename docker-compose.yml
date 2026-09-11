@@ -11,10 +11,9 @@ services:
       - ./data:/data
     # Optional .env supplies ANTHROPIC_API_KEY, ENABLE_AI_SUGGESTIONS, and any
     # other overrides. Missing file is fine — copy .env.example to .env.
-    # `format: raw` disables Compose's variable interpolation: an
-    # AUTH_PASSWORD_HASH ("scrypt:32768:8:1$salt$hash") contains `$`, which
-    # Compose would otherwise expand, silently mangling the hash.
+    # Compose reads it with dotenv rules, the same ones `uv run --env-file` uses:
+    # a value containing `$` (AUTH_PASSWORD_HASH does) has to be single-quoted or
+    # it is expanded as a variable reference, silently mangling the hash.
     env_file:
       - path: .env
         required: false
-        format: raw
