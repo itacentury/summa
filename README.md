@@ -79,11 +79,21 @@ A native client that manages the session token itself is unaffected by all three
 # Install dependencies (creates .venv automatically)
 uv sync
 
+# Create the local environment file (required, see below)
+cp .env.example .env
+
 # Run the application
-uv run flask run --port 8000
+uv run --env-file .env flask run --port 8000
 ```
 
 The application runs at `http://localhost:8000` with the database stored in `invoices.db`.
+
+The VS Code task **Run: Start Server** starts the same server and loads `.env` the same
+way, so the settings there — including whether the
+[login gate](#password-protection) is active — apply to the dev server too. On a fresh
+clone the file does not exist yet and the task aborts with
+`error: No environment file found at: .env`; the `cp` above is the fix. When testing the
+login over plain HTTP, `COOKIE_SECURE=0` is what makes the session cookie survive.
 
 ### Linting, Formatting & Type Checking
 
@@ -154,7 +164,9 @@ It is **off by default**, so an existing deployment keeps working unchanged.
    ```
 
 3. Put both in `.env` alongside `AUTH_ENABLED=1`, and set `COOKIE_SECURE=0` if
-   you are testing over plain HTTP. See [`.env.example`](.env.example).
+   you are testing over plain HTTP. See [`.env.example`](.env.example). The local dev
+   server reads the same file, so this also gates
+   [local runs](#local-development) — flip `AUTH_ENABLED` back to `0` to work ungated.
 
 Everything needed to render the login screen — `/` and `/static/` — stays public;
 every other route answers `401` without a session. Wrong passwords are throttled
@@ -182,7 +194,9 @@ per client (ten failures per five minutes).
 
 ## Configuration
 
-Copy [`.env.example`](.env.example) to `.env` and fill in the values you need.
+Copy [`.env.example`](.env.example) to `.env` and fill in the values you need. The
+copy is required for local development — the dev server and the VS Code task read it
+via `uv run --env-file .env`.
 
 | Environment Variable    | Default       | Description                                                                                                                                                                                                    |
 | ----------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

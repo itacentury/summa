@@ -25,6 +25,11 @@ uv run mypy                   # strict type check (files set in pyproject.toml)
 uv run pytest                 # backend test suite (tests/)
 ```
 
+The VS Code task `Run: Start Server` (`summa.code-workspace`) runs the dev server
+through `uv run --env-file .env`, so `.env` — copied from `.env.example` — is what
+decides whether a local run is behind the login gate (`AUTH_ENABLED`). `uv` fails
+outright when that file is missing.
+
 Frontend (JS/CSS/HTML) is linted and formatted through `npm` (Node 22):
 
 ```bash
