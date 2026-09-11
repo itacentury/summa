@@ -64,6 +64,13 @@ session cookie is only sent cross-site under strict conditions:
 - `COOKIE_SAMESITE=none`, as the default `lax` cookie is not sent cross-site at all;
 - HTTPS with `COOKIE_SECURE=1`, which browsers require for a `SameSite=None` cookie.
 
+`none` gives up the only CSRF defense this app has — there is no CSRF token — so
+any page can then make the visitor's browser send an authenticated cross-site
+request. What that reaches is one endpoint: `POST /api/auth/logout` takes no body,
+so an attacker page can log the session out. Every other write either requires a
+JSON body (a cross-site form POST can't send one, and is answered 415) or uses
+`PUT`/`DELETE`, which browsers preflight and the origin allowlist then rejects.
+
 A native client that manages the session token itself is unaffected by all three.
 
 ### Local Development
