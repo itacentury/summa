@@ -360,18 +360,31 @@ def test_me_reports_the_configured_session_lifetime(
 
 
 def test_the_reported_lifetime_is_the_one_the_gate_enforces(
-    auth_enabled: str, build_client: BuildClient
+    auth_enabled: str, build_client: BuildClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The label the login screen prints is the expiry the cookie is checked against."""
     client: FlaskClient = build_client({config.SESSION_DAYS_ENV: "7"})
+    # The divergence is the test: the app froze 7 at boot, the environment now
+    # says otherwise, so a per-request read of SESSION_DAYS would report 365 and
+    # promise a lifetime no cookie gets.
+    monkeypatch.setenv(config.SESSION_DAYS_ENV, "365")
+
     reported: int = client.get("/api/auth/me").get_json()["session_days"]
+    assert reported == 7
+
     client.set_cookie(
         "summa_session",
         _backdated_session_cookie(client.application, timedelta(days=reported + 1)),
     )
-
-    assert reported == 7
     assert client.get("/api/invoices").status_code == 401
+
+    # The other side of the boundary, which pins the enforced window to exactly
+    # the reported number rather than to anything at least that long.
+    client.set_cookie(
+        "summa_session",
+        _backdated_session_cookie(client.application, timedelta(days=reported - 1)),
+    )
+    assert client.get("/api/invoices").status_code == 200
 
 
 def test_repeated_wrong_passwords_are_throttled(gated_client: FlaskClient) -> None:
