@@ -107,8 +107,8 @@ purpose, because latching a wrong password would re-enter the login view
 mid-submit and then swallow every genuine expiry. Styling is split per
 component under `static/css/` (`variables`, `base`, `header`, `filters`,
 `invoices`, `modals`, `components`, `stats`), loaded via ordered `<link>` tags
-in `index.html` — the order is cascade-significant, and each file co-locates its own responsive
-`@media` rules.
+in `index.html` — the order is cascade-significant, and each file co-locates
+its own responsive `@media` rules.
 
 **PWA.** `static/sw.js` caches static assets under the `CACHE_NAME` constant.
 **When you change any cached static asset, bump `CACHE_NAME`** (in
