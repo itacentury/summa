@@ -212,9 +212,8 @@
   border-radius: 9px;
 }
 
-/* Same cascade fix as .sidebar-action-btn[hidden]: the class's `display` would
-   otherwise beat the UA `[hidden]` rule, leaving a "0" badge visible with no
-   active filters. */
+/* The class's `display` would otherwise beat the UA `[hidden]` rule, leaving
+   a "0" badge visible with no active filters. */
 .filter-badge[hidden] {
   display: none;
 }

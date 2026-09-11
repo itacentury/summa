@@ -95,8 +95,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-/* Same cascade fix as .sidebar-action-btn[hidden]: the class's `display` would
-   otherwise beat the UA `[hidden]` rule. */
+/* The class's `display` would otherwise beat the UA `[hidden]` rule. */
 .modal-footer[hidden] {
   display: none;
 }

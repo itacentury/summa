@@ -20,8 +20,8 @@
     border-color var(--transition);
 }
 
-/* Same cascade fix as .sidebar-action-btn[hidden]: the class's `display` would
-   otherwise beat the UA `[hidden]` rule. */
+/* The class's `display` would otherwise beat the UA `[hidden]` rule, leaving
+   the sign-out control visible on an auth-off deployment. */
 .settings-action[hidden] {
   display: none;
 }

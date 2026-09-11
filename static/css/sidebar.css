@@ -131,12 +131,6 @@
   transition: background var(--transition);
 }
 
-/* The class's `display` would otherwise beat the UA `[hidden]` rule, leaving
-   the sign-out control visible on an auth-off deployment. */
-.sidebar-action-btn[hidden] {
-  display: none;
-}
-
 .sidebar-action-btn svg {
   width: 13px;
   height: 13px;
