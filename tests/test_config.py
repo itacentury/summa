@@ -1,8 +1,10 @@
 """Tests for the cookie attribute accessors in :mod:`summa.config`."""
 
 import pytest
+from flask.testing import FlaskClient
 
 from summa import config
+from tests.conftest import BuildClient
 
 # Every SameSite spelling an operator might set, and what it normalizes to.
 # The last three are the silent fallback: an unrecognized value must not reach
@@ -30,6 +32,21 @@ SECURE_VALUES: list[tuple[str, bool]] = [
     ("1", True),
     ("true", True),
     ("yes", True),
+]
+
+# Every SESSION_DAYS spelling and the lifetime it resolves to. The accessor is
+# total on purpose: the last two are the ones that matter, since a day count
+# timedelta() cannot take would otherwise kill create_app() at boot.
+SESSION_DAYS_VALUES: list[tuple[str, int]] = [
+    ("7", 7),
+    ("  7  ", 7),
+    ("3650", config.MAX_SESSION_DAYS),
+    ("0", config.DEFAULT_SESSION_DAYS),
+    ("-5", config.DEFAULT_SESSION_DAYS),
+    ("abc", config.DEFAULT_SESSION_DAYS),
+    ("", config.DEFAULT_SESSION_DAYS),
+    ("3651", config.DEFAULT_SESSION_DAYS),
+    ("99999999999", config.DEFAULT_SESSION_DAYS),
 ]
 
 
@@ -61,3 +78,28 @@ def test_cookie_secure_reads_the_configured_flag(
 def test_cookie_secure_defaults_to_on() -> None:
     """Unset means Secure: a deployment must opt out of HTTPS-only, not into it."""
     assert config.cookie_secure() is True
+
+
+@pytest.mark.parametrize(("configured", "expected"), SESSION_DAYS_VALUES)
+def test_session_days_falls_back_outside_the_supported_range(
+    monkeypatch: pytest.MonkeyPatch, configured: str, expected: int
+) -> None:
+    """Only a lifetime between one day and the maximum is taken as configured."""
+    monkeypatch.setenv(config.SESSION_DAYS_ENV, configured)
+
+    assert config.session_days() == expected
+
+
+def test_session_days_defaults_to_thirty() -> None:
+    """An unset lifetime is the documented default, not an unbounded session."""
+    assert config.session_days() == config.DEFAULT_SESSION_DAYS
+
+
+def test_an_overflowing_session_days_still_boots(build_client: BuildClient) -> None:
+    """A fat-fingered lifetime falls back instead of taking create_app() down."""
+    # Built with the value: _configure_sessions() feeds it to timedelta() once,
+    # at construction time, which is where the OverflowError used to land.
+    client: FlaskClient = build_client({config.SESSION_DAYS_ENV: "99999999999"})
+
+    reported: int = client.get("/api/auth/me").get_json()["session_days"]
+    assert reported == config.DEFAULT_SESSION_DAYS

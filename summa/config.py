@@ -23,6 +23,11 @@ _FALSY: Final[frozenset[str]] = frozenset({"", "0", "false", "no", "off"})
 
 DEFAULT_SESSION_DAYS: Final[int] = 30
 
+# Ten years is past any real "stay signed in" intent, so a larger number is a
+# typo rather than a policy — and one big enough to overflow timedelta() would
+# take create_app() down with it.
+MAX_SESSION_DAYS: Final[int] = 3650
+
 # Browsers reject anything else, and SameSite=None without Secure is dropped
 # outright — an unrecognized value would silently break login rather than fail
 # loudly, so it falls back to the default.
@@ -54,13 +59,17 @@ def session_secret() -> str:
 
 
 def session_days() -> int:
-    """Return the "stay signed in" lifetime in days, falling back to the default."""
+    """Return the "stay signed in" lifetime in days, falling back to the default.
+
+    Anything unparseable or outside 1..``MAX_SESSION_DAYS`` yields
+    ``DEFAULT_SESSION_DAYS``.
+    """
     raw_value: str = os.environ.get(SESSION_DAYS_ENV, "").strip()
     try:
         days: int = int(raw_value)
     except ValueError:
         return DEFAULT_SESSION_DAYS
-    return days if days > 0 else DEFAULT_SESSION_DAYS
+    return days if 0 < days <= MAX_SESSION_DAYS else DEFAULT_SESSION_DAYS
 
 
 def cookie_secure() -> bool:
