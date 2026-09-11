@@ -67,10 +67,11 @@ def me() -> ApiResponse:
     the lifetime this deployment actually configured instead of a hardcoded one.
     """
     enabled: bool = config.auth_enabled()
-    # Read from the app rather than from the environment: this is the same value
-    # the cookie expiry was derived from at boot, so the label the login screen
-    # prints can never promise a lifetime the gate does not enforce.
-    lifetime: timedelta = current_app.config["PERMANENT_SESSION_LIFETIME"]
+    # Read from the app rather than from the environment, and through the same
+    # typed accessor Flask's session interface uses for the cookie's max_age, so
+    # the label the login screen prints can never promise a lifetime the gate
+    # does not enforce.
+    lifetime: timedelta = current_app.permanent_session_lifetime
     return jsonify(
         {
             "authed": not enabled or is_authenticated(),
