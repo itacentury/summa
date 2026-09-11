@@ -83,7 +83,7 @@ uv sync
 cp .env.example .env
 
 # Run the application
-uv run --env-file .env flask run --port 8000
+uv run --env-file .env flask --app summa.wsgi run --port 8000
 ```
 
 The application runs at `http://localhost:8000` with the database stored in `invoices.db`.

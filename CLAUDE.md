@@ -17,18 +17,20 @@ See @docs/code-style.md for code style and convention rules (applies on every ma
 Tooling is driven through `uv` (Python 3.12+):
 
 ```bash
-uv sync                       # install deps + create .venv
-uv run python -m summa        # run dev server (port 8000, DB at ./invoices.db)
-uv run ruff format .          # format
-uv run ruff check .           # lint (E, F, I; E501 intentionally ignored)
-uv run mypy                   # strict type check (files set in pyproject.toml)
-uv run pytest                 # backend test suite (tests/)
+uv sync                                 # install deps + create .venv
+uv run --env-file .env python -m summa  # run dev server (port 8000, DB at ./invoices.db)
+uv run ruff format .                    # format
+uv run ruff check .                     # lint (E, F, I; E501 intentionally ignored)
+uv run mypy                             # strict type check (files set in pyproject.toml)
+uv run pytest                           # backend test suite (tests/)
 ```
 
-The VS Code task `Run: Start Server` (`summa.code-workspace`) runs the dev server
-through `uv run --env-file .env`, so `.env` — copied from `.env.example` — is what
-decides whether a local run is behind the login gate (`AUTH_ENABLED`). `uv` fails
-outright when that file is missing.
+`.env` — copied from `.env.example` — is what decides whether a local run is behind
+the login gate (`AUTH_ENABLED`), and `uv` fails outright when that file is missing. The
+VS Code task `Run: Start Server` (`summa.code-workspace`) loads it the same way, through
+`uv run --env-file .env flask --app summa.wsgi run`. An invocation _without_
+`--env-file` ignores `.env` completely and therefore runs ungated — which is what the
+`verify` skill relies on.
 
 Frontend (JS/CSS/HTML) is linted and formatted through `npm` (Node 22):
 
