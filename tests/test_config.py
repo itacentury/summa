@@ -1,4 +1,4 @@
-"""Tests for the cookie attribute accessors in :mod:`summa.config`."""
+"""Tests for the session configuration accessors in :mod:`summa.config`."""
 
 import pytest
 from flask.testing import FlaskClient

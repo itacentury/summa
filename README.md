@@ -92,7 +92,7 @@ The VS Code task **Run: Start Server** starts the same server and loads `.env` t
 way, so the settings there — including whether the
 [login gate](#password-protection) is active — apply to the dev server too. On a fresh
 clone the file does not exist yet and the task aborts with
-`error: No environment file found at: .env`; the `cp` above is the fix. When testing the
+``error: No environment file found at: `.env` ``; the `cp` above is the fix. When testing the
 login over plain HTTP, `COOKIE_SECURE=0` is what makes the session cookie survive.
 
 ### Linting, Formatting & Type Checking
