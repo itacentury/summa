@@ -10,8 +10,9 @@
  *
  * Both comment forms are stripped before scanning: a Jinja comment (`{# … #}`)
  * is gone after rendering, and an HTML comment (`<!-- … -->`) survives rendering
- * but is never parsed as markup by the browser — so neither can contribute a
- * real heading or a real include.
+ * but is never parsed as markup by the browser — so a heading inside either form
+ * is not a real heading. (Jinja still executes an `{% include %}` inside an HTML
+ * comment; its output just lands inside the comment, contributing no headings.)
  *
  * Assumes a flat structure: only includes named directly in index.html are
  * scanned (no recursion into nested includes), and headings written directly in
