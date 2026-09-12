@@ -55,9 +55,8 @@ def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
     return collector.targets
 
 
-MODAL_PARTIALS_DIRECTORY: Path = (
-    Path(__file__).resolve().parent.parent / "templates" / "partials" / "modals"
-)
+PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+MODAL_PARTIALS_DIRECTORY: Path = PROJECT_ROOT / "templates" / "partials" / "modals"
 
 
 def declared_modals() -> set[str]:
@@ -76,7 +75,7 @@ def test_js_manifest_matches_static_js_directory(client: FlaskClient) -> None:
     manifest: list[str] = response.get_json()
     assert isinstance(manifest, list)
 
-    js_directory: Path = Path(__file__).resolve().parent.parent / "static" / "js"
+    js_directory: Path = PROJECT_ROOT / "static" / "js"
     expected: set[str] = {
         f"/static/js/{path.name}" for path in js_directory.glob("*.js")
     }
@@ -91,7 +90,7 @@ def test_css_manifest_matches_static_css_directory(client: FlaskClient) -> None:
     manifest: list[str] = response.get_json()
     assert isinstance(manifest, list)
 
-    css_directory: Path = Path(__file__).resolve().parent.parent / "static" / "css"
+    css_directory: Path = PROJECT_ROOT / "static" / "css"
     expected: set[str] = {
         f"/static/css/{path.name}" for path in css_directory.glob("*.css")
     }
@@ -100,9 +99,7 @@ def test_css_manifest_matches_static_css_directory(client: FlaskClient) -> None:
 
 def test_frontend_default_page_size_matches_backend() -> None:
     """The UI's initial pageSize must equal the backend's DEFAULT_PAGE_SIZE."""
-    state_js: Path = (
-        Path(__file__).resolve().parent.parent / "static" / "js" / "state.js"
-    )
+    state_js: Path = PROJECT_ROOT / "static" / "js" / "state.js"
     # Anchored + case-sensitive so it matches `pageSize:` (line 12), never the
     # `effectivePageSize:` line below it.
     match: re.Match[str] | None = re.search(
