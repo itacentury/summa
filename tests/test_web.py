@@ -205,7 +205,7 @@ def test_modal_marks_its_initial_focus_target(
     assert attributes.get(attribute) == value
 
 
-def test_every_modal_marks_its_initial_focus_target(
+def test_no_modal_relies_on_the_focus_fallback(
     client: FlaskClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No modal may rely on the DOM-order fallback for its initial focus."""
