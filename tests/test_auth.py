@@ -15,7 +15,7 @@ from summa import auth, config, ratelimit
 from tests.conftest import TEST_PASSWORD, TEST_PASSWORD_HASH, BuildClient
 
 # Every shape a hash can arrive in that Werkzeug cannot read. The first four are
-# what Docker Compose's '$' interpolation leaves behind; only the last two reach
+# what dotenv '$' interpolation leaves behind; only the last two reach
 # check_password_hash's ValueError, the rest come back as a plain False.
 UNREADABLE_HASHES: list[str] = [
     "not-a-real-hash",
