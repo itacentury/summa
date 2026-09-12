@@ -35,9 +35,10 @@
       rel="manifest"
       href="{{ url_for('static', filename='manifest.json') }}"
     />
-    {# CSS is split per component; link order matters for the cascade.
-       fonts.css declares the self-hosted @font-face rules and must precede
-       base.css, which applies the Sora family. #}
+    <!-- Stylesheets -->
+    {# Link order matters for the cascade: fonts.css declares the self-hosted
+       @font-face rules and must precede base.css, which applies the Sora
+       family. #}
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/fonts.css') }}"
