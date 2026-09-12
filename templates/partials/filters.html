@@ -63,10 +63,10 @@
     </button>
 
     <!-- Search + filter group -->
-    {# Also the handle filters.js toggles .search-open / .search-compact on, and
-       invoices.css reacts to .search-open — don't flatten this div. Layout rationale
-       and the states where the wrapper is deliberately dissolved (display: contents):
-       see .search-filter-group in filters.css. #}
+    {# Not just layout: filters.js toggles state classes on this div and invoices.css
+       keys off .search-open, so don't flatten it. Layout rationale and the states
+       where the wrapper is deliberately dissolved (display: contents): see
+       .search-filter-group in filters.css. #}
     <div class="search-filter-group">
       {# Compact-only search toggle: shown when the toolbar is tight; toggles
          the slide-down search bar below. Hidden when the field shows inline. #}
