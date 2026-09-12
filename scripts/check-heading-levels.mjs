@@ -8,6 +8,11 @@
  * never jump by more than one (and that the document starts at h1), extending the
  * within-fragment guarantee across the whole assembled document.
  *
+ * Both comment forms are stripped before scanning: a Jinja comment (`{# … #}`)
+ * is gone after rendering, and an HTML comment (`<!-- … -->`) survives rendering
+ * but is never parsed as markup by the browser — so neither can contribute a
+ * real heading or a real include.
+ *
  * Assumes a flat structure: only includes named directly in index.html are
  * scanned (no recursion into nested includes), and headings written directly in
  * index.html itself are ignored. Both hold today (leaf partials, heading-free
@@ -23,7 +28,7 @@ const templatesDir = join(projectRoot, "templates");
 const entryTemplate = join(templatesDir, "index.html");
 
 const includePattern = /{%-?\s*include\s+["']([^"']+)["'][^%]*%}/g;
-const commentPattern = /<!--[\s\S]*?(?:-->|$)/g;
+const commentPattern = /<!--[\s\S]*?(?:-->|$)|{#[\s\S]*?(?:#}|$)/g;
 const headingPattern = /<h([1-6])\b/gi;
 
 /**
