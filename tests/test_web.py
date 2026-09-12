@@ -68,11 +68,6 @@ def declared_modals() -> set[str]:
     return declared
 
 
-# Read-only overlay with nothing focusable in its body, so the fallback in
-# `initialFocusTarget()` already resolves to the close button.
-FALLBACK_FOCUS_MODALS: frozenset[str] = frozenset({"shortcuts-help"})
-
-
 def test_js_manifest_matches_static_js_directory(client: FlaskClient) -> None:
     """The manifest lists exactly the JS files present under static/js/."""
     response = client.get("/static/js-manifest.json")
@@ -181,6 +176,8 @@ def test_security_headers_present_on_every_response(client: FlaskClient) -> None
         ("import-modal", "textarea", "data-el", "json-input"),
         # No `.modal-body`, so the fallback would land on the model picker.
         ("categorize-modal", "button", "class", "modal-close"),
+        # Read-only overlay: nothing in its body is focusable.
+        ("shortcuts-help", "button", "class", "modal-close"),
     ],
 )
 def test_modal_marks_its_initial_focus_target(
@@ -226,7 +223,6 @@ def test_every_modal_marks_its_initial_focus_target(
     )
 
     for modal, marked in targets.items():
-        expected: int = 0 if modal in FALLBACK_FOCUS_MODALS else 1
-        assert len(marked) == expected, (
-            f"{modal} must mark exactly {expected} [data-autofocus] element(s)"
+        assert len(marked) == 1, (
+            f"{modal} must mark exactly one [data-autofocus] element"
         )
