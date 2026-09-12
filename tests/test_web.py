@@ -1,12 +1,58 @@
 """Tests for the web interface routes and the service-worker asset manifests."""
 
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
 from flask.testing import FlaskClient
 
 from summa.routes.invoices import DEFAULT_PAGE_SIZE
+
+Attributes = dict[str, str | None]
+
+
+class _AutofocusCollector(HTMLParser):
+    """Collect the `[data-autofocus]` elements of every modal overlay."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.targets: dict[str, list[tuple[str, Attributes]]] = {}
+        self._modal: str | None = None
+        self._depth: int = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes: Attributes = dict(attrs)
+
+        # Only `div` is counted, so the self-closing SVG children inside a modal
+        # cannot unbalance the depth. Overlays are never nested in one another.
+        if tag == "div":
+            if self._modal is None:
+                classes: str = attributes.get("class") or ""
+                if "modal-overlay" in classes.split():
+                    self._modal = attributes.get("data-el") or ""
+                    self._depth = 0
+                    self.targets.setdefault(self._modal, [])
+            else:
+                self._depth += 1
+
+        if self._modal is not None and "data-autofocus" in attributes:
+            self.targets[self._modal].append((tag, attributes))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "div" or self._modal is None:
+            return
+        if self._depth == 0:
+            self._modal = None
+            return
+        self._depth -= 1
+
+
+def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
+    """Map each modal's `data-el` to the `[data-autofocus]` elements inside it."""
+    collector: _AutofocusCollector = _AutofocusCollector()
+    collector.feed(markup)
+    return collector.targets
 
 
 def test_js_manifest_matches_static_js_directory(client: FlaskClient) -> None:
@@ -104,3 +150,32 @@ def test_security_headers_present_on_every_response(client: FlaskClient) -> None
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["X-Frame-Options"] == "DENY"
         assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+@pytest.mark.parametrize(
+    ("modal", "tag", "attribute", "value"),
+    [
+        # The settings dialog focuses its close button so the destructive
+        # sign-out row below is never one keystroke away.
+        ("settings-modal", "button", "class", "modal-close"),
+        ("add-invoice-modal", "input", "data-el", "invoice-date"),
+        ("bulk-edit-modal", "input", "data-el", "bulk-edit-store"),
+        ("import-modal", "textarea", "data-el", "json-input"),
+    ],
+)
+def test_modal_marks_its_initial_focus_target(
+    client: FlaskClient, modal: str, tag: str, attribute: str, value: str
+) -> None:
+    """Each modal marks exactly one element as its initial focus target."""
+    response = client.get("/")
+    assert response.status_code == 200
+
+    targets: dict[str, list[tuple[str, Attributes]]] = autofocus_targets(
+        response.get_data(as_text=True)
+    )
+
+    marked: list[tuple[str, Attributes]] = targets.get(modal, [])
+    assert len(marked) == 1, f"{modal} must mark exactly one [data-autofocus]"
+    marked_tag, attributes = marked[0]
+    assert marked_tag == tag
+    assert attributes.get(attribute) == value
