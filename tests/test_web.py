@@ -55,7 +55,7 @@ def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
     return collector.targets
 
 
-MODAL_PARTIALS: Path = (
+MODAL_PARTIALS_DIRECTORY: Path = (
     Path(__file__).resolve().parent.parent / "templates" / "partials" / "modals"
 )
 
@@ -63,7 +63,7 @@ MODAL_PARTIALS: Path = (
 def declared_modals() -> set[str]:
     """Collect the `data-el` of every modal overlay partial on disk."""
     declared: set[str] = set()
-    for path in MODAL_PARTIALS.glob("*.html"):
+    for path in MODAL_PARTIALS_DIRECTORY.glob("*.html"):
         declared.update(autofocus_targets(path.read_text()))
     return declared
 
