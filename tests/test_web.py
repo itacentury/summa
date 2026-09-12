@@ -55,6 +55,11 @@ def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
     return collector.targets
 
 
+# Read-only overlay with nothing focusable in its body, so the fallback in
+# `initialFocusTarget()` already resolves to the close button.
+FALLBACK_FOCUS_MODALS: frozenset[str] = frozenset({"shortcuts-help"})
+
+
 def test_js_manifest_matches_static_js_directory(client: FlaskClient) -> None:
     """The manifest lists exactly the JS files present under static/js/."""
     response = client.get("/static/js-manifest.json")
@@ -161,12 +166,21 @@ def test_security_headers_present_on_every_response(client: FlaskClient) -> None
         ("add-invoice-modal", "input", "data-el", "invoice-date"),
         ("bulk-edit-modal", "input", "data-el", "bulk-edit-store"),
         ("import-modal", "textarea", "data-el", "json-input"),
+        # No `.modal-body`, so the fallback would land on the model picker.
+        ("categorize-modal", "button", "class", "modal-close"),
     ],
 )
 def test_modal_marks_its_initial_focus_target(
-    client: FlaskClient, modal: str, tag: str, attribute: str, value: str
+    client: FlaskClient,
+    monkeypatch: pytest.MonkeyPatch,
+    modal: str,
+    tag: str,
+    attribute: str,
+    value: str,
 ) -> None:
-    """Each modal marks exactly one element as its initial focus target."""
+    """The named modal marks the expected element as its initial focus target."""
+    monkeypatch.setenv("ENABLE_AI_SUGGESTIONS", "1")
+
     response = client.get("/")
     assert response.status_code == 200
 
@@ -179,3 +193,24 @@ def test_modal_marks_its_initial_focus_target(
     marked_tag, attributes = marked[0]
     assert marked_tag == tag
     assert attributes.get(attribute) == value
+
+
+def test_every_modal_marks_its_initial_focus_target(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No modal may rely on the DOM-order fallback for its initial focus."""
+    monkeypatch.setenv("ENABLE_AI_SUGGESTIONS", "1")
+
+    response = client.get("/")
+    assert response.status_code == 200
+
+    targets: dict[str, list[tuple[str, Attributes]]] = autofocus_targets(
+        response.get_data(as_text=True)
+    )
+    assert targets, "no modal overlay found - the collector no longer parses the page"
+
+    for modal, marked in targets.items():
+        expected: int = 0 if modal in FALLBACK_FOCUS_MODALS else 1
+        assert len(marked) == expected, (
+            f"{modal} must mark exactly {expected} [data-autofocus] element(s)"
+        )
