@@ -14,10 +14,10 @@
       {{ modal_close_button(autofocus=true) }}
     </div>
     <div class="modal-body">
-      <!-- Revealed by the boot gate only when the password feature is enabled,
-           so an unauthenticated deployment shows no dead control. Every setting
-           row carries `data-setting`; that is what the empty state below is
-           derived from when the modal opens. -->
+      {# Revealed by the boot gate only when the password feature is enabled,
+         so an unauthenticated deployment shows no dead control. Every setting
+         row carries `data-setting`; that is what the empty state below is
+         derived from when the modal opens. #}
       <button class="settings-action" data-setting data-el="logout" hidden>
         <svg
           width="14"
