@@ -9,7 +9,8 @@
   >
     <div class="modal-header">
       <h3 class="modal-title" id="shortcuts-help-title">Keyboard Shortcuts</h3>
-      {{ modal_close_button() }}
+      {# Read-only overlay with nothing focusable in its body. #}
+      {{ modal_close_button(autofocus=true) }}
     </div>
     <div class="modal-body">
       <dl class="shortcut-list">
@@ -20,6 +21,10 @@
         <div class="shortcut-row">
           <dt><kbd>I</kbd></dt>
           <dd>Import invoices</dd>
+        </div>
+        <div class="shortcut-row">
+          <dt><kbd>,</kbd></dt>
+          <dd>Open settings</dd>
         </div>
         <div class="shortcut-row">
           <dt><kbd>/</kbd></dt>

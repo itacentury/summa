@@ -32,6 +32,7 @@ These are the rules that are **not** auto-enforced by the toolchain (`ruff`, `es
 
 - **Scripting/styling hooks:** use a `data-el="name"` hook (selected via `document.querySelector('[data-el="name"]')`) instead of an `id`, and avoid `id` selectors in CSS. Keep a (hyphenated) `id` only where the platform requires it — ARIA relationship attributes (`aria-labelledby`, `aria-controls`, `aria-activedescendant`) and in-page anchors (`href="#…"`, e.g. a skip link) reference targets by `id`; that is an intended use, not a violation of "avoid id".
 - **Semantic HTML:** use elements for their purpose (heading elements for headings, `p` for paragraphs, `a` for anchors, …).
+- **Template comments:** use an HTML comment (`<!-- … -->`) only for section labels; put developer-facing "why" notes in a Jinja comment (`{# … #}`) so they are stripped at render time instead of shipped to every client.
 - **Class names:** meaningful or generic, as short as possible but as long as necessary, separated by hyphens (kebab-case); don't qualify them with type selectors.
 - **CSS declaration order:** group related properties logically (box model → layout → visual detail) so a rule reads top-down, with section comments between larger groups — not alphabetical.
 - **No `!important`** — override via selector specificity instead.

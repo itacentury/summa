@@ -8,6 +8,7 @@ import { escapeHtml, todayIso } from "./dom.js";
 import { showNoticeToast, showErrorToast } from "./toast.js";
 import { refreshAllData } from "./api.js";
 import { closeImportModal } from "./modals.js";
+import { apiFetch } from "./http.js";
 
 export function handleMultipleFiles(files) {
   state.pendingFiles = Array.from(files).filter((f) =>
@@ -188,7 +189,7 @@ async function sendImport(data, originalIndices = null) {
   for (const guarded of guardedButtons) guarded.disabled = true;
 
   try {
-    const response = await fetch("/api/invoices/import", {
+    const response = await apiFetch("/api/invoices/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

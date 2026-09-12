@@ -27,9 +27,12 @@ import { setupComboboxes } from "./combobox.js";
 import { initToastListeners } from "./toast.js";
 import { setupKeyboardListeners } from "./keyboard.js";
 import { setupDrawerListeners } from "./drawer.js";
+import { setupSettingsListeners } from "./settings.js";
 import { setupSheetGestures } from "./sheet.js";
 import { setupViewportListeners } from "./viewport.js";
 import { setupPageSizeListeners } from "./pagesize.js";
+import { getAuthStatus, renderLoginView, setupSignOut } from "./auth.js";
+import { clearAuthExpired, onAuthExpired } from "./http.js";
 import {
   state,
   PAGE_SIZE_OPTIONS,
@@ -115,6 +118,7 @@ function init() {
   const wiringSteps = [
     setupFilterListeners,
     setupModalListeners,
+    setupSettingsListeners,
     setupInvoiceListListeners,
     setupPaginationListeners,
     setupPageSizeListeners,
@@ -131,9 +135,50 @@ function init() {
   for (const step of wiringSteps) runStep(step.name, step);
 }
 
+let started = false;
+
+/**
+ * Run init() at most once.
+ *
+ * A re-login after an expired session must not wire the listeners a second
+ * time, which would fire every handler twice.
+ */
+function startApp() {
+  if (started) return;
+  started = true;
+  init();
+}
+
+/**
+ * Check the session before touching the API, then start the app or show the
+ * login gate. Nothing that talks to the API may run before this resolves.
+ */
+function boot() {
+  // A session can expire while the app is running. Re-login then reloads the
+  // data in place rather than re-running init(), whose listeners are still
+  // wired from the first start.
+  onAuthExpired(() => {
+    renderLoginView(() => {
+      clearAuthExpired();
+      refreshAllData();
+    });
+  });
+
+  getAuthStatus()
+    .then(({ authed, enabled }) => {
+      setupSignOut(enabled);
+      if (authed) startApp();
+      else renderLoginView(startApp);
+    })
+    .catch((error) => {
+      console.error("[init] auth check failed:", error);
+      startApp();
+    });
+}
+
 // Module scripts run after parsing, so DOMContentLoaded may already have fired.
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", boot);
 } else {
-  init();
+  boot();
 }

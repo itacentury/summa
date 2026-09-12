@@ -16,6 +16,7 @@ import { renderInvoices, restoreRows } from "./render.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { createCombobox } from "./combobox.js";
 import { getAiModel, setupModelPicker } from "./ai-model.js";
+import { apiFetch } from "./http.js";
 
 // Per-open review state, reset every time the modal opens.
 let controller = null; // aborts the in-flight suggest request on cancel
@@ -425,13 +426,13 @@ export async function runAnalysis() {
   const current = controller;
   try {
     const [suggestResponse, categoriesResponse] = await Promise.all([
-      fetch("/api/invoices/categorize-suggest", {
+      apiFetch("/api/invoices/categorize-suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, model: getAiModel() }),
         signal: current.signal,
       }),
-      fetch("/api/categories"),
+      apiFetch("/api/categories"),
     ]);
 
     if (suggestResponse.status === 503) {
@@ -505,7 +506,7 @@ function applyCategories() {
     try {
       const responses = await Promise.all(
         [...idsByCategory.entries()].map(([category, ids]) =>
-          fetch("/api/invoices/bulk-update", {
+          apiFetch("/api/invoices/bulk-update", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ids, category }),

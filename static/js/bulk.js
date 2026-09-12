@@ -19,6 +19,7 @@ import {
 import { lockScroll, unlockScroll } from "./modals.js";
 import { getCombobox } from "./combobox.js";
 import { showUndoToast, showErrorToast, hasPendingToast } from "./toast.js";
+import { apiFetch } from "./http.js";
 
 export function toggleInvoiceSelection(invoiceId, isSelected) {
   if (isSelected) {
@@ -194,7 +195,7 @@ export function saveBulkEdit() {
 
   const commit = async () => {
     try {
-      const response = await fetch("/api/invoices/bulk-update", {
+      const response = await apiFetch("/api/invoices/bulk-update", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -296,7 +297,7 @@ export function bulkDeleteInvoices() {
 
   const commit = async () => {
     try {
-      const response = await fetch("/api/invoices/bulk-delete", {
+      const response = await apiFetch("/api/invoices/bulk-delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),

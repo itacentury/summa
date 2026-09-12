@@ -35,9 +35,10 @@
       rel="manifest"
       href="{{ url_for('static', filename='manifest.json') }}"
     />
-    <!-- CSS is split per component; link order matters for the cascade.
-         fonts.css declares the self-hosted @font-face rules and must precede
-         base.css, which applies the Sora family. -->
+    <!-- Stylesheets -->
+    {# Link order matters for the cascade: fonts.css declares the self-hosted
+       @font-face rules and must precede base.css, which applies the Sora
+       family. #}
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/fonts.css') }}"
@@ -72,11 +73,19 @@
     />
     <link
       rel="stylesheet"
+      href="{{ url_for('static', filename='css/login.css') }}"
+    />
+    <link
+      rel="stylesheet"
       href="{{ url_for('static', filename='css/categorize.css') }}"
     />
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/shortcuts-help.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/settings.css') }}"
     />
     <link
       rel="stylesheet"
@@ -114,10 +123,11 @@
       {% include "partials/modals/categorize.html" %}
     {% endif %}
     {% include "partials/modals/shortcuts-help.html" %}
+    {% include "partials/modals/settings.html" %}
     {% include "partials/bulk-toolbar.html" %}
 
-    <!-- Toasts must follow the bulk-action toolbar in the DOM so toast.css can
-         lift them above it via the general-sibling combinator. -->
+    {# Toasts must follow the bulk-action toolbar in the DOM so toast.css can
+       lift them above it via the general-sibling combinator. #}
     {% include "partials/toasts.html" %}
 
     <script

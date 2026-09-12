@@ -1,0 +1,137 @@
+/* Login gate: a full-viewport cover holding a single password card. */
+.login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-primary);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 360px;
+  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+}
+
+/* Header */
+.login-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.login-subtitle {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Password field */
+.login-password {
+  position: relative;
+  display: flex;
+}
+
+.login-input {
+  width: 100%;
+
+  /* Right padding reserves room for the reveal button, which is positioned on
+     top of the field and would otherwise overlap typed text. */
+  padding: 12px 44px 12px 14px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transform: translateY(-50%);
+  transition: color var(--transition-fast);
+}
+
+.login-reveal:hover,
+.login-reveal:focus-visible {
+  color: var(--accent);
+}
+
+.login-reveal svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Remember row */
+.login-remember {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.login-remember input {
+  accent-color: var(--accent);
+}
+
+/* Feedback and submit */
+.login-error {
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--danger-subtle-text);
+  background: var(--danger-subtle-bg);
+  border-radius: var(--radius-sm);
+}
+
+.login-submit {
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent-text-on);
+  cursor: pointer;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.login-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.login-submit:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

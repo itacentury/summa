@@ -151,7 +151,7 @@ describe("fetchInvoiceItems", () => {
     global.fetch = vi.fn(async () => jsonResponse({ id: 7, items }));
 
     await expect(fetchInvoiceItems(7)).resolves.toEqual(items);
-    expect(global.fetch).toHaveBeenCalledWith("/api/invoices/7");
+    expect(global.fetch).toHaveBeenCalledWith("/api/invoices/7", {});
   });
 
   it("throws on a failed request", async () => {

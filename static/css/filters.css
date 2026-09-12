@@ -212,6 +212,12 @@
   border-radius: 9px;
 }
 
+/* The class's `display` would otherwise beat the UA `[hidden]` rule, leaving
+   a "0" badge visible with no active filters. */
+.filter-badge[hidden] {
+  display: none;
+}
+
 .filter-button.active .filter-badge {
   color: var(--accent);
   background: var(--accent-text-on);

@@ -62,10 +62,14 @@
       </svg>
     </button>
 
-    <!-- Search + filter toggle wrap together as one unit -->
+    <!-- Search + filter group -->
+    {# Not just layout: filters.js toggles state classes on this div and invoices.css
+       keys off .search-open, so don't flatten it. Layout rationale and the states
+       where the wrapper is deliberately dissolved (display: contents): see
+       .search-filter-group in filters.css. #}
     <div class="search-filter-group">
-      <!-- Compact-only search toggle: shown when the toolbar is tight; toggles
-           the slide-down search bar below. Hidden when the field shows inline. -->
+      {# Compact-only search toggle: shown when the toolbar is tight; toggles
+         the slide-down search bar below. Hidden when the field shows inline. #}
       <button
         class="filter-search-toggle"
         data-el="search-toggle-compact"
@@ -131,13 +135,13 @@
       </div>
 
       {% if ai_suggestions_enabled %}
-        <!-- AI category suggestions trigger; greyed out (is-empty) when nothing on
-             the page is uncategorized, but never disabled — it must stay clickable
-             so the dialog can explain that the count is page-scoped. Ships the
-             damped state with a 0 badge; updateAiTriggerBadge (categorize.js) owns
-             class, title, aria-label and badge from state.invoices after every
-             invoice render — the values here are only the pre-render default.
-             aria-label carries the name when the label is hidden on mobile. -->
+        {# AI category suggestions trigger; greyed out (is-empty) when nothing on
+           the page is uncategorized, but never disabled — it must stay clickable
+           so the dialog can explain that the count is page-scoped. Ships the
+           damped state with a 0 badge; updateAiTriggerBadge (categorize.js) owns
+           class, title, aria-label and badge from state.invoices after every
+           invoice render — the values here are only the pre-render default.
+           aria-label carries the name when the label is hidden on mobile. #}
         <button
           class="ai-trigger is-empty"
           data-el="ai-categories-trigger"

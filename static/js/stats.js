@@ -8,6 +8,7 @@ import { els, escapeHtml, formatCurrency, mobileViewport } from "./dom.js";
 import { showErrorToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { closeMobileSearch } from "./drawer.js";
+import { apiFetch } from "./http.js";
 
 /**
  * Sync the scrim class and body scroll lock to the filter panel's current
@@ -130,7 +131,7 @@ export async function loadStats() {
   });
 
   try {
-    const response = await fetch(`/api/stats?${params}`);
+    const response = await apiFetch(`/api/stats?${params}`);
     const data = await response.json();
     renderStats(data);
   } catch {

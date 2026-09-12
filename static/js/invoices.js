@@ -22,6 +22,7 @@ import {
   hasPendingToast,
 } from "./toast.js";
 import { reinsertRows, restoreRows, renderInvoices } from "./render.js";
+import { apiFetch } from "./http.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -81,7 +82,7 @@ async function createInvoice(payload) {
   saveButton.disabled = true;
 
   try {
-    const response = await fetch("/api/invoices", {
+    const response = await apiFetch("/api/invoices", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -131,7 +132,7 @@ function deferInvoiceUpdate(id, payload) {
 
   const commit = async () => {
     try {
-      const response = await fetch(`/api/invoices/${id}`, {
+      const response = await apiFetch(`/api/invoices/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -198,7 +199,7 @@ export function deleteInvoice(id) {
   const commit = async () => {
     try {
       // keepalive: finalize the delete even if this commit fires during unload.
-      const response = await fetch(`/api/invoices/${id}`, {
+      const response = await apiFetch(`/api/invoices/${id}`, {
         method: "DELETE",
         keepalive: true,
       });

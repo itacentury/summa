@@ -9,6 +9,7 @@ import { renderInvoices } from "./render.js";
 import { loadStats } from "./stats.js";
 import { getCombobox, setCategoryOptions } from "./combobox.js";
 import { updateFilterBadge } from "./filters.js";
+import { apiFetch } from "./http.js";
 
 // Cancels the in-flight invoice request when a newer one supersedes it, so a
 // slower earlier response can't render over a newer one (out-of-order results
@@ -84,7 +85,7 @@ export function buildFilterParams() {
  * Backs cross-page "select all".
  */
 export async function fetchFilteredIds() {
-  const response = await fetch(`/api/invoices/ids?${buildFilterParams()}`);
+  const response = await apiFetch(`/api/invoices/ids?${buildFilterParams()}`);
   const data = await response.json();
   return data.ids;
 }
@@ -95,7 +96,7 @@ export async function fetchFilteredIds() {
  * Throws on a failed request; callers handle the error.
  */
 export async function fetchInvoiceItems(id) {
-  const response = await fetch(`/api/invoices/${id}`);
+  const response = await apiFetch(`/api/invoices/${id}`);
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   const data = await response.json();
   return data.items;
@@ -120,7 +121,7 @@ async function fetchInvoices() {
   inFlightController = controller;
 
   try {
-    const response = await fetch(`/api/invoices?${params}`, {
+    const response = await apiFetch(`/api/invoices?${params}`, {
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`Request failed: ${response.status}`);
@@ -164,7 +165,7 @@ export async function loadStores() {
     const storeFilter = getCombobox("store-filter");
     const previousValue = storeFilter ? storeFilter.getValue() : "";
 
-    const response = await fetch("/api/stores");
+    const response = await apiFetch("/api/stores");
     const stores = await response.json();
 
     if (storeFilter) storeFilter.setOptions(stores);
@@ -196,7 +197,7 @@ export async function loadCategories() {
     const typeFilter = getCombobox("type-filter");
     const previousValue = typeFilter ? typeFilter.getValue() : "";
 
-    const response = await fetch("/api/categories");
+    const response = await apiFetch("/api/categories");
     const categories = await response.json();
 
     // Feed the fresh option list to every category combobox (filter + modals).

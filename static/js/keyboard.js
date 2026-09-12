@@ -12,6 +12,7 @@ import {
   lockScroll,
   unlockScroll,
 } from "./modals.js";
+import { openSettingsModal } from "./settings.js";
 import { els } from "./dom.js";
 
 const FOCUSABLE_SELECTOR =
@@ -161,6 +162,10 @@ function handleGlobalKeydown(event) {
     case "i":
       event.preventDefault();
       openImportModal();
+      break;
+    case ",":
+      event.preventDefault();
+      openSettingsModal();
       break;
     case "/":
       event.preventDefault();

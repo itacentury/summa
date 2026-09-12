@@ -103,7 +103,7 @@
       {
         "label": "Run: Start Server",
         "type": "shell",
-        "command": "uv run flask --app summa.wsgi run --debug --port 8000",
+        "command": "uv run --env-file .env flask --app summa.wsgi run --debug --port 8000",
         "group": "build",
         "isBackground": true,
         "presentation": {
@@ -142,6 +142,7 @@
           "FLASK_APP": "summa.wsgi",
           "FLASK_DEBUG": "1",
         },
+        "envFile": "${workspaceFolder}/.env",
         "jinja": true,
       },
       {

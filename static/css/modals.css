@@ -95,6 +95,11 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+/* The class's `display` would otherwise beat the UA `[hidden]` rule. */
+.modal-footer[hidden] {
+  display: none;
+}
+
 /* Intro line above the bulk-edit form ("N invoice(s) selected"). */
 .bulk-edit-note {
   margin-bottom: 1rem;
