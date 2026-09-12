@@ -55,6 +55,19 @@ def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
     return collector.targets
 
 
+MODAL_PARTIALS: Path = (
+    Path(__file__).resolve().parent.parent / "templates" / "partials" / "modals"
+)
+
+
+def declared_modals() -> set[str]:
+    """Collect the `data-el` of every modal overlay partial on disk."""
+    declared: set[str] = set()
+    for path in MODAL_PARTIALS.glob("*.html"):
+        declared.update(autofocus_targets(path.read_text()))
+    return declared
+
+
 # Read-only overlay with nothing focusable in its body, so the fallback in
 # `initialFocusTarget()` already resolves to the close button.
 FALLBACK_FOCUS_MODALS: frozenset[str] = frozenset({"shortcuts-help"})
@@ -207,7 +220,10 @@ def test_every_modal_marks_its_initial_focus_target(
     targets: dict[str, list[tuple[str, Attributes]]] = autofocus_targets(
         response.get_data(as_text=True)
     )
-    assert targets, "no modal overlay found - the collector no longer parses the page"
+    assert set(targets) == declared_modals(), (
+        "rendered modals do not match templates/partials/modals/ - "
+        "a partial is unrendered, feature-flagged off, or no longer collected"
+    )
 
     for modal, marked in targets.items():
         expected: int = 0 if modal in FALLBACK_FOCUS_MODALS else 1
