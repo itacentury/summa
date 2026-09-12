@@ -63,7 +63,9 @@
     </button>
 
     <!-- Search + filter group -->
-    {# Search + filter toggle wrap together as one unit. #}
+    {# Layout-only wrapper: keeps the search field and the filter toggle on one
+       flex line, so the toggle can't orphan onto the next row when the toolbar
+       wraps. See .search-filter-group in filters.css. #}
     <div class="search-filter-group">
       {# Compact-only search toggle: shown when the toolbar is tight; toggles
          the slide-down search bar below. Hidden when the field shows inline. #}
