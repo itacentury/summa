@@ -312,9 +312,9 @@ const SUGGESTION_LIMIT = 4;
  * the review row shows the new-category badge.
  */
 const SUGGESTED_CATEGORY = new Map([
-  ["Best Buy", { category: "Electronics", is_new: false }],
-  ["CVS Pharmacy", { category: "Personal Care", is_new: true }],
-  ["Blue Bottle Coffee", { category: "Dining", is_new: false }],
+  ["MediaMarkt", { category: "Electronics", is_new: false }],
+  ["Boots Pharmacy", { category: "Personal Care", is_new: true }],
+  ["Espresso House", { category: "Dining", is_new: false }],
   ["IKEA", { category: "Household", is_new: false }],
 ]);
 

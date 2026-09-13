@@ -1,7 +1,7 @@
 [
   {
     "date": "2026-09-07",
-    "store": "Costco Wholesale",
+    "store": "Makro",
     "category": "Groceries",
     "total": 87.43,
     "items": [
@@ -13,7 +13,7 @@
   },
   {
     "date": "2026-09-05",
-    "store": "Lyft",
+    "store": "FREE NOW",
     "category": "Transport",
     "total": 21.6,
     "items": [{ "item_name": "Ride — Station to Office", "item_price": 21.6 }]
@@ -26,14 +26,14 @@
   },
   {
     "date": "2026-09-02",
-    "store": "Barnes & Noble",
+    "store": "Waterstones",
     "category": "Entertainment",
     "total": "twenty-four fifty",
     "items": [{ "item_name": "Hardcover novel", "item_price": 24.5 }]
   },
   {
     "date": "2026-08-30",
-    "store": "REI Co-op",
+    "store": "Decathlon",
     "category": "Household",
     "total": 64.98,
     "items": [
