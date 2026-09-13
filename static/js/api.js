@@ -131,6 +131,7 @@ async function fetchInvoices() {
     state.effectivePageSize = data.page_size;
     state.totalCount = data.total_count;
     state.totalSum = data.total_sum;
+    state.uncategorizedCount = data.uncategorized_count;
     renderInvoices();
 
     // Also refresh stats if in stats view

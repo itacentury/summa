@@ -293,14 +293,9 @@
   padding: 0.25rem 0.5rem;
 }
 
-/* Import errors (per-entry inline editors) */
-.import-errors {
-  max-height: 320px;
-  padding-top: 1rem;
-  margin-top: 1rem;
-  overflow-y: auto;
-  border-top: 1px solid var(--border-color);
-}
+/* Import errors (per-entry inline editors). The panel is not a scroll container
+   of its own — the modal already scrolls, and a second one clipped cards
+   mid-card. */
 
 .import-error-title {
   margin-bottom: 0.75rem;
@@ -338,7 +333,7 @@
 }
 
 .error-editor {
-  min-height: 96px;
+  width: 100%;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.75rem;
   line-height: 1.5;

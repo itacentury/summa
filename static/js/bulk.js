@@ -13,6 +13,8 @@ import {
   renderInvoices,
   updateBulkActionToolbar,
   captureRows,
+  adjustUncategorizedCount,
+  countUncategorized,
   reinsertRows,
   restoreRows,
 } from "./render.js";
@@ -183,6 +185,9 @@ export function saveBulkEdit() {
     if (newCategory) updated.category = newCategory;
     return updated;
   });
+  // Only the visible rows can be counted; off-page selected ones reconcile on
+  // commit, the same limitation totalSum carries in bulkDeleteInvoices.
+  if (newCategory) adjustUncategorizedCount(-countUncategorized(previous));
   closeBulkEditModal();
   selectedInvoices.clear();
   renderInvoices();
@@ -283,6 +288,9 @@ export function bulkDeleteInvoices() {
   state.totalSum -= removed.reduce(
     (sum, { invoice }) => sum + Number(invoice.total),
     0,
+  );
+  adjustUncategorizedCount(
+    -countUncategorized(removed.map(({ invoice }) => invoice)),
   );
   selectedInvoices.clear();
   renderInvoices();

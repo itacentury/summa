@@ -38,6 +38,16 @@ export default [
     },
   },
   {
+    // Node-side tooling (screenshot capture, heading check). Run directly with
+    // `node`, so they get the Node globals rather than the browser ones.
+    files: ["scripts/**/*.{js,mjs}"],
+    languageOptions: {
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
+    rules: { ...js.configs.recommended.rules, ...styleRules },
+  },
+  {
     // Vitest globals (describe/it/expect/vi) are imported explicitly in each
     // test file, so only node + browser globals are needed here. The suites run
     // under happy-dom, hence the browser globals for window/document.

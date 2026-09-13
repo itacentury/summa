@@ -307,7 +307,7 @@
   }
 }
 
-/* Capped-run note */
+/* Run-scope note (capped run, invoices on other pages) */
 .categorize-note {
   padding: 10px 24px;
   font-size: 0.75rem;

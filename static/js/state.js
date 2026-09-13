@@ -12,6 +12,7 @@ export const state = {
   pageSize: 25, // Invoices requested per page
   effectivePageSize: 25, // Server-clamped page size from the last response; drives totalPages
   totalCount: 0, // Total invoices matching the active filters
+  uncategorizedCount: 0, // Uncategorized invoices matching the active filters, across all pages
   totalSum: 0, // Sum of totals across all matching invoices
   currentDate: new Date(), // Current date for navigation reference
   editingInvoiceId: null, // Track if we're editing an invoice

@@ -1149,6 +1149,43 @@ def test_pagination_totals_reflect_filters_not_page(
     assert len(body["invoices"]) == 1
 
 
+def test_uncategorized_count_spans_pages_not_just_the_returned_one(
+    client: FlaskClient, seed_invoice: SeedInvoice
+) -> None:
+    """The uncategorized tally covers the filtered set, so it is page-independent."""
+    seed_invoice(date="2024-01-01", store="A")
+    seed_invoice(date="2024-01-02", store="B", category="Groceries")
+    seed_invoice(date="2024-01-03", store="C")
+    seed_invoice(date="2024-01-04", store="D")
+
+    first = _get_json(client.get("/api/invoices?page=1&page_size=2"))
+    second = _get_json(client.get("/api/invoices?page=2&page_size=2"))
+
+    # Each page holds a different share of them; the reported count does not move.
+    assert [invoice["category"] for invoice in first["invoices"]] == [None, None]
+    assert [invoice["category"] for invoice in second["invoices"]] == [
+        "Groceries",
+        None,
+    ]
+    assert first["uncategorized_count"] == 3
+    assert second["uncategorized_count"] == 3
+
+
+def test_uncategorized_count_honours_filters_and_soft_deletes(
+    client: FlaskClient, seed_invoice: SeedInvoice
+) -> None:
+    """The tally follows the active filters and is 0 for a fully categorized set."""
+    seed_invoice(store="Keep")
+    seed_invoice(store="Keep", category="Groceries")
+    seed_invoice(store="Other")
+    seed_invoice(store="Keep", deleted=True)
+
+    assert _get_json(client.get("/api/invoices"))["uncategorized_count"] == 2
+    assert _get_json(client.get("/api/invoices?store=Keep"))["uncategorized_count"] == 1
+    categorized = client.get("/api/invoices?category=Groceries")
+    assert _get_json(categorized)["uncategorized_count"] == 0
+
+
 # --- GET /api/invoices/ids ----------------------------------------------------
 
 
