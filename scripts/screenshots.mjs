@@ -145,9 +145,12 @@ const stopServer = async (child) => {
  * The newest demo invoice sits mid-month, so on an earlier day the aligned
  * shift would land in the future, which the API rejects. Those invoices are
  * rescaled into the part of the month that has already happened rather than
- * pushed back a further month — that would leave the default view empty — and
- * rather than clamped onto today, which would date a third of the list
- * identically in the screenshots.
+ * pushed back a further month, which would leave the default view empty. The
+ * spread is bounded by the elapsed days: only from the newest invoice's own day
+ * of the month on do the dates stay distinct, and on the 1st they all collapse
+ * onto that single day, exactly as clamping onto today would. A collapse that
+ * makes two demo invoices collide on (date, store, total) fails the run at the
+ * skip guard in seed() rather than silently dropping a row.
  */
 const shiftDatesToToday = (invoices) => {
   const parse = (iso) => iso.split("-").map(Number);
