@@ -27,6 +27,34 @@ afterEach(() => {
 });
 
 describe("importJson", () => {
+  it("keeps a single-line entry's editor tall enough to edit", async () => {
+    document.querySelector('[data-el="json-input"]').value = JSON.stringify([
+      "garbage",
+    ]);
+
+    global.fetch = vi.fn(async () =>
+      jsonResponse({
+        success: true,
+        imported: 0,
+        skipped: 0,
+        failed: 1,
+        errors: [
+          {
+            index: 0,
+            field: null,
+            message: "Entry must be an object",
+            value: "garbage",
+          },
+        ],
+      }),
+    );
+
+    await importJson();
+
+    const editor = document.querySelector('[data-el="error-editor"]');
+    expect(editor.getAttribute("rows")).toBe("2");
+  });
+
   it("renders field errors for mixed invalid fields", async () => {
     const payload = {
       date: "",

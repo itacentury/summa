@@ -137,7 +137,10 @@ const MAX_VISIBLE_ERRORS = 20;
 
 // Each editor is sized to its own JSON so a typical entry needs no scrolling;
 // past this many lines it scrolls internally rather than dominating the modal.
+// A degenerate entry (a non-object, or `{}`) stringifies to a single line, so the
+// sizing is also floored — a one-row textarea leaves no room to type a fix.
 const MAX_EDITOR_ROWS = 12;
+const MIN_EDITOR_ROWS = 2;
 
 export async function importJson() {
   const jsonText = document
@@ -255,7 +258,10 @@ function renderImportErrors(errors) {
     .map((error) => {
       const fieldLabel = error.field ? `${escapeHtml(error.field)}: ` : "";
       const json = JSON.stringify(error.value, null, 2);
-      const rows = Math.min(json.split("\n").length, MAX_EDITOR_ROWS);
+      const rows = Math.max(
+        MIN_EDITOR_ROWS,
+        Math.min(json.split("\n").length, MAX_EDITOR_ROWS),
+      );
       // Entities in the textarea body decode back to the raw JSON on parse, and
       // escaping prevents a value containing `</textarea>` from breaking out.
       const rawJson = escapeHtml(json);
