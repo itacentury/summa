@@ -146,11 +146,11 @@ const stopServer = async (child) => {
  * shift would land in the future, which the API rejects. Those invoices are
  * rescaled into the part of the month that has already happened rather than
  * pushed back a further month, which would leave the default view empty. The
- * spread is bounded by the elapsed days: only from the newest invoice's own day
- * of the month on do the dates stay distinct, and on the 1st they all collapse
- * onto that single day, exactly as clamping onto today would. A collapse that
- * makes two demo invoices collide on (date, store, total) fails the run at the
- * skip guard in seed() rather than silently dropping a row.
+ * spread is bounded by the elapsed days: the dates stay distinct only once the
+ * month has as many elapsed days as there are invoices in it, and on the 1st
+ * they all collapse onto that single day, exactly as clamping onto today would.
+ * A collapse that makes two demo invoices collide on (date, store, total) fails
+ * the run at the skip guard in seed() rather than silently dropping a row.
  */
 const shiftDatesToToday = (invoices) => {
   const parse = (iso) => iso.split("-").map(Number);
