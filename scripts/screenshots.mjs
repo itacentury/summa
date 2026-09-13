@@ -118,9 +118,17 @@ const stopServer = async (child) => {
  * the current month. The committed dates are absolute — which keeps the file a
  * directly importable sample — but the default "Month" filter would show an
  * empty list a few weeks after they were written.
+ *
+ * The newest demo invoice sits mid-month, so on an earlier day the aligned
+ * shift would land in the future, which the API rejects. Those invoices are
+ * rescaled into the part of the month that has already happened rather than
+ * pushed back a further month — that would leave the default view empty — and
+ * rather than clamped onto today, which would date a third of the list
+ * identically in the screenshots.
  */
 const shiftDatesToToday = (invoices) => {
   const parse = (iso) => iso.split("-").map(Number);
+  const pad = (number) => String(number).padStart(2, "0");
   const today = new Date();
   const [newestYear, newestMonth] = parse(
     invoices
@@ -146,18 +154,28 @@ const shiftDatesToToday = (invoices) => {
       return { ...invoice, date: shifted.toISOString().slice(0, 10) };
     });
 
-  let months =
+  const months =
     (today.getFullYear() - newestYear) * 12 +
     (today.getMonth() + 1 - newestMonth);
-  let shifted = shiftBy(months);
-  // A future date is rejected by the API; fall back one month if the shift
-  // overshot (the newest demo invoice is later in the month than today).
-  const todayIso = today.toISOString().slice(0, 10);
-  if (shifted.some((invoice) => invoice.date > todayIso)) {
-    months -= 1;
-    shifted = shiftBy(months);
-  }
-  return shifted;
+  const shifted = shiftBy(months);
+
+  // Local getters throughout: `months` above is computed from the local date,
+  // and the server validates against its own local `date.today()`. Deriving
+  // the cutoff from toISOString() instead would disagree by a day for part of
+  // every day outside UTC.
+  const currentMonth = `${today.getFullYear()}-${pad(today.getMonth() + 1)}`;
+  const dayOfMonth = (invoice) => Number(invoice.date.slice(8));
+  const inCurrentMonth = shifted.filter((invoice) =>
+    invoice.date.startsWith(currentMonth),
+  );
+  const latestDay = Math.max(...inCurrentMonth.map(dayOfMonth));
+  if (latestDay <= today.getDate()) return shifted;
+
+  return shifted.map((invoice) => {
+    if (!invoice.date.startsWith(currentMonth)) return invoice;
+    const day = Math.round((dayOfMonth(invoice) * today.getDate()) / latestDay);
+    return { ...invoice, date: `${currentMonth}-${pad(Math.max(1, day))}` };
+  });
 };
 
 const seed = async () => {
@@ -232,6 +250,20 @@ const step = async (
   } catch (error) {
     failures.push(`${name}-${viewport.name}: ${error.message.split("\n")[0]}`);
     console.log(`  ✗ ${name}-${viewport.name}`);
+  }
+};
+
+/**
+ * Run one capture group in isolation. `step()` only guards what happens after
+ * the app is open; a group that fails before that — opening the page, reading a
+ * fixture — would otherwise abort every later group with it.
+ */
+const group = async (name, body) => {
+  try {
+    await body();
+  } catch (error) {
+    failures.push(`${name}: ${error.message.split("\n")[0]}`);
+    console.log(`  ✗ ${name} (group aborted)`);
   }
 };
 
@@ -576,18 +608,18 @@ const main = async () => {
 
     console.log(`\ndesktop (${DESKTOP.width}x${DESKTOP.height})`);
     const desktop = await newContext(browser, DESKTOP);
-    await captureDesktop(desktop);
-    await captureCategorize(desktop);
+    await group("desktop", () => captureDesktop(desktop));
+    await group("categorize", () => captureCategorize(desktop));
     await desktop.close();
 
     console.log(`\nmobile (${MOBILE.width}x${MOBILE.height})`);
     const mobile = await newContext(browser, MOBILE);
-    await captureMobile(mobile);
+    await group("mobile", () => captureMobile(mobile));
     await mobile.close();
 
     // Last: the sample import inserts rows, which would change every list above.
     console.log("\nimport flow");
-    await captureImport(browser);
+    await group("import", () => captureImport(browser));
   } finally {
     await stopServer(server);
   }
