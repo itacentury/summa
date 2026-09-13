@@ -26,24 +26,42 @@ let reviewRows = [];
 let existingLower = new Set(); // lowercased existing categories, for is-new recompute
 
 /**
+ * How many uncategorized invoices the active filters hold beyond the ones a run
+ * covers. `state.uncategorizedCount` spans every page of the filtered set, so the
+ * remainder is what the other pages hold. Clamped: the two numbers arrive in
+ * separate responses, and an edit between them could otherwise go negative.
+ */
+function invoicesElsewhere(onThisPage) {
+  return Math.max(state.uncategorizedCount - onThisPage, 0);
+}
+
+/**
+ * The trigger's accessible name. Always leads with the control name, so the
+ * damped state still identifies the button rather than only explaining itself.
+ */
+function triggerLabel(onThisPage) {
+  if (onThisPage > 0) return "AI Categories";
+  const elsewhere = invoicesElsewhere(0);
+  if (elsewhere === 0)
+    return "AI Categories — nothing uncategorized in this period";
+  return `AI Categories — none on this page, ${elsewhere} on other pages in this period`;
+}
+
+/**
  * Update the trigger button's badge and damped state from the uncategorized
  * invoices on the current page (`state.invoices`), matching what the AI action
  * analyzes. Called after every invoice-list load so it stays live. When nothing
  * is uncategorized the button is greyed out (`is-empty`) but stays clickable and
  * enabled: a disabled button could not open the dialog, and the dialog's empty
- * state is what explains that other pages in the period may still have some.
+ * state is what names the invoices the other pages still hold.
  */
 export function updateAiTriggerBadge() {
   const button = document.querySelector('[data-el="ai-categories-trigger"]');
   if (!button) return;
   const count = state.invoices.filter((invoice) => !invoice.category).length;
   button.classList.toggle("is-empty", count === 0);
-  // aria-label wins the accessible name over title, so both carry the hint —
-  // and both lead with the control name so the empty state still identifies it.
-  const label =
-    count === 0
-      ? "AI Categories — none uncategorized on this page, other pages in this period may still have some"
-      : "AI Categories";
+  // aria-label wins the accessible name over title, so both carry the hint.
+  const label = triggerLabel(count);
   button.title = label;
   button.setAttribute("aria-label", label);
   const badge = button.querySelector('[data-el="ai-categories-badge"]');
@@ -150,12 +168,17 @@ function renderError(message) {
 
 /**
  * The reachable "nothing to analyze" state: the trigger stays clickable on a
- * fully categorized page, so this is what opening it lands on.
+ * fully categorized page, so this is what opening it lands on. `elsewhere` is
+ * passed in rather than read from `state` so the message stays a function of its
+ * input — the callers know which count applies to their case.
  */
-function renderPageScopedEmpty() {
+function renderPageScopedEmpty(elsewhere) {
   setFooterVisible(false);
-  contentEl().innerHTML = `
-    <div class="categorize-banner">No uncategorized invoices on this page — other pages in this period may still have some.</div>`;
+  const message =
+    elsewhere > 0
+      ? `No uncategorized invoices on this page — ${elsewhere} on other pages in this period.`
+      : "No uncategorized invoices in this period.";
+  contentEl().innerHTML = `<div class="categorize-banner">${message}</div>`;
 }
 
 function setSubtitle(total) {
@@ -223,17 +246,32 @@ function renderReview(data, categories) {
   existingLower = new Set(categories.map((category) => category.toLowerCase()));
 
   if (reviewRows.length === 0) {
-    renderPageScopedEmpty();
+    renderPageScopedEmpty(invoicesElsewhere(data.total));
     return;
   }
 
-  const cappedNote =
-    data.total > data.count
-      ? `<div class="categorize-note">First ${data.count} of ${data.total} — apply these, then run again for the rest.</div>`
+  // Both notes narrow the run's scope, so they share one band rather than
+  // stacking two identical bars. `data.total` is the server's own count of what
+  // was uncategorized on this page — the same number the subtitle shows.
+  const notes = [];
+  if (data.total > data.count) {
+    notes.push(
+      `First ${data.count} of ${data.total} — apply these, then run again for the rest.`,
+    );
+  }
+  const elsewhere = invoicesElsewhere(data.total);
+  if (elsewhere > 0) {
+    notes.push(
+      `${elsewhere} more uncategorized invoice${elsewhere !== 1 ? "s" : ""} on other pages in this period.`,
+    );
+  }
+  const note =
+    notes.length > 0
+      ? `<div class="categorize-note">${notes.join(" ")}</div>`
       : "";
 
   contentEl().innerHTML = `
-    ${cappedNote}
+    ${note}
     <div class="categorize-selectall">
       <label class="categorize-check">
         <input type="checkbox" data-el="categorize-select-all" aria-label="Select all" />
@@ -418,7 +456,8 @@ export async function runAnalysis() {
   if (ids.length === 0) {
     reviewRows = [];
     setSubtitle(0);
-    renderPageScopedEmpty();
+    // Nothing on this page, so every uncategorized invoice in the filter is elsewhere.
+    renderPageScopedEmpty(invoicesElsewhere(0));
     return;
   }
 

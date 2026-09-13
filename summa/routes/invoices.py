@@ -93,7 +93,12 @@ def _build_invoice_filter(args: Any) -> tuple[str, list[str]]:
 
 @invoices_bp.route("/api/invoices", methods=["GET"])
 def get_invoices() -> Response:
-    """Retrieve a page of invoices with optional filtering and sorting."""
+    """Retrieve a page of invoices with optional filtering and sorting.
+
+    ``uncategorized_count`` is scoped to the active filters rather than to the
+    returned page, so the client can say how many uncategorized invoices the other
+    pages still hold -- the page's own share is countable from ``invoices``.
+    """
     where, params = _build_invoice_filter(request.args)
 
     # Sorting. Always include `id` as a unique tie-breaker so rows sharing a
@@ -119,14 +124,21 @@ def get_invoices() -> Response:
         page = 1
 
     with db_cursor() as cursor:
+        # The uncategorized tally rides along in the totals query rather than costing a
+        # second round trip. COALESCE because SUM over zero rows is NULL, and
+        # `category IS NULL` is the predicate /categorize-suggest scopes by, so the
+        # two endpoints can never disagree on what "uncategorized" means.
         cursor.execute(
-            f"SELECT COUNT(*) AS total_count, COALESCE(SUM(total), 0) AS total_sum "
+            f"SELECT COUNT(*) AS total_count, COALESCE(SUM(total), 0) AS total_sum, "
+            f"COALESCE(SUM(CASE WHEN category IS NULL THEN 1 ELSE 0 END), 0) "
+            f"AS uncategorized_count "
             f"FROM invoices {where}",
             params,
         )
         totals: sqlite3.Row = cursor.fetchone()
         total_count: int = totals["total_count"]
         total_sum: float = totals["total_sum"]
+        uncategorized_count: int = totals["uncategorized_count"]
 
         if fetch_all:
             # Report the served size so the client's ceil(total/size) collapses to
@@ -160,6 +172,7 @@ def get_invoices() -> Response:
             "page_size": page_size,
             "total_count": total_count,
             "total_sum": total_sum,
+            "uncategorized_count": uncategorized_count,
         }
     )
 

@@ -330,7 +330,7 @@ const suggestionFor = (store) => {
 /**
  * Fixture for POST /api/invoices/categorize-suggest, shaped like the real
  * endpoint. Stubbed so the run needs no Anthropic API key and stays
- * deterministic. `total > count` also exercises the "First N of M" note.
+ * deterministic.
  *
  * Only the suggested category is invented; store, amount and items are read back
  * from the seeded rows, so the review list can never drift away from the demo
@@ -355,9 +355,11 @@ const categorizeFixture = async (ids) => {
   return {
     suggestions,
     count: suggestions.length,
-    // More uncategorized than one run returns, so the "First N of M" note is
-    // part of the screenshot.
-    total: suggestions.length + 3,
+    // What the route's COUNT would return: the client only ever posts the ids of
+    // the uncategorized rows on its page, so every one of them counts. Inventing a
+    // larger number here would put a count in the screenshot that contradicts the
+    // page behind it.
+    total: ids.length,
   };
 };
 
@@ -469,7 +471,9 @@ const captureCategorize = async (context) => {
 
   await step("categorize-row-expanded", DESKTOP, async (file) => {
     // The current month holds a single uncategorized invoice, which would make
-    // for a one-row review list; "All" gives the suggestions their full set.
+    // for a one-row review list; "All" widens it to two. The demo data's other two
+    // uncategorized invoices fall on page 2 — which is exactly what the modal's
+    // cross-page note names in the shot.
     await page.locator('.quick-filter-btn[data-filter="all"]').click();
     await page.waitForTimeout(800);
     await page.locator('[data-action="open-categorize"]').click();
