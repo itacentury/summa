@@ -40,7 +40,7 @@ NODE_PATH=/tmp/summa-pw/node_modules node scripts/screenshots.mjs
 ```
 
 The demo data lives in [`scripts/screenshot-data.json`](../../scripts/screenshot-data.json)
-(45 invoices across ~14 months). Its dates are absolute — so the file doubles as
+(45 invoices across 13 months, 2025-09 to 2026-09). Its dates are absolute — so the file doubles as
 a ready-to-use `POST /api/invoices/import` sample — but the script shifts them
 forward by whole months at seed time, so the default "Month" filter always has
 data. [`scripts/screenshot-import-sample.json`](../../scripts/screenshot-import-sample.json)
@@ -50,7 +50,9 @@ on purpose, to produce the error-correction panel.
 The AI suggestion endpoint is stubbed via `page.route()`, so the run needs no
 Anthropic API key and stays deterministic.
 
-The committed PNGs are reduced to a 256-colour palette, which is visually
+The committed PNGs are quantized to a 256-colour palette, which is visually
 identical for this flat-coloured UI at about a third of the size. The run does
-that itself when `pngquant`, `oxipng` or ImageMagick is installed, and tells you
-when none of them is.
+that itself with `pngquant` or ImageMagick; when neither is installed but
+`oxipng` is, it falls back to a lossless recompress instead, which keeps every
+colour and saves correspondingly less. With none of the three installed it just
+tells you.

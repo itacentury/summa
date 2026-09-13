@@ -565,10 +565,11 @@ const captureLogin = async (browser) => {
 };
 
 /**
- * Shrink the captured PNGs to a 256-colour palette. The UI is flat-coloured, so
- * the result is visually identical at roughly a third of the size, which is
- * worth having for images living in git. Skipped, with a note, when no such
- * tool is installed.
+ * Shrink the captured PNGs. The UI is flat-coloured, so quantizing to a
+ * 256-colour palette is visually identical at roughly a third of the size,
+ * which is worth having for images living in git; oxipng only recompresses
+ * losslessly, so it is the last resort. Skipped, with a note, when none of the
+ * tools is installed.
  */
 const compress = async () => {
   const files = (await readdir(SHOT_DIR))
@@ -576,19 +577,22 @@ const compress = async () => {
     .map((name) => join(SHOT_DIR, name));
   if (files.length === 0) return;
 
+  // pngquant exits 98 when --skip-if-larger skips a file: it ran, it just left
+  // that one alone, so treat it as done rather than falling through.
   const attempts = [
     [
       "pngquant",
       ["--force", "--skip-if-larger", "--ext", ".png", "--", ...files],
+      [0, 98],
     ],
-    ["oxipng", ["-o", "4", "--strip", "safe", "-q", ...files]],
-    ["magick", ["mogrify", "-colors", "256", ...files]],
+    ["magick", ["mogrify", "-colors", "256", ...files], [0]],
+    ["oxipng", ["-o", "4", "--strip", "safe", "-q", ...files], [0]],
   ];
-  for (const [tool, args] of attempts) {
+  for (const [tool, args, okCodes] of attempts) {
     const succeeded = await new Promise((resolve) => {
       const child = spawn(tool, args, { stdio: "ignore" });
       child.on("error", () => resolve(false));
-      child.on("exit", (code) => resolve(code === 0));
+      child.on("exit", (code) => resolve(okCodes.includes(code)));
     });
     if (succeeded) {
       console.log(`\ncompressed with ${tool}`);
