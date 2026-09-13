@@ -141,7 +141,7 @@ From the categorize dialog you trigger a run over the uncategorized invoices on
 the current page; the model returns one category per invoice and you review
 and confirm the suggestions before anything is written — the request itself never
 mutates your data. Because a run is page-scoped, the dialog also says how many
-uncategorized invoices the rest of the filtered period still holds, so a
+uncategorized invoices the rest of the filtered set still holds, so a
 multi-page backlog is visible rather than silently left behind.
 
 **Enabling it:** set `ANTHROPIC_API_KEY` in the server environment (get a key from

@@ -300,7 +300,7 @@ def categorize_suggest() -> ApiResponse:
     ``{"ids": [...]}``); this collects the uncategorized ones among them (with
     items), asks Claude for one category each, and returns the suggestions for
     review. Scoping by explicit ids keeps the analysis limited to exactly the
-    rows on the current page rather than the whole filtered period. The actual
+    rows on the current page rather than the whole filtered set. The actual
     write goes through the existing ``/api/invoices/bulk-update`` path once the
     user confirms.
 

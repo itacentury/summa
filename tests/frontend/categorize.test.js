@@ -116,12 +116,14 @@ describe("updateAiTriggerBadge", () => {
     expect(badge().textContent).toBe("0");
     expect(button().disabled).toBe(false);
     expect(button().classList.contains("is-empty")).toBe(true);
-    expect(button().title).toContain("3 on other pages in this period");
+    expect(button().title).toContain(
+      "3 on other pages matching the current filters",
+    );
     // aria-label wins the accessible name, so it must carry the hint too — while
     // still naming the control, which a verbatim copy of the tooltip would not.
     const label = button().getAttribute("aria-label");
     expect(label).toContain("AI Categories");
-    expect(label).toContain("3 on other pages in this period");
+    expect(label).toContain("3 on other pages matching the current filters");
   });
 
   it("claims nothing about other pages when the filter holds none", () => {
@@ -131,11 +133,14 @@ describe("updateAiTriggerBadge", () => {
     updateAiTriggerBadge();
 
     expect(button().title).toBe(
-      "AI Categories — nothing uncategorized in this period",
+      "AI Categories — nothing uncategorized matching the current filters",
     );
   });
 
-  it("names no period under the All filter, which has none", () => {
+  // The count is scoped by every filter, not only the date one, so the wording
+  // must not vary with the date mode — under All it would otherwise read as a
+  // claim about every invoice while a store or search filter is still on.
+  it("keeps the same scope wording under the All filter", () => {
     state.invoices = [{ id: 1, category: "Groceries" }];
     state.uncategorizedCount = 3;
     state.filterMode = "all";
@@ -143,7 +148,7 @@ describe("updateAiTriggerBadge", () => {
     updateAiTriggerBadge();
 
     expect(button().title).toBe(
-      "AI Categories — none on this page, 3 on other pages",
+      "AI Categories — none on this page, 3 on other pages matching the current filters",
     );
   });
 });
@@ -188,7 +193,9 @@ describe("runAnalysis", () => {
     await runAnalysis();
 
     const content = document.querySelector('[data-el="categorize-content"]');
-    expect(content.textContent).toContain("4 on other pages in this period");
+    expect(content.textContent).toContain(
+      "4 on other pages matching the current filters",
+    );
     expect(document.querySelector('[data-el="categorize-footer"]').hidden).toBe(
       true,
     );
@@ -207,7 +214,7 @@ describe("runAnalysis", () => {
 
     expect(
       document.querySelector('[data-el="categorize-content"]').textContent,
-    ).toBe("No uncategorized invoices in this period.");
+    ).toBe("No uncategorized invoices matching the current filters.");
   });
 
   it("notes the uncategorized invoices this run's page does not cover", async () => {
@@ -219,13 +226,13 @@ describe("runAnalysis", () => {
     await runAnalysis();
 
     expect(noteText()).toContain(
-      "2 more uncategorized invoices on other pages in this period.",
+      "2 more uncategorized invoices on other pages matching the current filters.",
     );
     // Not a capped run, so only the cross-page sentence is in the band.
     expect(noteText()).not.toContain("First");
   });
 
-  it("drops the period from the note under the All filter", async () => {
+  it("keeps the same scope wording in the note under the All filter", async () => {
     state.invoices = [{ id: 1, category: null }];
     state.uncategorizedCount = 3;
     state.filterMode = "all";
@@ -234,7 +241,7 @@ describe("runAnalysis", () => {
     await runAnalysis();
 
     expect(noteText()).toContain(
-      "2 more uncategorized invoices on other pages.",
+      "2 more uncategorized invoices on other pages matching the current filters.",
     );
   });
 

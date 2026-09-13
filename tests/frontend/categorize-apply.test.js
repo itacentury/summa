@@ -182,7 +182,7 @@ describe("applyCategories", () => {
     // still claim the five the server last reported.
     expect(badge().textContent).toBe("0");
     expect(trigger().title).toBe(
-      "AI Categories — none on this page, 3 on other pages in this period",
+      "AI Categories — none on this page, 3 on other pages matching the current filters",
     );
   });
 
