@@ -86,6 +86,7 @@ describe("updateAiTriggerBadge", () => {
     mountTriggerFixture();
     state.invoices = [];
     state.uncategorizedCount = 0;
+    state.filterMode = "month";
   });
 
   it("counts only the uncategorized invoices on the current page", () => {
@@ -133,6 +134,18 @@ describe("updateAiTriggerBadge", () => {
       "AI Categories — nothing uncategorized in this period",
     );
   });
+
+  it("names no period under the All filter, which has none", () => {
+    state.invoices = [{ id: 1, category: "Groceries" }];
+    state.uncategorizedCount = 3;
+    state.filterMode = "all";
+
+    updateAiTriggerBadge();
+
+    expect(button().title).toBe(
+      "AI Categories — none on this page, 3 on other pages",
+    );
+  });
 });
 
 describe("runAnalysis", () => {
@@ -140,6 +153,7 @@ describe("runAnalysis", () => {
     mountModalFixture();
     state.invoices = [];
     state.uncategorizedCount = 0;
+    state.filterMode = "month";
   });
 
   afterEach(() => {
@@ -209,6 +223,19 @@ describe("runAnalysis", () => {
     );
     // Not a capped run, so only the cross-page sentence is in the band.
     expect(noteText()).not.toContain("First");
+  });
+
+  it("drops the period from the note under the All filter", async () => {
+    state.invoices = [{ id: 1, category: null }];
+    state.uncategorizedCount = 3;
+    state.filterMode = "all";
+    stubSuggest({ suggestions: [suggestion(1)], total: 1, count: 1 });
+
+    await runAnalysis();
+
+    expect(noteText()).toContain(
+      "2 more uncategorized invoices on other pages.",
+    );
   });
 
   it("drops the note when the page covers every uncategorized invoice", async () => {

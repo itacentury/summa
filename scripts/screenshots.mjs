@@ -221,7 +221,9 @@ const seed = async () => {
     body: JSON.stringify(shiftDatesToToday(raw)),
   });
   const result = await response.json();
-  if (!response.ok || result.failed > 0) {
+  // A skip against an empty database means two demo invoices collided on
+  // (date, store, total) — a screenshot run quietly missing a row.
+  if (!response.ok || result.failed > 0 || result.skipped > 0) {
     throw new Error(`Seeding failed: ${JSON.stringify(result)}`);
   }
   console.log(`  seeded ${result.imported} invoices`);
@@ -302,7 +304,12 @@ const group = async (name, body) => {
 
 /* ----------------------------------------------------------- stub fixtures */
 
-/** Stand-in for the server's CATEGORIZE_SUGGEST_LIMIT, sized for a screenshot. */
+/**
+ * Stand-in for the server's CATEGORIZE_SUGGEST_LIMIT, sized for a screenshot.
+ * A safety net only: the client posts just the uncategorized ids on its own
+ * page, which the demo data keeps well below this, so the cap never binds and
+ * the modal's "First N of M" note appears on no captured surface.
+ */
 const SUGGESTION_LIMIT = 4;
 
 /**
@@ -709,7 +716,7 @@ const main = async () => {
     ENABLE_AI_SUGGESTIONS: "0",
   });
   try {
-    await captureLogin(browser);
+    await group("login", () => captureLogin(browser));
   } finally {
     await stopServer(server);
   }

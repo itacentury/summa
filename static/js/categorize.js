@@ -41,6 +41,15 @@ function invoicesElsewhere(onThisPage) {
 }
 
 /**
+ * Trailing scope for the counts, which span the active filter. The date filters
+ * make that a period; "All" has none, so the phrase is dropped rather than
+ * naming a period that is not on screen.
+ */
+function periodSuffix() {
+  return state.filterMode === "all" ? "" : " in this period";
+}
+
+/**
  * The trigger's accessible name. Always leads with the control name, so the
  * damped state still identifies the button rather than only explaining itself.
  */
@@ -48,8 +57,8 @@ function triggerLabel(onThisPage) {
   if (onThisPage > 0) return "AI Categories";
   const elsewhere = invoicesElsewhere(0);
   if (elsewhere === 0)
-    return "AI Categories — nothing uncategorized in this period";
-  return `AI Categories — none on this page, ${elsewhere} on other pages in this period`;
+    return `AI Categories — nothing uncategorized${periodSuffix()}`;
+  return `AI Categories — none on this page, ${elsewhere} on other pages${periodSuffix()}`;
 }
 
 /**
@@ -181,8 +190,8 @@ function renderPageScopedEmpty(elsewhere) {
   setFooterVisible(false);
   const message =
     elsewhere > 0
-      ? `No uncategorized invoices on this page — ${elsewhere} on other pages in this period.`
-      : "No uncategorized invoices in this period.";
+      ? `No uncategorized invoices on this page — ${elsewhere} on other pages${periodSuffix()}.`
+      : `No uncategorized invoices${periodSuffix()}.`;
   contentEl().innerHTML = `<div class="categorize-banner">${message}</div>`;
 }
 
@@ -267,7 +276,7 @@ function renderReview(data, categories) {
   const elsewhere = invoicesElsewhere(data.total);
   if (elsewhere > 0) {
     notes.push(
-      `${elsewhere} more uncategorized invoice${elsewhere !== 1 ? "s" : ""} on other pages in this period.`,
+      `${elsewhere} more uncategorized invoice${elsewhere !== 1 ? "s" : ""} on other pages${periodSuffix()}.`,
     );
   }
   const note =
