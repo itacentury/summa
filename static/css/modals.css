@@ -293,16 +293,7 @@
   padding: 0.25rem 0.5rem;
 }
 
-/* Import errors (per-entry inline editors). The panel is not a scroll container
-   of its own — the modal already scrolls, and a second one clipped cards
-   mid-card. Its separator only earns its place while the paste box above is
-   showing: in correction mode that box is hidden, so the divider would sit alone
-   under the modal header with nothing to divide. */
-[data-el="import-input"]:not(.is-hidden) + .import-errors {
-  padding-top: 1rem;
-  margin-top: 1rem;
-  border-top: 1px solid var(--border-color);
-}
+/* Import errors (per-entry inline editors) */
 
 .import-error-title {
   margin-bottom: 0.75rem;
