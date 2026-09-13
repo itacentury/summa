@@ -302,63 +302,64 @@ const group = async (name, body) => {
 
 /* ----------------------------------------------------------- stub fixtures */
 
+/** Stand-in for the server's CATEGORIZE_SUGGEST_LIMIT, sized for a screenshot. */
+const SUGGESTION_LIMIT = 4;
+
+/**
+ * The category the stub "suggests" per uncategorized demo store, and whether it
+ * is new to the database. The only part of a suggestion with no source in the
+ * seeded data — "Personal Care" is deliberately a category no invoice uses, so
+ * the review row shows the new-category badge.
+ */
+const SUGGESTED_CATEGORY = new Map([
+  ["Best Buy", { category: "Electronics", is_new: false }],
+  ["CVS Pharmacy", { category: "Personal Care", is_new: true }],
+  ["Blue Bottle Coffee", { category: "Dining", is_new: false }],
+  ["IKEA", { category: "Household", is_new: false }],
+]);
+
+const suggestionFor = (store) => {
+  const known = SUGGESTED_CATEGORY.get(store);
+  if (known) return known;
+  console.log(
+    `  note: no demo suggestion for "${store}" — using a generic one`,
+  );
+  return { category: "Other", is_new: true };
+};
+
 /**
  * Fixture for POST /api/invoices/categorize-suggest, shaped like the real
  * endpoint. Stubbed so the run needs no Anthropic API key and stays
  * deterministic. `total > count` also exercises the "First N of M" note.
+ *
+ * Only the suggested category is invented; store, amount and items are read back
+ * from the seeded rows, so the review list can never drift away from the demo
+ * data the rest of the screenshots show.
  */
-const categorizeFixture = (ids) => ({
-  suggestions: [
-    {
-      invoice_id: ids[0],
-      store: "Best Buy",
-      total: 72.98,
-      items: [
-        { item_name: "USB-C hub 7-in-1", item_price: 59.99 },
-        { item_name: "HDMI cable 2 m", item_price: 12.99 },
-      ],
-      category: "Electronics",
-      is_new: false,
-    },
-    {
-      invoice_id: ids[1],
-      store: "CVS Pharmacy",
-      total: 21.46,
-      items: [
-        { item_name: "Toothpaste 2-pack", item_price: 9.98 },
-        { item_name: "Dental floss", item_price: 4.49 },
-        { item_name: "Hand soap refill", item_price: 6.99 },
-      ],
-      category: "Personal Care",
-      is_new: true,
-    },
-    {
-      invoice_id: ids[2],
-      store: "Blue Bottle Coffee",
-      total: 9.2,
-      items: [
-        { item_name: "Pour over", item_price: 4.95 },
-        { item_name: "Banana bread", item_price: 4.25 },
-      ],
-      category: "Dining",
-      is_new: false,
-    },
-    {
-      invoice_id: ids[3],
-      store: "IKEA",
-      total: 327.99,
-      items: [
-        { item_name: "MALM bed frame", item_price: 249.0 },
-        { item_name: "Mattress protector", item_price: 29.99 },
-        { item_name: "Bedside table", item_price: 49.0 },
-      ],
-      category: "Household",
-      is_new: false,
-    },
-  ].slice(0, ids.length),
-  count: Math.min(ids.length, 4),
-  total: Math.min(ids.length, 4) + 3,
-});
+const categorizeFixture = async (ids) => {
+  // Ascending id, like the real route's ORDER BY id.
+  const selected = [...ids].sort((a, b) => a - b).slice(0, SUGGESTION_LIMIT);
+  const suggestions = [];
+  for (const id of selected) {
+    const { store, total, items } = await (
+      await fetch(`${BASE_URL}/api/invoices/${id}`)
+    ).json();
+    suggestions.push({
+      invoice_id: id,
+      store,
+      total,
+      items,
+      ...suggestionFor(store),
+    });
+  }
+  return {
+    suggestions,
+    count: suggestions.length,
+    // More uncategorized than one run returns, so the "First N of M" note is
+    // part of the screenshot.
+    total: suggestions.length + 3,
+  };
+};
 
 const stubCategorize = async (page) => {
   await page.route("**/api/invoices/categorize-suggest", async (route) => {
@@ -366,7 +367,7 @@ const stubCategorize = async (page) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(categorizeFixture(ids.slice(0, 4))),
+      body: JSON.stringify(await categorizeFixture(ids)),
     });
   });
 };
