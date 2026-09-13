@@ -15,11 +15,17 @@
  *   NODE_PATH=/tmp/summa-pw/node_modules node scripts/screenshots.mjs
  *
  * The run starts its own dev server against a throwaway database, so the
- * repository's own invoices.db is never touched.
+ * repository's own invoices.db is never touched. It aborts up front if port 8000
+ * is already taken or the database it talks to turns out not to be empty, rather
+ * than screenshot whatever process happens to be listening.
+ *
+ * Screenshots are captured into a work directory; the committed PNGs are only
+ * replaced once every surface has succeeded, so a failed run leaves the working
+ * tree untouched.
  */
 
 import { spawn } from "node:child_process";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -28,6 +34,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(REPO_ROOT, "docs", "screenshots");
 const WORK_DIR = join(tmpdir(), "summa-screenshots");
+const SHOT_DIR = join(WORK_DIR, "shots");
 const BASE_URL = "http://127.0.0.1:8000";
 const DEMO_PASSWORD = "demo-password";
 
@@ -74,6 +81,22 @@ const loadPlaywright = async () => {
   }
   throw new Error(
     "Playwright not found. See the header of this file for how to install it.",
+  );
+};
+
+/**
+ * Refuse to run while something else is listening, because the readiness probe
+ * below cannot tell a foreign server apart from our own — and a foreign one
+ * would be serving the real database.
+ */
+const assertPortFree = async () => {
+  try {
+    await fetch(`${BASE_URL}/`);
+  } catch {
+    return;
+  }
+  throw new Error(
+    `Something is already listening on ${BASE_URL} — stop your dev server and re-run.`,
   );
 };
 
@@ -179,6 +202,16 @@ const shiftDatesToToday = (invoices) => {
 };
 
 const seed = async () => {
+  // Second line of defence behind assertPortFree(): a throwaway database is
+  // always empty, a server we accidentally adopted never is.
+  const existing = await (await fetch(`${BASE_URL}/api/invoices`)).json();
+  if (existing.total_count !== 0) {
+    throw new Error(
+      `Expected an empty database, found ${existing.total_count} invoices — ` +
+        "the run is talking to a server that is not its own.",
+    );
+  }
+
   const raw = JSON.parse(
     await readFile(join(REPO_ROOT, "scripts", "screenshot-data.json"), "utf8"),
   );
@@ -241,7 +274,7 @@ const step = async (
   body,
   { page = null, fresh = true } = {},
 ) => {
-  const file = join(OUT_DIR, `${name}-${viewport.name}.png`);
+  const file = join(SHOT_DIR, `${name}-${viewport.name}.png`);
   try {
     if (page && fresh) await resetPage(page);
     await body(file);
@@ -537,9 +570,9 @@ const captureLogin = async (browser) => {
  * tool is installed.
  */
 const compress = async () => {
-  const files = (await readdir(OUT_DIR))
+  const files = (await readdir(SHOT_DIR))
     .filter((name) => name.endsWith(".png"))
-    .map((name) => join(OUT_DIR, name));
+    .map((name) => join(SHOT_DIR, name));
   if (files.length === 0) return;
 
   const attempts = [
@@ -569,15 +602,28 @@ const compress = async () => {
 /* ------------------------------------------------------------------- main */
 
 /**
- * Drop the PNGs of a previous run, so the folder holds exactly the set this
- * script produces and never a stale file from a surface that was dropped.
+ * Replace the committed PNGs with the ones just captured, so the folder holds
+ * exactly the set this script produces and never a stale file from a surface
+ * that was dropped.
+ *
+ * Runs last, and only for a run in which every surface succeeded: emptying the
+ * folder up front would leave a failed run with nothing but a dirty tree.
+ * Copied rather than renamed — the work directory sits under the system temp
+ * directory, which is routinely a different filesystem.
  */
-const emptyOutDir = async () => {
+const publish = async () => {
   await mkdir(OUT_DIR, { recursive: true });
   const stale = (await readdir(OUT_DIR)).filter((name) =>
     name.endsWith(".png"),
   );
   for (const name of stale) await rm(join(OUT_DIR, name));
+
+  const shots = (await readdir(SHOT_DIR)).filter((name) =>
+    name.endsWith(".png"),
+  );
+  for (const name of shots) {
+    await copyFile(join(SHOT_DIR, name), join(OUT_DIR, name));
+  }
 };
 
 const newContext = async (browser, viewport) =>
@@ -588,10 +634,10 @@ const newContext = async (browser, viewport) =>
 
 const main = async () => {
   const chromium = await loadPlaywright();
+  await assertPortFree();
 
   await rm(WORK_DIR, { recursive: true, force: true });
-  await mkdir(WORK_DIR, { recursive: true });
-  await emptyOutDir();
+  await mkdir(SHOT_DIR, { recursive: true });
 
   const browser = await chromium.launch();
 
@@ -662,12 +708,18 @@ const main = async () => {
   await browser.close();
   await compress();
 
-  console.log(`\n${captured} screenshots written to docs/screenshots/`);
   if (failures.length > 0) {
     console.error(`\n${failures.length} failed:`);
     for (const failure of failures) console.error(`  - ${failure}`);
+    console.error(
+      `\ndocs/screenshots/ left untouched; the ${captured} captured so far are in ${SHOT_DIR}`,
+    );
     process.exitCode = 1;
+    return;
   }
+
+  await publish();
+  console.log(`\n${captured} screenshots written to docs/screenshots/`);
 };
 
 await main();

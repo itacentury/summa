@@ -24,8 +24,11 @@ ratio.
 ## Regenerating
 
 The capture run starts its own dev server against a throwaway database, so the
-repository's `invoices.db` is never touched. It also clears this folder's PNGs
-first, so what remains is exactly what the script produces. Playwright is
+repository's `invoices.db` is never touched — and it aborts up front rather than
+screenshot a server it did not start, so stop any dev server on port 8000 first.
+Screenshots go to a work directory; only after every surface has succeeded are
+this folder's PNGs dropped and replaced, so what remains is exactly what the
+script produces and a failed run leaves the folder as committed. Playwright is
 deliberately not a dependency of this repo — install it once outside it:
 
 ```bash
