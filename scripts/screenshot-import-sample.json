@@ -1,0 +1,44 @@
+[
+  {
+    "date": "2026-09-07",
+    "store": "Costco Wholesale",
+    "category": "Groceries",
+    "total": 87.43,
+    "items": [
+      { "item_name": "Paper towels 12-pack", "item_price": 22.99 },
+      { "item_name": "Chicken breast 2.5 kg", "item_price": 31.45 },
+      { "item_name": "Mixed nuts 1 kg", "item_price": 18.99 },
+      { "item_name": "Laundry detergent", "item_price": 14.0 }
+    ]
+  },
+  {
+    "date": "2026-09-05",
+    "store": "Lyft",
+    "category": "Transport",
+    "total": 21.6,
+    "items": [{ "item_name": "Ride — Station to Office", "item_price": 21.6 }]
+  },
+  {
+    "date": "2026-09-03",
+    "category": "Dining",
+    "total": 34.2,
+    "items": [{ "item_name": "Dinner for two", "item_price": 34.2 }]
+  },
+  {
+    "date": "2026-09-02",
+    "store": "Barnes & Noble",
+    "category": "Entertainment",
+    "total": "twenty-four fifty",
+    "items": [{ "item_name": "Hardcover novel", "item_price": 24.5 }]
+  },
+  {
+    "date": "2026-08-30",
+    "store": "REI Co-op",
+    "category": "Household",
+    "total": 64.98,
+    "items": [
+      { "item_name": "Hiking socks 2-pack", "item_price": 24.99 },
+      { "item_name": "Water bottle 1 L", "item_price": 39.99 }
+    ]
+  }
+]

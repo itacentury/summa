@@ -1,0 +1,774 @@
+[
+  {
+    "date": "2026-09-12",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 23.33,
+    "items": [
+      {
+        "item_name": "Organic bananas",
+        "item_price": 3.49
+      },
+      {
+        "item_name": "Sourdough loaf",
+        "item_price": 5.9
+      },
+      {
+        "item_name": "Greek yogurt 1kg",
+        "item_price": 6.2
+      },
+      {
+        "item_name": "Cold brew coffee",
+        "item_price": 4.75
+      },
+      {
+        "item_name": "Baby spinach",
+        "item_price": 2.99
+      }
+    ]
+  },
+  {
+    "date": "2026-09-11",
+    "store": "Shell",
+    "category": "Transport",
+    "total": 77.85,
+    "items": [
+      {
+        "item_name": "Unleaded 95 — 42.1 L",
+        "item_price": 71.36
+      },
+      {
+        "item_name": "Windscreen washer fluid",
+        "item_price": 6.49
+      }
+    ]
+  },
+  {
+    "date": "2026-09-10",
+    "store": "Blue Bottle Coffee",
+    "category": "Dining",
+    "total": 9.75,
+    "items": [
+      {
+        "item_name": "Flat white",
+        "item_price": 5.25
+      },
+      {
+        "item_name": "Almond croissant",
+        "item_price": 4.5
+      }
+    ]
+  },
+  {
+    "date": "2026-09-09",
+    "store": "Best Buy",
+    "category": null,
+    "total": 72.98,
+    "items": [
+      {
+        "item_name": "USB-C hub 7-in-1",
+        "item_price": 59.99
+      },
+      {
+        "item_name": "HDMI cable 2 m",
+        "item_price": 12.99
+      }
+    ]
+  },
+  {
+    "date": "2026-09-08",
+    "store": "Trader Joe's",
+    "category": "Groceries",
+    "total": 19.26,
+    "items": [
+      {
+        "item_name": "Frozen dumplings",
+        "item_price": 4.29
+      },
+      {
+        "item_name": "Everything bagel seasoning",
+        "item_price": 2.49
+      },
+      {
+        "item_name": "Orange juice 1 L",
+        "item_price": 3.99
+      },
+      {
+        "item_name": "Rotisserie chicken",
+        "item_price": 8.49
+      }
+    ]
+  },
+  {
+    "date": "2026-09-06",
+    "store": "Uber",
+    "category": "Transport",
+    "total": 38.4,
+    "items": [
+      {
+        "item_name": "Ride — Airport to Downtown",
+        "item_price": 38.4
+      }
+    ]
+  },
+  {
+    "date": "2026-09-05",
+    "store": "The Home Depot",
+    "category": "Household",
+    "total": 36.76,
+    "items": [
+      {
+        "item_name": "LED bulbs 4-pack",
+        "item_price": 18.99
+      },
+      {
+        "item_name": "Painter's tape",
+        "item_price": 7.49
+      },
+      {
+        "item_name": "Drywall anchors",
+        "item_price": 5.99
+      },
+      {
+        "item_name": "Utility knife blades",
+        "item_price": 4.29
+      }
+    ]
+  },
+  {
+    "date": "2026-09-04",
+    "store": "CVS Pharmacy",
+    "category": "Health",
+    "total": 36.47,
+    "items": [
+      {
+        "item_name": "Ibuprofen 200 mg",
+        "item_price": 8.99
+      },
+      {
+        "item_name": "Vitamin D3",
+        "item_price": 12.49
+      },
+      {
+        "item_name": "Sunscreen SPF 50",
+        "item_price": 14.99
+      }
+    ]
+  },
+  {
+    "date": "2026-09-03",
+    "store": "Steam",
+    "category": "Entertainment",
+    "total": 59.99,
+    "items": [
+      {
+        "item_name": "Baldur's Gate 3",
+        "item_price": 59.99
+      }
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 42.48,
+    "items": [
+      {
+        "item_name": "Salmon fillet",
+        "item_price": 16.8
+      },
+      {
+        "item_name": "Asparagus",
+        "item_price": 4.99
+      },
+      {
+        "item_name": "Jasmine rice 2kg",
+        "item_price": 7.49
+      },
+      {
+        "item_name": "Olive oil 750 ml",
+        "item_price": 13.2
+      }
+    ]
+  },
+  {
+    "date": "2026-09-01",
+    "store": "Spotify",
+    "category": "Subscriptions",
+    "total": 16.99,
+    "items": [
+      {
+        "item_name": "Premium Duo — September",
+        "item_price": 16.99
+      }
+    ]
+  },
+  {
+    "date": "2026-08-28",
+    "store": "IKEA",
+    "category": "Household",
+    "total": 155.97,
+    "items": [
+      {
+        "item_name": "KALLAX shelf unit",
+        "item_price": 89
+      },
+      {
+        "item_name": "Storage boxes 4-pack",
+        "item_price": 24.99
+      },
+      {
+        "item_name": "Desk lamp",
+        "item_price": 34.99
+      },
+      {
+        "item_name": "Tea lights 100-pack",
+        "item_price": 6.99
+      }
+    ]
+  },
+  {
+    "date": "2026-08-26",
+    "store": "Trader Joe's",
+    "category": "Groceries",
+    "total": 17.26,
+    "items": [
+      {
+        "item_name": "Cauliflower gnocchi",
+        "item_price": 3.49
+      },
+      {
+        "item_name": "Mandarin orange chicken",
+        "item_price": 5.49
+      },
+      {
+        "item_name": "Dark chocolate bar",
+        "item_price": 2.29
+      },
+      {
+        "item_name": "Sparkling water 12-pack",
+        "item_price": 5.99
+      }
+    ]
+  },
+  {
+    "date": "2026-08-24",
+    "store": "Apple Store",
+    "category": "Electronics",
+    "total": 278,
+    "items": [
+      {
+        "item_name": "AirPods Pro (2nd gen)",
+        "item_price": 249
+      },
+      {
+        "item_name": "AppleCare+",
+        "item_price": 29
+      }
+    ]
+  },
+  {
+    "date": "2026-08-22",
+    "store": "Shell",
+    "category": "Transport",
+    "total": 65.42,
+    "items": [
+      {
+        "item_name": "Unleaded 95 — 38.6 L",
+        "item_price": 65.42
+      }
+    ]
+  },
+  {
+    "date": "2026-08-20",
+    "store": "Sweetgreen",
+    "category": "Dining",
+    "total": 18.7,
+    "items": [
+      {
+        "item_name": "Harvest bowl",
+        "item_price": 14.95
+      },
+      {
+        "item_name": "Sparkling lemonade",
+        "item_price": 3.75
+      }
+    ]
+  },
+  {
+    "date": "2026-08-18",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 30.26,
+    "items": [
+      {
+        "item_name": "Free-range eggs",
+        "item_price": 6.49
+      },
+      {
+        "item_name": "Whole milk 2 L",
+        "item_price": 4.29
+      },
+      {
+        "item_name": "Cherry tomatoes",
+        "item_price": 4.99
+      },
+      {
+        "item_name": "Parmesan wedge",
+        "item_price": 11.5
+      },
+      {
+        "item_name": "Basil",
+        "item_price": 2.99
+      }
+    ]
+  },
+  {
+    "date": "2026-08-15",
+    "store": "Netflix",
+    "category": "Subscriptions",
+    "total": 15.49,
+    "items": [
+      {
+        "item_name": "Standard plan — August",
+        "item_price": 15.49
+      }
+    ]
+  },
+  {
+    "date": "2026-08-13",
+    "store": "CVS Pharmacy",
+    "category": null,
+    "total": 21.46,
+    "items": [
+      {
+        "item_name": "Toothpaste 2-pack",
+        "item_price": 9.98
+      },
+      {
+        "item_name": "Dental floss",
+        "item_price": 4.49
+      },
+      {
+        "item_name": "Hand soap refill",
+        "item_price": 6.99
+      }
+    ]
+  },
+  {
+    "date": "2026-08-10",
+    "store": "Uber",
+    "category": "Transport",
+    "total": 29.05,
+    "items": [
+      {
+        "item_name": "Ride — Office to Home",
+        "item_price": 17.25
+      },
+      {
+        "item_name": "Ride — Home to Station",
+        "item_price": 11.8
+      }
+    ]
+  },
+  {
+    "date": "2026-08-07",
+    "store": "The Home Depot",
+    "category": "Household",
+    "total": 145.49,
+    "items": [
+      {
+        "item_name": "Cordless drill",
+        "item_price": 119
+      },
+      {
+        "item_name": "Drill bit set",
+        "item_price": 26.49
+      }
+    ]
+  },
+  {
+    "date": "2026-08-04",
+    "store": "Blue Bottle Coffee",
+    "category": "Dining",
+    "total": 25.75,
+    "items": [
+      {
+        "item_name": "Espresso",
+        "item_price": 3.75
+      },
+      {
+        "item_name": "Whole bean 340 g",
+        "item_price": 22
+      }
+    ]
+  },
+  {
+    "date": "2026-08-01",
+    "store": "Spotify",
+    "category": "Subscriptions",
+    "total": 16.99,
+    "items": [
+      {
+        "item_name": "Premium Duo — August",
+        "item_price": 16.99
+      }
+    ]
+  },
+  {
+    "date": "2026-07-27",
+    "store": "Best Buy",
+    "category": "Electronics",
+    "total": 429.98,
+    "items": [
+      {
+        "item_name": "27\" 4K monitor",
+        "item_price": 349.99
+      },
+      {
+        "item_name": "Monitor arm",
+        "item_price": 79.99
+      }
+    ]
+  },
+  {
+    "date": "2026-07-21",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 26.26,
+    "items": [
+      {
+        "item_name": "Blueberries",
+        "item_price": 5.99
+      },
+      {
+        "item_name": "Almond butter",
+        "item_price": 9.49
+      },
+      {
+        "item_name": "Granola",
+        "item_price": 6.79
+      },
+      {
+        "item_name": "Oat milk 1 L",
+        "item_price": 3.99
+      }
+    ]
+  },
+  {
+    "date": "2026-07-14",
+    "store": "Shell",
+    "category": "Transport",
+    "total": 80.34,
+    "items": [
+      {
+        "item_name": "Unleaded 95 — 40.2 L",
+        "item_price": 68.34
+      },
+      {
+        "item_name": "Car wash",
+        "item_price": 12
+      }
+    ]
+  },
+  {
+    "date": "2026-07-06",
+    "store": "Steam",
+    "category": "Entertainment",
+    "total": 34.97,
+    "items": [
+      {
+        "item_name": "Summer Sale bundle",
+        "item_price": 34.97
+      }
+    ]
+  },
+  {
+    "date": "2026-06-29",
+    "store": "IKEA",
+    "category": "Household",
+    "total": 83.99,
+    "items": [
+      {
+        "item_name": "BILLY bookcase",
+        "item_price": 69
+      },
+      {
+        "item_name": "Plant pot set",
+        "item_price": 14.99
+      }
+    ]
+  },
+  {
+    "date": "2026-06-18",
+    "store": "Sweetgreen",
+    "category": "Dining",
+    "total": 16.7,
+    "items": [
+      {
+        "item_name": "Kale caesar",
+        "item_price": 13.45
+      },
+      {
+        "item_name": "Iced tea",
+        "item_price": 3.25
+      }
+    ]
+  },
+  {
+    "date": "2026-06-09",
+    "store": "CVS Pharmacy",
+    "category": "Health",
+    "total": 24.48,
+    "items": [
+      {
+        "item_name": "Allergy tablets",
+        "item_price": 16.99
+      },
+      {
+        "item_name": "Saline spray",
+        "item_price": 7.49
+      }
+    ]
+  },
+  {
+    "date": "2026-05-30",
+    "store": "Trader Joe's",
+    "category": "Groceries",
+    "total": 17.76,
+    "items": [
+      {
+        "item_name": "Mango chunks",
+        "item_price": 3.99
+      },
+      {
+        "item_name": "Hummus",
+        "item_price": 3.49
+      },
+      {
+        "item_name": "Pita chips",
+        "item_price": 3.29
+      },
+      {
+        "item_name": "Cold brew concentrate",
+        "item_price": 6.99
+      }
+    ]
+  },
+  {
+    "date": "2026-05-19",
+    "store": "Uber",
+    "category": "Transport",
+    "total": 24.6,
+    "items": [
+      {
+        "item_name": "Ride — Conference venue",
+        "item_price": 24.6
+      }
+    ]
+  },
+  {
+    "date": "2026-05-08",
+    "store": "Apple Store",
+    "category": "Electronics",
+    "total": 119,
+    "items": [
+      {
+        "item_name": "Magic Keyboard",
+        "item_price": 119
+      }
+    ]
+  },
+  {
+    "date": "2026-04-24",
+    "store": "The Home Depot",
+    "category": "Household",
+    "total": 73.47,
+    "items": [
+      {
+        "item_name": "Potting soil 20 L",
+        "item_price": 12.99
+      },
+      {
+        "item_name": "Garden hose 15 m",
+        "item_price": 38.49
+      },
+      {
+        "item_name": "Pruning shears",
+        "item_price": 21.99
+      }
+    ]
+  },
+  {
+    "date": "2026-04-11",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 32.88,
+    "items": [
+      {
+        "item_name": "Ribeye steak",
+        "item_price": 24.9
+      },
+      {
+        "item_name": "Rosemary",
+        "item_price": 2.49
+      },
+      {
+        "item_name": "Baby potatoes",
+        "item_price": 5.49
+      }
+    ]
+  },
+  {
+    "date": "2026-03-28",
+    "store": "Netflix",
+    "category": "Subscriptions",
+    "total": 15.49,
+    "items": [
+      {
+        "item_name": "Standard plan — March",
+        "item_price": 15.49
+      }
+    ]
+  },
+  {
+    "date": "2026-03-15",
+    "store": "Blue Bottle Coffee",
+    "category": null,
+    "total": 9.2,
+    "items": [
+      {
+        "item_name": "Pour over",
+        "item_price": 4.95
+      },
+      {
+        "item_name": "Banana bread",
+        "item_price": 4.25
+      }
+    ]
+  },
+  {
+    "date": "2026-02-26",
+    "store": "Best Buy",
+    "category": "Electronics",
+    "total": 159.99,
+    "items": [
+      {
+        "item_name": "Portable SSD 2 TB",
+        "item_price": 159.99
+      }
+    ]
+  },
+  {
+    "date": "2026-02-08",
+    "store": "Shell",
+    "category": "Transport",
+    "total": 62.73,
+    "items": [
+      {
+        "item_name": "Unleaded 95 — 36.9 L",
+        "item_price": 62.73
+      }
+    ]
+  },
+  {
+    "date": "2026-01-22",
+    "store": "IKEA",
+    "category": null,
+    "total": 327.99,
+    "items": [
+      {
+        "item_name": "MALM bed frame",
+        "item_price": 249
+      },
+      {
+        "item_name": "Mattress protector",
+        "item_price": 29.99
+      },
+      {
+        "item_name": "Bedside table",
+        "item_price": 49
+      }
+    ]
+  },
+  {
+    "date": "2026-01-09",
+    "store": "Steam",
+    "category": "Entertainment",
+    "total": 19.98,
+    "items": [
+      {
+        "item_name": "Indie bundle",
+        "item_price": 19.98
+      }
+    ]
+  },
+  {
+    "date": "2025-12-19",
+    "store": "Whole Foods Market",
+    "category": "Groceries",
+    "total": 63.47,
+    "items": [
+      {
+        "item_name": "Turkey crown",
+        "item_price": 42.5
+      },
+      {
+        "item_name": "Cranberry sauce",
+        "item_price": 4.99
+      },
+      {
+        "item_name": "Brussels sprouts",
+        "item_price": 3.99
+      },
+      {
+        "item_name": "Mulled wine",
+        "item_price": 11.99
+      }
+    ]
+  },
+  {
+    "date": "2025-11-28",
+    "store": "Apple Store",
+    "category": "Electronics",
+    "total": 678,
+    "items": [
+      {
+        "item_name": "iPad Air 11\"",
+        "item_price": 599
+      },
+      {
+        "item_name": "Apple Pencil",
+        "item_price": 79
+      }
+    ]
+  },
+  {
+    "date": "2025-10-17",
+    "store": "Sweetgreen",
+    "category": "Dining",
+    "total": 15.25,
+    "items": [
+      {
+        "item_name": "Autumn harvest bowl",
+        "item_price": 15.25
+      }
+    ]
+  },
+  {
+    "date": "2025-09-30",
+    "store": "CVS Pharmacy",
+    "category": "Health",
+    "total": 51.48,
+    "items": [
+      {
+        "item_name": "Flu shot",
+        "item_price": 39.99
+      },
+      {
+        "item_name": "Cough syrup",
+        "item_price": 11.49
+      }
+    ]
+  }
+]

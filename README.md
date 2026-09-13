@@ -2,6 +2,20 @@
 
 Invoice management and expense tracking web application.
 
+## Screenshots
+
+|                                                                               |                                                                                  |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ![Invoice list](docs/screenshots/invoice-list-expanded-desktop.png)           | ![Statistics](docs/screenshots/stats-desktop.png)                                |
+| The invoice list with a row expanded to its line items.                       | Statistics for the period, with per-category and per-store breakdowns.           |
+| ![New invoice](docs/screenshots/new-invoice-filled-desktop.png)               | ![AI category suggestions](docs/screenshots/categorize-row-expanded-desktop.png) |
+| Creating an invoice with its line items.                                      | Reviewing AI category suggestions before applying them.                          |
+| ![Invoice list on a phone](docs/screenshots/invoice-list-expanded-mobile.png) | ![Login](docs/screenshots/login-desktop.png)                                     |
+| The same list as an installed PWA on a phone.                                 | The optional password gate.                                                      |
+
+The full set lives in [`docs/screenshots/`](docs/screenshots/), which also
+documents how to regenerate it.
+
 ## Requirements
 
 - Python 3.12+
