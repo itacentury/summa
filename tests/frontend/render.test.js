@@ -31,6 +31,7 @@ beforeEach(() => {
     effectivePageSize: 25,
     totalCount: 0,
     totalSum: 0,
+    uncategorizedCount: 0,
   });
   selectedInvoices.clear();
 });
@@ -174,5 +175,77 @@ describe("row reconciliation", () => {
     ]);
 
     expect(state.invoices).toEqual([{ id: 1, store: "Old" }]);
+  });
+});
+
+// The filter-wide uncategorized count feeds the AI trigger's "N on other pages"
+// label, so every optimistic mutation adjusts it and every revert has to give
+// back exactly what its forward path took — otherwise the label lies until the
+// next list load, which the pending-toast guards can defer indefinitely.
+describe("uncategorized count reconciliation", () => {
+  it("reinsertRows restores only the uncategorized rows it brings back", () => {
+    state.invoices = [];
+    state.uncategorizedCount = 1;
+
+    // extraCount rows (off-page bulk selection) stay out: their categories were
+    // never known, exactly as their sum was never subtracted.
+    reinsertRows(
+      [
+        { invoice: { id: 1, total: "5", category: null }, index: 0 },
+        { invoice: { id: 2, total: "5", category: "Food" }, index: 1 },
+      ],
+      3,
+    );
+
+    expect(state.uncategorizedCount).toBe(2);
+  });
+
+  it("reinsertRows counts nothing for an id a concurrent action already kept", () => {
+    state.invoices = [{ id: 1, category: null }];
+    state.uncategorizedCount = 1;
+
+    reinsertRows([
+      { invoice: { id: 1, total: "5", category: null }, index: 0 },
+    ]);
+
+    expect(state.uncategorizedCount).toBe(1);
+  });
+
+  it("restoreRows gives the count back when the edit had added a category", () => {
+    state.invoices = [{ id: 1, category: "Food" }];
+    state.uncategorizedCount = 4;
+
+    restoreRows([{ id: 1, category: null }]);
+
+    expect(state.uncategorizedCount).toBe(5);
+  });
+
+  it("restoreRows takes the count away when the edit had cleared a category", () => {
+    state.invoices = [{ id: 1, category: null }];
+    state.uncategorizedCount = 4;
+
+    restoreRows([{ id: 1, category: "Food" }]);
+
+    expect(state.uncategorizedCount).toBe(3);
+  });
+
+  it("restoreRows leaves the count alone for a row that is no longer present", () => {
+    state.invoices = [{ id: 1, category: "Food" }];
+    state.uncategorizedCount = 4;
+
+    // The concurrent action that removed id 9 already accounted for it in its
+    // post-edit shape, so undoing the edit must not re-add it.
+    restoreRows([{ id: 9, category: null }]);
+
+    expect(state.uncategorizedCount).toBe(4);
+  });
+
+  it("clamps at zero when the server count is already behind the page", () => {
+    state.invoices = [{ id: 1, category: null }];
+    state.uncategorizedCount = 0;
+
+    restoreRows([{ id: 1, category: "Food" }]);
+
+    expect(state.uncategorizedCount).toBe(0);
   });
 });

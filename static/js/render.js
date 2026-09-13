@@ -58,35 +58,66 @@ export function captureRows(idSet) {
 }
 
 /**
+ * How many of `invoices` carry no category — the amount an optimistic mutation
+ * has to take off `state.uncategorizedCount`.
+ */
+export function countUncategorized(invoices) {
+  return invoices.filter((invoice) => !invoice.category).length;
+}
+
+/**
+ * Apply a delta to the filter-wide uncategorized count, clamped at zero: the
+ * count and the rows arrive in separate responses, so a change between them
+ * could otherwise drive an optimistic adjustment negative.
+ */
+export function adjustUncategorizedCount(delta) {
+  state.uncategorizedCount = Math.max(state.uncategorizedCount + delta, 0);
+}
+
+/**
  * Re-insert previously removed rows into the current list at their captured
- * positions and restore each row's count/sum contribution. An id already
- * present is skipped (a concurrent action kept it), so this composes with
- * another in-flight action instead of clobbering the whole list.
+ * positions and restore each row's count/sum/uncategorized contribution. An id
+ * already present is skipped (a concurrent action kept it), so this composes
+ * with another in-flight action instead of clobbering the whole list.
  * @param removed rows captured by `captureRows`
  * @param extraCount removed selected rows not visible on the page (bulk,
- *     off-page) whose sum was never subtracted — only their count is restored
+ *     off-page) whose sum was never subtracted — only their count is restored.
+ *     Their categories were never known either, so they stay out of the
+ *     uncategorized count exactly as they stayed out of the sum.
  */
 export function reinsertRows(removed, extraCount = 0) {
+  const reinserted = [];
   removed.forEach(({ invoice, index }) => {
     if (state.invoices.some((existing) => existing.id === invoice.id)) return;
     state.invoices.splice(Math.min(index, state.invoices.length), 0, invoice);
     state.totalCount += 1;
     state.totalSum += Number(invoice.total);
+    reinserted.push(invoice);
   });
   state.totalCount += extraCount;
+  adjustUncategorizedCount(countUncategorized(reinserted));
   renderInvoices();
 }
 
 /**
- * Restore the pre-edit version of each row still present in the current list.
- * A row a concurrent action has since removed is left gone, never resurrected.
+ * Restore the pre-edit version of each row still present in the current list,
+ * undoing its contribution to the uncategorized count along the way (an edit
+ * can have added a category or cleared one). A row a concurrent action has
+ * since removed is left gone, never resurrected — and its delta stays applied,
+ * since that action accounted for the row in its post-edit shape.
  * @param previous old invoice objects captured before the optimistic edit
  */
 export function restoreRows(previous) {
+  let delta = 0;
   previous.forEach((invoice) => {
     const index = state.invoices.findIndex((row) => row.id === invoice.id);
-    if (index !== -1) state.invoices[index] = invoice;
+    if (index === -1) return;
+    const current = state.invoices[index];
+    if (!invoice.category && current.category) delta += 1;
+    if (invoice.category && !current.category) delta -= 1;
+    state.invoices[index] = invoice;
   });
+  adjustUncategorizedCount(delta);
   renderInvoices();
 }
 

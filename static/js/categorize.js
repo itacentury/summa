@@ -12,7 +12,12 @@ import { state } from "./state.js";
 import { refreshAllData } from "./api.js";
 import { escapeHtml, formatCurrency } from "./dom.js";
 import { showUndoToast, showErrorToast, flushPendingToast } from "./toast.js";
-import { renderInvoices, restoreRows } from "./render.js";
+import {
+  adjustUncategorizedCount,
+  countUncategorized,
+  renderInvoices,
+  restoreRows,
+} from "./render.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { createCombobox } from "./combobox.js";
 import { getAiModel, setupModelPicker } from "./ai-model.js";
@@ -535,6 +540,9 @@ function applyCategories() {
       ? { ...invoice, category: idToCategory.get(invoice.id) }
       : invoice,
   );
+  // A run only ever covers this page's uncategorized rows, so `previous` holds
+  // every accepted row — the filter-wide count drops by exactly that many.
+  adjustUncategorizedCount(-countUncategorized(previous));
 
   closeCategorizeModal();
   renderInvoices();

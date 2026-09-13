@@ -21,7 +21,12 @@ import {
   showErrorToast,
   hasPendingToast,
 } from "./toast.js";
-import { reinsertRows, restoreRows, renderInvoices } from "./render.js";
+import {
+  adjustUncategorizedCount,
+  reinsertRows,
+  restoreRows,
+  renderInvoices,
+} from "./render.js";
 import { apiFetch } from "./http.js";
 
 export async function saveInvoice() {
@@ -123,6 +128,11 @@ function deferInvoiceUpdate(id, payload) {
       total: payload.total,
     };
   }
+  // An edit can clear a category as well as set one, so this is the single path
+  // where the uncategorized count moves up.
+  if (previous && Boolean(previous.category) !== Boolean(payload.category)) {
+    adjustUncategorizedCount(payload.category ? -1 : 1);
+  }
   renderInvoices();
   closeAddModal();
 
@@ -192,6 +202,7 @@ export function deleteInvoice(id) {
   selectedInvoices.delete(id);
   state.totalCount -= 1;
   state.totalSum -= Number(removed.total);
+  if (!removed.category) adjustUncategorizedCount(-1);
   renderInvoices();
 
   const restore = () => reinsertRows([{ invoice: removed, index }]);
