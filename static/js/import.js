@@ -135,6 +135,10 @@ async function loadFilesIntoTextarea() {
 // are reachable via the download, which always exports every invalid entry.
 const MAX_VISIBLE_ERRORS = 20;
 
+// Each editor is sized to its own JSON so a typical entry needs no scrolling;
+// past this many lines it scrolls internally rather than dominating the modal.
+const MAX_EDITOR_ROWS = 12;
+
 export async function importJson() {
   const jsonText = document
     .querySelector('[data-el="json-input"]')
@@ -250,9 +254,11 @@ function renderImportErrors(errors) {
   const cards = visible
     .map((error) => {
       const fieldLabel = error.field ? `${escapeHtml(error.field)}: ` : "";
+      const json = JSON.stringify(error.value, null, 2);
+      const rows = Math.min(json.split("\n").length, MAX_EDITOR_ROWS);
       // Entities in the textarea body decode back to the raw JSON on parse, and
       // escaping prevents a value containing `</textarea>` from breaking out.
-      const rawJson = escapeHtml(JSON.stringify(error.value, null, 2));
+      const rawJson = escapeHtml(json);
       return `
         <div class="import-error-card">
           <div class="import-error-head">
@@ -261,7 +267,7 @@ function renderImportErrors(errors) {
               error.message,
             )}</span>
           </div>
-          <textarea class="form-input error-editor" data-el="error-editor" data-index="${error.index}">${rawJson}</textarea>
+          <textarea class="form-input error-editor" data-el="error-editor" data-index="${error.index}" rows="${rows}">${rawJson}</textarea>
         </div>
       `;
     })

@@ -517,7 +517,7 @@ const captureImport = async (browser) => {
     await page.locator('[data-el="json-input"]').fill(sample);
     await page.waitForTimeout(500);
     await page.locator(`${MODAL.import} [data-action="import"]`).click();
-    await page.waitForSelector('[data-el="import-errors"]:not([hidden])', {
+    await page.waitForSelector(".import-error-card", {
       timeout: 10000,
     });
     await page.waitForTimeout(700);

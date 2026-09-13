@@ -21,8 +21,7 @@
   {
     "date": "2026-09-03",
     "category": "Dining",
-    "total": 34.2,
-    "items": [{ "item_name": "Dinner for two", "item_price": 34.2 }]
+    "total": 34.2
   },
   {
     "date": "2026-09-02",
