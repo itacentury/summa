@@ -293,7 +293,9 @@
   padding: 0.25rem 0.5rem;
 }
 
-/* Import errors (per-entry inline editors) */
+/* Import errors (per-entry inline editors). The panel is not a scroll container
+   of its own — the modal already scrolls, and a second one clipped cards
+   mid-card. */
 
 .import-error-title {
   margin-bottom: 0.75rem;
