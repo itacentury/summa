@@ -23,6 +23,7 @@ import {
 } from "./toast.js";
 import {
   adjustUncategorizedCount,
+  countUncategorized,
   reinsertRows,
   restoreRows,
   renderInvoices,
@@ -202,7 +203,7 @@ export function deleteInvoice(id) {
   selectedInvoices.delete(id);
   state.totalCount -= 1;
   state.totalSum -= Number(removed.total);
-  if (!removed.category) adjustUncategorizedCount(-1);
+  adjustUncategorizedCount(-countUncategorized([removed]));
   renderInvoices();
 
   const restore = () => reinsertRows([{ invoice: removed, index }]);

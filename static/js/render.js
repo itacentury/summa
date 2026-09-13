@@ -68,7 +68,10 @@ export function countUncategorized(invoices) {
 /**
  * Apply a delta to the filter-wide uncategorized count, clamped at zero: the
  * count and the rows arrive in separate responses, so a change between them
- * could otherwise drive an optimistic adjustment negative.
+ * could otherwise drive an optimistic adjustment negative. The clamp makes an
+ * adjustment non-reversible (a subtraction that hit zero is given back in full
+ * by the matching undo); that only happens when the count is already behind the
+ * page, and the next `fetchInvoices` replaces the count outright.
  */
 export function adjustUncategorizedCount(delta) {
   state.uncategorizedCount = Math.max(state.uncategorizedCount + delta, 0);
