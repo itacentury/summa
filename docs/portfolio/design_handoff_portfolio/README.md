@@ -29,7 +29,7 @@ Open `design-reference.html` and jump to the anchors `#18a` (desktop), `#18b` (m
 9. Empty snapshot fields **carry the previous value forward**; empty deposit = 0.
 10. **No import UI.** The existing Excel history is migrated once by a script. The only data-entry path in the app is "New snapshot" + adding positions.
 11. Delta is never stored — always derived from consecutive snapshots.
-12. **A sale is recorded, not flagged.** Closing a position writes a final snapshot dated exactly `closed_at`, `value = 0`, `deposit = −(what it was last worth)`. A sold position therefore leaves the allocation *and* the totals through its own numbers, so the donut always sums to the hero card, while keeping its history and its realized gain.
+12. **A sale is recorded, not flagged.** Closing a position writes a final snapshot dated exactly `closed_at`, `value = 0`, `deposit = −(what it was last worth)`. A sold position therefore leaves the allocation _and_ the totals through its own numbers, so the donut always sums to the hero card, while keeping its history and its realized gain.
 
 ---
 
