@@ -82,6 +82,8 @@ class Depot:
 class PositionView:
     """Every displayed number for one position.
 
+    :param closed_at: the date the position was sold, else None — the sale date
+        itself rather than a flag, so the row can name the day it was sold.
     :param value: the latest snapshot value, still in the native currency.
     :param invested_eur: net money at work — see :func:`invested_eur`.
     :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
@@ -95,7 +97,7 @@ class PositionView:
     kind: str
     currency: str
     is_benchmark_fallback: bool
-    is_closed: bool
+    closed_at: str | None
     value: float
     fx_rate: float
     value_eur: float
@@ -500,7 +502,7 @@ def build_position_view(position: Position) -> PositionView:
         kind=position.kind,
         currency=position.currency,
         is_benchmark_fallback=position.is_benchmark_fallback,
-        is_closed=position.closed_at is not None,
+        closed_at=position.closed_at,
         value=native_value,
         fx_rate=fx_rate,
         value_eur=current_value,
@@ -582,7 +584,7 @@ def build_totals(
     total_delta: float = sum(
         view.week_delta
         for view in position_views
-        if view.week_delta is not None and not view.is_closed
+        if view.week_delta is not None and view.closed_at is None
     )
     # ISO dates sort as text, so max() picks the most recent snapshot date.
     seen_dates: list[str] = [
@@ -598,7 +600,7 @@ def build_totals(
         gain_pct=gain_pct(total_gain, total_contributed),
         week_delta=total_delta,
         # The "n positions · m depots" sub-line counts what is still held.
-        position_count=sum(1 for view in position_views if not view.is_closed),
+        position_count=sum(1 for view in position_views if view.closed_at is None),
         depot_count=depot_count,
         last_snapshot_date=max(seen_dates) if seen_dates else None,
     )
@@ -615,13 +617,13 @@ def allocation(
     """Return the donut slices: the largest positions, then the rest pooled into one.
 
     The slices sum to the same grand total the hero card shows: a sold position
-    is worth 0 by then and drops out of both. The explicit `is_closed` filter is
+    is worth 0 by then and drops out of both. The explicit `closed_at` filter is
     a guard for a row closed by hand without its zeroing snapshot — allocating
     money that is no longer held would be the worse failure. Worthless positions
     are dropped too: they would draw an invisible slice and a 0 % legend row.
     """
     held: list[PositionView] = [
-        view for view in position_views if not view.is_closed and view.value_eur > 0
+        view for view in position_views if view.closed_at is None and view.value_eur > 0
     ]
     total: float = sum(view.value_eur for view in held)
     if total == 0:
@@ -670,7 +672,7 @@ def biggest_changes(
     movers: list[Change] = []
     for view in position_views:
         delta: float | None = view.week_delta
-        if delta is None or delta == 0 or view.is_closed:
+        if delta is None or delta == 0 or view.closed_at is not None:
             continue
         movers.append(Change(position_id=view.id, name=view.name, week_delta=delta))
 

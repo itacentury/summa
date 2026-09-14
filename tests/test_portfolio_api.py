@@ -598,6 +598,7 @@ def test_snapshot_prefill_carries_the_previous_reading(
     assert position["previous_value"] == 1080.0
     assert position["previous_fx_rate"] == 1.08
     assert position["previous_date"] == _weeks_ago(1)
+    assert position["previous_carried"] is False
     assert payload["last_snapshot_date"] == _weeks_ago(1)
     assert payload["suggested_date"] == _weeks_ago(0)
 
@@ -612,7 +613,27 @@ def test_snapshot_prefill_suggests_today_without_history(
 
     assert payload["last_snapshot_date"] is None
     assert payload["suggested_date"] == date.today().isoformat()
-    assert payload["depots"][0]["positions"][0]["previous_value"] is None
+    position = payload["depots"][0]["positions"][0]
+    assert position["previous_value"] is None
+    assert position["previous_carried"] is False
+
+
+def test_snapshot_prefill_flags_a_carried_previous_reading(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A previous week that was itself copied forward says so."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(2), 500.0)
+    seed_snapshot(position_id, _weeks_ago(1), 500.0, carried=True)
+
+    payload = client.get("/api/portfolio/snapshot/new").get_json()
+    position = payload["depots"][0]["positions"][0]
+
+    assert position["previous_date"] == _weeks_ago(1)
+    assert position["previous_carried"] is True
 
 
 def test_snapshot_prefill_omits_closed_positions(
@@ -1102,6 +1123,8 @@ def test_patch_position_closes_it_and_it_leaves_the_allocation(
     positions = {
         position["name"]: position for position in payload["depots"][0]["positions"]
     }
+    assert positions["Sold"]["closed_at"] == date.today().isoformat()
+    assert positions["Held"]["closed_at"] is None
     assert positions["Sold"]["value_eur"] == 0.0
     # 540 USD at 1.08 = 500 EUR taken back out, so the sale is neither gain nor loss.
     assert positions["Sold"]["invested_eur"] == -500.0
@@ -1126,7 +1149,7 @@ def test_patch_position_reopens_a_closed_one(
     assert [row["date"] for row in _snapshot_rows(position_id)] == [_weeks_ago(1)]
     payload = client.get("/api/portfolio").get_json()
     position = payload["depots"][0]["positions"][0]
-    assert position["is_closed"] is False
+    assert position["closed_at"] is None
     assert position["value_eur"] == 500.0
     assert position["invested_eur"] == 400.0
 
@@ -1168,7 +1191,10 @@ def test_patch_position_close_without_snapshots_reports_nothing(
 
     assert _snapshot_rows(position_id) == []
     position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
-    assert position["is_closed"] is True
+    # The sale date rides on closed_at, so it survives even here, where the
+    # position has no snapshot whose date could stand in for it.
+    assert position["closed_at"] == date.today().isoformat()
+    assert position["last_snapshot_date"] is None
 
 
 def test_patch_position_close_twice_is_idempotent(
@@ -1266,7 +1292,7 @@ def test_patch_position_close_then_reopen_restores_the_close_week(
 
     assert _snapshot_rows(position_id) == before
     position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
-    assert position["is_closed"] is False
+    assert position["closed_at"] is None
     assert position["value_eur"] == 500.0
     assert position["invested_eur"] == 450.0
 

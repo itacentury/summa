@@ -149,7 +149,7 @@ def _view(
     invested: float = 100.0,
     contributed: float | None = None,
     delta: float | None = None,
-    closed: bool = False,
+    closed_at: str | None = None,
     depot_id: int = 1,
     sort_order: int = 0,
 ) -> PositionView:
@@ -167,7 +167,7 @@ def _view(
         kind="etf",
         currency="EUR",
         is_benchmark_fallback=False,
-        is_closed=closed,
+        closed_at=closed_at,
         value=value,
         fx_rate=1.0,
         value_eur=value,
@@ -548,7 +548,7 @@ def test_build_position_view_derives_every_number() -> None:
     assert view.first_snapshot_date == "2026-01-04"
     assert view.last_snapshot_date == "2026-01-11"
     assert view.snapshot_count == 2
-    assert view.is_closed is False
+    assert view.closed_at is None
 
 
 def test_build_position_view_without_snapshots() -> None:
@@ -568,7 +568,7 @@ def test_build_position_view_marks_a_closed_position() -> None:
     position: Position = _position(
         4, closed_at="2026-02-01", snapshots=[_snapshot("2026-01-04", 10.0)]
     )
-    assert build_position_view(position).is_closed is True
+    assert build_position_view(position).closed_at == "2026-02-01"
 
 
 def test_build_position_view_of_a_sold_position_keeps_its_realized_gain() -> None:
@@ -587,7 +587,7 @@ def test_build_position_view_of_a_sold_position_keeps_its_realized_gain() -> Non
     )
     view: PositionView = build_position_view(position)
 
-    assert view.is_closed is True
+    assert view.closed_at == "2026-01-11"
     assert view.value_eur == pytest.approx(0.0)
     assert view.invested_eur == pytest.approx(-50.0)
     assert view.contributed_eur == pytest.approx(250.0)
@@ -672,7 +672,12 @@ def test_build_depot_views_subtotal_keeps_the_contributed_basis() -> None:
     views: list[PositionView] = [
         _view(1, name="Held", value=100.0, invested=100.0),
         _view(
-            2, name="Sold", value=0.0, invested=-50.0, contributed=250.0, closed=True
+            2,
+            name="Sold",
+            value=0.0,
+            invested=-50.0,
+            contributed=250.0,
+            closed_at="2026-03-01",
         ),
     ]
     depot_views = build_depot_views([Depot(id=1, name="Trade Republic")], views)
@@ -716,7 +721,7 @@ def test_build_totals_counts_only_held_positions() -> None:
     """A sold position is worth nothing and is not counted as held."""
     views: list[PositionView] = [
         _view(1, value=1000.0, invested=800.0),
-        _view(2, value=0.0, invested=-50.0, contributed=250.0, closed=True),
+        _view(2, value=0.0, invested=-50.0, contributed=250.0, closed_at="2026-03-01"),
     ]
     totals = build_totals(views, depot_count=1)
 
@@ -733,7 +738,7 @@ def test_build_totals_ignores_a_closed_positions_stale_delta() -> None:
     """
     views: list[PositionView] = [
         _view(1, value=1000.0, invested=900.0, delta=25.0),
-        _view(2, value=300.0, invested=300.0, delta=400.0, closed=True),
+        _view(2, value=300.0, invested=300.0, delta=400.0, closed_at="2026-03-01"),
     ]
     assert build_totals(views, depot_count=1).week_delta == pytest.approx(25.0)
 
@@ -747,7 +752,12 @@ def test_allocation_and_totals_both_lose_a_sold_position() -> None:
     views: list[PositionView] = [
         _view(1, name="Held", value=750.0, invested=700.0),
         _view(
-            2, name="Sold", value=0.0, invested=-50.0, contributed=250.0, closed=True
+            2,
+            name="Sold",
+            value=0.0,
+            invested=-50.0,
+            contributed=250.0,
+            closed_at="2026-03-01",
         ),
     ]
     slices = allocation(views)
@@ -761,10 +771,10 @@ def test_allocation_and_totals_both_lose_a_sold_position() -> None:
 
 
 def test_allocation_excludes_a_position_closed_without_its_zeroing_row() -> None:
-    """The is_closed guard still holds for a row closed by hand."""
+    """The closed_at guard still holds for a row closed by hand."""
     views: list[PositionView] = [
         _view(1, name="Held", value=750.0, invested=700.0),
-        _view(2, name="Sold", value=250.0, invested=250.0, closed=True),
+        _view(2, name="Sold", value=250.0, invested=250.0, closed_at="2026-03-01"),
     ]
     assert [entry.label for entry in allocation(views)] == ["Held"]
 
@@ -833,7 +843,7 @@ def test_biggest_changes_skips_flat_and_unknown_deltas() -> None:
 def test_biggest_changes_skips_a_closed_position() -> None:
     """A sold position never moves again, so it must not stay in the list."""
     views: list[PositionView] = [
-        _view(1, name="Sold", delta=400.0, closed=True),
+        _view(1, name="Sold", delta=400.0, closed_at="2026-03-01"),
         _view(2, name="Mover", delta=7.5),
     ]
     gainers, losers = biggest_changes(views)

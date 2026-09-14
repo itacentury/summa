@@ -378,7 +378,7 @@ def _serialize_position(view: portfolio.PositionView) -> dict[str, Any]:
         "kind": view.kind,
         "currency": view.currency,
         "is_benchmark_fallback": view.is_benchmark_fallback,
-        "is_closed": view.is_closed,
+        "closed_at": view.closed_at,
         "value": _amount(view.value),
         "fx_rate": view.fx_rate,
         "value_eur": _amount(view.value_eur),
@@ -564,7 +564,13 @@ def _suggested_snapshot_date(last_snapshot_date: str | None) -> str:
 
 
 def _prefill_position(position: portfolio.Position) -> dict[str, Any]:
-    """Render one position for the weekly entry form, with its previous reading."""
+    """Render one position for the weekly entry form, with its previous reading.
+
+    `previous_carried` marks a previous reading that was itself copied forward
+    rather than entered, so the form can tell the user that the number it is
+    comparing against is not a real one. A position without history reports
+    False rather than None: there is no stale reading to warn about.
+    """
     previous: portfolio.Snapshot | None = (
         position.snapshots[-1] if position.snapshots else None
     )
@@ -576,6 +582,7 @@ def _prefill_position(position: portfolio.Position) -> dict[str, Any]:
         "previous_value": None if previous is None else _amount(previous.value),
         "previous_fx_rate": None if previous is None else previous.fx_rate,
         "previous_date": None if previous is None else previous.date,
+        "previous_carried": False if previous is None else previous.carried,
     }
 
 

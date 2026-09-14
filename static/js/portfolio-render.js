@@ -166,8 +166,8 @@ function positionMeta(position, rangeStart) {
   ) {
     parts.push(`since ${formatDateDots(position.first_snapshot_date)}`);
   }
-  if (position.is_closed) {
-    parts.push(`sold ${formatDateDots(position.last_snapshot_date)}`);
+  if (position.closed_at) {
+    parts.push(`sold ${formatDateDots(position.closed_at)}`);
   }
   return escapeHtml(parts.join(" · "));
 }
@@ -190,7 +190,7 @@ export function positionRowHtml(
     : "";
 
   return `
-    <button type="button" class="portfolio-row${position.is_closed ? " is-closed" : ""}"
+    <button type="button" class="portfolio-row${position.closed_at ? " is-closed" : ""}"
             data-position-id="${position.id}" aria-expanded="${expanded}">
       <span class="portfolio-row-main">
         <span class="portfolio-row-name">${escapeHtml(position.name)}${badge}</span>

@@ -170,7 +170,7 @@ const benchmarkPosition = {
   kind: "etf",
   currency: "EUR",
   is_benchmark_fallback: true,
-  is_closed: false,
+  closed_at: null,
   value: 1389.27,
   fx_rate: 1.0,
   value_eur: 1389.27,
@@ -191,7 +191,7 @@ const usdPosition = {
   kind: "etf",
   currency: "USD",
   is_benchmark_fallback: false,
-  is_closed: false,
+  closed_at: null,
   value: 445.41,
   fx_rate: 1.08,
   value_eur: 412.42,
@@ -212,7 +212,7 @@ const soldPosition = {
   kind: "stock",
   currency: "EUR",
   is_benchmark_fallback: false,
-  is_closed: true,
+  closed_at: "2026-05-12",
   value: 0,
   fx_rate: 1.0,
   value_eur: 0,
@@ -233,7 +233,7 @@ const dekaPosition = {
   kind: "fund",
   currency: "EUR",
   is_benchmark_fallback: false,
-  is_closed: false,
+  closed_at: null,
   value: 4925.73,
   fx_rate: 1.0,
   value_eur: 4925.73,
@@ -468,6 +468,23 @@ describe("portfolio rendering", () => {
     expect(sold.querySelector(".portfolio-row-gain").textContent).toBe(
       "+50.00 €",
     );
+  });
+
+  it("names the sale date of a position sold before it was ever snapshotted", async () => {
+    // closed_at is the sale date itself; last_snapshot_date is only a proxy for
+    // it, and one that is null exactly here.
+    const payload = portfolioPayload();
+    payload.depots[0].positions[2] = {
+      ...soldPosition,
+      first_snapshot_date: null,
+      last_snapshot_date: null,
+      snapshot_count: 0,
+    };
+    global.fetch = vi.fn(async () => jsonResponse(payload));
+
+    await loadPortfolio();
+
+    expect(rowFor(13).textContent).toContain("sold 12.05.2026");
   });
 
   it("qualifies only a position that started inside the window", async () => {
