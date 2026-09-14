@@ -71,8 +71,12 @@ def test_with_sale_recorded_appends_the_sale_after_the_last_week() -> None:
     )
 
 
-def test_with_sale_recorded_replaces_the_week_it_was_sold_in() -> None:
-    """Money paid in that week stays counted, the value it reached does not."""
+def test_with_sale_recorded_follows_the_week_it_was_sold_in() -> None:
+    """The week the sale fell in stays standing, the sale is its own row.
+
+    Netting the two into one row would subtract that week's deposit from itself
+    and hide it from contributed_eur, which only counts money paid in.
+    """
     snapshots: list[Snapshot] = [
         _snapshot("2026-01-04", 400.0, deposit=400.0),
         _snapshot("2026-01-11", 500.0, deposit=50.0),
@@ -80,9 +84,8 @@ def test_with_sale_recorded_replaces_the_week_it_was_sold_in() -> None:
 
     result = list(with_sale_recorded(snapshots, "2026-01-11"))
 
-    assert len(result) == 2
-    # 50 paid in that week, 500 taken back out.
-    assert result[-1] == Snapshot(date="2026-01-11", value=0.0, deposit=-450.0)
+    assert result[:2] == snapshots
+    assert result[-1] == Snapshot(date="2026-01-11", value=0.0, deposit=-500.0)
 
 
 def test_with_sale_recorded_drops_weeks_after_the_close() -> None:
@@ -499,6 +502,30 @@ def test_build_series_steps_down_when_a_position_is_sold() -> None:
     assert series.invested == pytest.approx([600.0, 600.0, 480.0])
 
 
+def test_build_series_consumes_two_snapshots_sharing_one_date() -> None:
+    """A sale following the week it fell in leaves two rows on one grid date.
+
+    Both have to land in the same slot: the value the later one carries, and the
+    deposits of both.
+    """
+    positions: list[Position] = [
+        _position(
+            1,
+            closed_at="2026-01-11",
+            snapshots=[
+                _snapshot("2026-01-04", 400.0, deposit=400.0),
+                _snapshot("2026-01-11", 500.0, deposit=50.0),
+                _snapshot("2026-01-11", 0.0, deposit=-500.0),
+            ],
+        )
+    ]
+
+    series = build_series(positions, ["2026-01-04", "2026-01-11"])
+
+    assert series.portfolio == pytest.approx([400.0, 0.0])
+    assert series.invested == pytest.approx([400.0, -50.0])
+
+
 def test_build_position_view_derives_every_number() -> None:
     """A USD position's view converts value, invested and delta to EUR."""
     position: Position = _position(
@@ -566,6 +593,51 @@ def test_build_position_view_of_a_sold_position_keeps_its_realized_gain() -> Non
     assert view.contributed_eur == pytest.approx(250.0)
     assert view.gain == pytest.approx(50.0)
     assert view.gain_pct == pytest.approx(20.0)
+
+
+def test_build_position_view_counts_the_deposit_of_the_week_it_was_sold_in() -> None:
+    """Selling in a week that was paid into must not drop that deposit.
+
+    Through with_sale_recorded rather than a hand-built history: the sale row
+    sharing its date with a stored one is exactly what is under test.
+    """
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 400.0, deposit=400.0),
+        _snapshot("2026-01-11", 500.0, deposit=50.0),
+    ]
+    position: Position = _position(
+        6,
+        closed_at="2026-01-11",
+        snapshots=list(with_sale_recorded(stored, "2026-01-11")),
+    )
+
+    view: PositionView = build_position_view(position)
+
+    assert view.value_eur == pytest.approx(0.0)
+    assert view.invested_eur == pytest.approx(-50.0)
+    assert view.contributed_eur == pytest.approx(450.0)
+    assert view.gain == pytest.approx(50.0)
+    assert view.gain_pct == pytest.approx(50.0 / 450.0 * 100)
+
+
+def test_build_position_view_of_a_position_bought_and_sold_in_one_week() -> None:
+    """Its only deposit is the close week's, so it is the whole basis.
+
+    Netting that deposit away would leave nothing contributed and turn gain_pct
+    into None — the undefined percentage the contributed basis exists to avoid.
+    """
+    stored: list[Snapshot] = [_snapshot("2026-01-11", 500.0, deposit=500.0)]
+    position: Position = _position(
+        7,
+        closed_at="2026-01-11",
+        snapshots=list(with_sale_recorded(stored, "2026-01-11")),
+    )
+
+    view: PositionView = build_position_view(position)
+
+    assert view.invested_eur == pytest.approx(0.0)
+    assert view.contributed_eur == pytest.approx(500.0)
+    assert view.gain_pct == pytest.approx(0.0)
 
 
 def test_build_depot_views_groups_and_subtotals() -> None:

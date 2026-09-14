@@ -82,8 +82,9 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
 
     # closed_at marks a sold position, and the sale is recorded rather than just
     # flagged: a closed position's history ends in a snapshot dated exactly
-    # closed_at, worth 0 with a deposit of minus the proceeds. That row is derived
-    # on every read (summa.portfolio.with_sale_recorded), never stored, so closing
+    # closed_at, worth 0 with a deposit of minus the proceeds — following, not
+    # replacing, a week already recorded on that date. That row is derived on
+    # every read (summa.portfolio.with_sale_recorded), never stored, so closing
     # and reopening only move this column and no entered week is ever rewritten.
     # The position leaves the allocation and the totals through its own numbers,
     # while keeping its history and its realized gain. Portfolio rows are not

@@ -1130,7 +1130,7 @@ def test_patch_position_reopens_a_closed_one(
     assert position["invested_eur"] == 400.0
 
 
-def test_patch_position_close_updates_an_existing_row_for_today(
+def test_patch_position_close_follows_an_existing_row_for_today(
     client: FlaskClient,
     seed_depot: SeedDepot,
     seed_position: SeedPosition,
@@ -1149,12 +1149,12 @@ def test_patch_position_close_updates_an_existing_row_for_today(
     # 450 paid in across both weeks, 500 taken back out.
     assert position["invested_eur"] == -50.0
     assert position["gain"] == 50.0
-    # The close week's own deposit nets off inside the derived sale row, so it is
-    # the earlier week alone that shows up as money paid in.
-    assert position["contributed_eur"] == 400.0
+    # The sale follows the close week instead of replacing it, so that week's own
+    # deposit still counts as money paid in.
+    assert position["contributed_eur"] == 450.0
     # The grand total inherits the negative net, so it carries the paid-in sum too.
     assert payload["totals"]["invested_eur"] == -50.0
-    assert payload["totals"]["contributed_eur"] == 400.0
+    assert payload["totals"]["contributed_eur"] == 450.0
 
 
 def test_patch_position_close_without_snapshots_reports_nothing(

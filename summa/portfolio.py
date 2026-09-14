@@ -49,6 +49,8 @@ class Position:
     """A held position together with its full snapshot history.
 
     :param snapshots: ascending by date — every function here relies on that.
+        Dates need not be distinct: a sold position carries its derived closing
+        row alongside a week recorded on the same date.
     :param closed_at: the date the position was sold. `snapshots` is then
         expected to end in the zeroing row :func:`with_sale_recorded` derives:
         value 0 and a deposit of minus what it was last worth, dated exactly
@@ -188,10 +190,16 @@ def with_sale_recorded(
 
     The money leaves as a negative deposit so the realized gain survives in
     ``value - invested``, which is why every other function here needs no special
-    case for a sold position. A week already recorded on the close date is
-    replaced rather than followed: money paid in that week stays counted, the
-    value it reached does not. A position that was never snapshotted has no value
+    case for a sold position. A position that was never snapshotted has no value
     to take out.
+
+    The sale follows a week already recorded on the close date rather than
+    replacing it: the two are separate events, so the value and the deposit the
+    user entered both stay standing and only the proceeds are withdrawn. Netting
+    them into one row instead would hide that week's deposit from
+    :func:`contributed_eur`, which counts money paid *in*. The derived row may
+    therefore share its date with a stored one — every consumer here reads a
+    history of ascending dates, not of distinct ones.
 
     :param snapshots: ascending by date.
     """
@@ -205,15 +213,15 @@ def with_sale_recorded(
         return held
 
     last: Snapshot = held[-1]
-    replaces_last: bool = last.date == closed_at
-    deposit: float = last.deposit - last.value if replaces_last else -last.value
-    sale: Snapshot = Snapshot(
-        date=closed_at, value=0.0, deposit=deposit, fx_rate=last.fx_rate, carried=False
+    held.append(
+        Snapshot(
+            date=closed_at,
+            value=0.0,
+            deposit=-last.value,
+            fx_rate=last.fx_rate,
+            carried=False,
+        )
     )
-    if replaces_last:
-        held[-1] = sale
-    else:
-        held.append(sale)
     return held
 
 
