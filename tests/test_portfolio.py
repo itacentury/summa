@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 from summa.portfolio import (
+    ChartWindow,
     Depot,
     Position,
     PositionView,
@@ -15,6 +16,7 @@ from summa.portfolio import (
     build_position_view,
     build_series,
     build_totals,
+    chart_window,
     gain,
     gain_pct,
     growth_points,
@@ -223,6 +225,52 @@ def test_range_start(token: str, expected: date | None) -> None:
 def test_range_start_clamps_to_a_shorter_month() -> None:
     """Going back from a 31st into a shorter month lands on its last day."""
     assert range_start("3m", date(2026, 5, 31)) == date(2026, 2, 28)
+
+
+TODAY: date = date(2026, 9, 14)
+
+
+@pytest.mark.parametrize(
+    ("token", "expected_start"),
+    [
+        ("3m", "2026-06-14"),
+        ("1y", "2025-09-14"),
+        ("ytd", "2026-01-01"),
+    ],
+)
+def test_chart_window_spans_the_period_not_the_data(
+    token: str, expected_start: str
+) -> None:
+    """A bounded window starts at the period start even when the data starts later."""
+    window: ChartWindow = chart_window(token, TODAY, ["2026-08-30", "2026-09-06"])
+    assert window.start == expected_start
+    assert window.end == "2026-09-14"
+
+
+def test_chart_window_starts_at_the_first_date_for_max() -> None:
+    """Max has no computable start, so the first date with data is the boundary."""
+    window: ChartWindow = chart_window("max", TODAY, ["2024-03-02", "2026-09-06"])
+    assert window.start == "2024-03-02"
+
+
+def test_chart_window_without_data_has_no_start_for_max() -> None:
+    """Neither a period start nor a first date exists — the axis is undefined."""
+    window: ChartWindow = chart_window("max", TODAY, [])
+    assert window.start is None
+    assert window.end == "2026-09-14"
+
+
+def test_chart_window_without_data_keeps_the_period_start() -> None:
+    """An empty portfolio still draws the selected period, just without a line."""
+    window: ChartWindow = chart_window("3m", TODAY, [])
+    assert window.start == "2026-06-14"
+    assert window.end == "2026-09-14"
+
+
+def test_chart_window_ends_after_a_future_dated_snapshot() -> None:
+    """An imported date past today widens the axis rather than being clipped."""
+    window: ChartWindow = chart_window("1y", TODAY, ["2026-09-06", "2026-09-20"])
+    assert window.end == "2026-09-20"
 
 
 def test_snapshot_dates_is_the_sorted_union_within_the_window() -> None:

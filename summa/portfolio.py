@@ -261,6 +261,40 @@ def range_start(range_token: str, today: date) -> date | None:
     return None
 
 
+@dataclass(frozen=True)
+class ChartWindow:
+    """The x-axis span of the chart, independent of which dates carry data."""
+
+    start: str | None
+    end: str
+
+
+def chart_window(range_token: str, today: date, dates: Sequence[str]) -> ChartWindow:
+    """Return the axis boundaries for a period token as ISO dates.
+
+    The date grid holds only dates that exist, so three months of history under
+    "1y" would draw a three-month axis. The window says how wide the axis should
+    be instead, keeping the period arithmetic (and its month clamping) on this
+    side rather than duplicated in the chart client.
+
+    The start is the window start, or — for the unbounded "max", where there is
+    none to compute — the first date with data; None only when neither exists.
+    The end is today, unless a snapshot dates after it: the API rejects future
+    dates but the import script does not, and clipping a real point is worse than
+    an axis running slightly long.
+
+    :param dates: the chart's date grid, ascending.
+    """
+    start: date | None = range_start(range_token, today)
+    if start is not None:
+        start_iso: str | None = start.isoformat()
+    else:
+        start_iso = dates[0] if dates else None
+    today_iso: str = today.isoformat()
+    end_iso: str = max(today_iso, dates[-1]) if dates else today_iso
+    return ChartWindow(start=start_iso, end=end_iso)
+
+
 def snapshot_dates(positions: Sequence[Position], start: date | None) -> list[str]:
     """Return every distinct snapshot date at or after `start`, ascending.
 

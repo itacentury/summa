@@ -462,9 +462,13 @@ def get_portfolio() -> Response:
         views: list[portfolio.PositionView] = [
             portfolio.build_position_view(position) for position in positions
         ]
-        start: date | None = portfolio.range_start(range_token, date.today())
+        # One reading of the date for the whole response: two calls could land on
+        # either side of midnight and describe a window the grid does not match.
+        today: date = date.today()
+        start: date | None = portfolio.range_start(range_token, today)
         grid: list[str] = portfolio.snapshot_dates(positions, start)
         series: portfolio.ChartSeries = portfolio.build_series(positions, grid)
+        window: portfolio.ChartWindow = portfolio.chart_window(range_token, today, grid)
         benchmark: _Benchmark = _build_benchmark(
             cursor,
             grid,
@@ -479,6 +483,8 @@ def get_portfolio() -> Response:
     return jsonify(
         {
             "range": range_token,
+            "range_start": window.start,
+            "range_end": window.end,
             "depot": depot_id,
             "depots": [_serialize_depot(view) for view in depot_views],
             "totals": _serialize_totals(totals),

@@ -20,6 +20,15 @@ def _weeks_ago(weeks: int) -> str:
     return (date.today() - timedelta(weeks=weeks)).isoformat()
 
 
+def _one_year_back() -> str:
+    """Return today's date a year back, derived without the code under test."""
+    today = date.today()
+    try:
+        return today.replace(year=today.year - 1).isoformat()
+    except ValueError:  # 29 February has no counterpart in a common year.
+        return today.replace(year=today.year - 1, day=28).isoformat()
+
+
 def _snapshot_rows(position_id: int) -> list[dict[str, Any]]:
     """Read a position's snapshots straight from the database, ascending."""
     conn = db.get_db()
@@ -125,6 +134,58 @@ def test_get_portfolio_range_narrows_the_chart_but_not_the_list(
     # The list and the totals are identical: only the chart is windowed.
     assert short["totals"] == full["totals"]
     assert short["depots"] == full["depots"]
+
+
+def test_get_portfolio_reports_the_window_the_axis_should_span(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A year's window is reported even when only recent weeks carry data.
+
+    Without this the chart would size its axis from the series and draw three
+    months of history as a full year.
+    """
+    depot_id = seed_depot()
+    position_id = seed_position(depot_id)
+    seed_snapshot(position_id, _weeks_ago(2), 900.0, deposit=900.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1000.0)
+
+    payload = client.get("/api/portfolio?range=1y").get_json()
+
+    assert payload["range_start"] == _one_year_back()
+    assert payload["range_end"] == date.today().isoformat()
+    assert payload["series"]["dates"][0] > payload["range_start"]
+
+
+def test_get_portfolio_window_starts_at_the_first_snapshot_for_max(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Max has no period start, so the axis begins at the oldest snapshot."""
+    depot_id = seed_depot()
+    position_id = seed_position(depot_id)
+    seed_snapshot(position_id, _weeks_ago(60), 800.0, deposit=800.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1000.0)
+
+    payload = client.get("/api/portfolio?range=max").get_json()
+
+    assert payload["range_start"] == payload["series"]["dates"][0]
+    assert payload["range_end"] == date.today().isoformat()
+
+
+def test_get_portfolio_window_without_data_still_spans_the_period(
+    client: FlaskClient,
+) -> None:
+    """An empty installation reports the selected period, just without a line."""
+    payload = client.get("/api/portfolio?range=3m").get_json()
+
+    assert payload["range_start"] is not None
+    assert payload["range_end"] == date.today().isoformat()
+    assert payload["series"]["dates"] == []
 
 
 def test_get_portfolio_falls_back_to_the_default_range_on_a_bad_token(

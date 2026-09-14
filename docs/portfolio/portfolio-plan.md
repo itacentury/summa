@@ -245,6 +245,10 @@ destroy-before-recreate discipline `stats.js` uses.
   `benchmark_source === "fallback"`,
   `Benchmark: own MSCI World SRI (index feed unavailable)` — same styling, no toast, never
   blocking.
+- **Axis window:** the x-axis spans `range_start … range_end` from the response, never the first and
+  last entry of `series.dates`. A position that started mid-period must not shrink the axis
+  (handoff decision 7), and the period arithmetic stays on the backend instead of being
+  re-implemented in JS.
 - **Allocation:** Chart.js doughnut, 132px, ring thickness 17px, palette `chartColors` from
   `state.js` in order, closed positions excluded. Legend rows: top 5 individually, then an
   aggregated `N more`. Swatch colours are assigned via CSSOM (`el.style.background`) after
