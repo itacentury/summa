@@ -699,4 +699,36 @@ describe("portfolio depot filter", () => {
     expect(showErrorToast).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".portfolio-row")).toHaveLength(4);
   });
+
+  it("keeps the depot filter when the request fails for any other reason", async () => {
+    localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, "2");
+    restorePortfolioPrefs();
+    setupPortfolioListeners();
+    global.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    await loadPortfolio();
+
+    expect(state.depotFilter).toBe("2");
+    expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBe("2");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(showErrorToast).toHaveBeenCalled();
+  });
+
+  it("keeps the depot filter when the server fails with a 500", async () => {
+    localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, "2");
+    restorePortfolioPrefs();
+    setupPortfolioListeners();
+    global.fetch = vi.fn(async () =>
+      jsonResponse({}, { ok: false, status: 500 }),
+    );
+
+    await loadPortfolio();
+
+    expect(state.depotFilter).toBe("2");
+    expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBe("2");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(showErrorToast).toHaveBeenCalled();
+  });
 });

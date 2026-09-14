@@ -147,20 +147,25 @@ export async function loadPortfolio(allowRetry = true) {
 
   let payload;
   try {
-    // apiFetch resolves for any status, so `ok` is checked here rather than
-    // letting a 400's error body fall through as if it were a payload.
     const response = await apiFetch(`/api/portfolio?${params}`);
-    if (!response.ok)
-      throw new Error(`Portfolio request failed: ${response.status}`);
-    payload = await response.json();
-  } catch (error) {
     // The server rejects an unknown depot id with a 400 rather than widening
-    // the filter, so the stale-filter recovery has to run from here too.
-    if (allowRetry && state.depotFilter !== DEPOT_ALL) {
+    // the filter, so the stale-filter recovery has to run from here too. Any
+    // other failure is transient and must leave the persisted filter alone.
+    if (
+      response.status === 400 &&
+      allowRetry &&
+      state.depotFilter !== DEPOT_ALL
+    ) {
       clearDepotFilter();
       await loadPortfolio(false);
       return;
     }
+    // apiFetch resolves for any status, so `ok` is checked here rather than
+    // letting an error body fall through as if it were a payload.
+    if (!response.ok)
+      throw new Error(`Portfolio request failed: ${response.status}`);
+    payload = await response.json();
+  } catch (error) {
     console.error("Error loading portfolio:", error);
     if (!hasRendered) list.innerHTML = "";
     showErrorToast("Failed to load portfolio");
