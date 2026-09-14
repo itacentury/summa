@@ -21,6 +21,7 @@ from summa.helpers import (
     ApiResponse,
     ValidationError,
     error_response,
+    parse_float,
     require_non_empty_str,
 )
 
@@ -96,17 +97,12 @@ def _require_bool(value: Any, field: str) -> bool:
 
 
 def _optional_float(value: Any, field: str) -> float | None:
-    """Return value as a float, passing None through; raise on anything else."""
+    """Return value as a finite float, passing None through; raise on anything else."""
     if value is None:
         return None
     if isinstance(value, bool):
         raise ValidationError(f"Field '{field}' must be a number", field=field)
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        raise ValidationError(
-            f"Field '{field}' must be a number", field=field
-        ) from None
+    return parse_float(value, field)
 
 
 def _require_kind(value: Any) -> str:

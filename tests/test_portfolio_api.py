@@ -754,7 +754,12 @@ def test_post_snapshot_writes_nothing_when_one_row_is_invalid(
         {"date": "2026-01-04", "rows": []},
         {"date": "2026-01-04", "rows": [{"position_id": 999, "value": 1.0}]},
         {"date": "2026-01-04", "rows": [{"position_id": 1, "value": "lots"}]},
+        {"date": "2026-01-04", "rows": [{"position_id": 1, "value": float("inf")}]},
+        {"date": "2026-01-04", "rows": [{"position_id": 1, "value": float("nan")}]},
+        {"date": "2026-01-04", "rows": [{"position_id": 1, "deposit": float("inf")}]},
         {"date": "2026-01-04", "rows": [{"position_id": 1, "fx_rate": 0}]},
+        {"date": "2026-01-04", "rows": [{"position_id": 1, "fx_rate": float("inf")}]},
+        {"date": "2026-01-04", "rows": [{"position_id": 1, "fx_rate": float("nan")}]},
     ],
 )
 def test_post_snapshot_rejects_malformed_payloads(
