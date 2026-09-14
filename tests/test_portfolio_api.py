@@ -913,6 +913,7 @@ def test_post_position_normalizes_the_currency(
         {"kind": "crypto"},
         {"name": "   "},
         {"currency": "EURO"},
+        {"currency": "\u0415UR"},  # Cyrillic homoglyph of "E"
         {"depot_id": 999},
     ],
 )

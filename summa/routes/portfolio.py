@@ -123,7 +123,7 @@ def _require_currency(value: Any) -> str:
     if value is None:
         return DEFAULT_CURRENCY
     code: str = require_non_empty_str(value, "currency").upper()
-    if len(code) != CURRENCY_CODE_LENGTH or not code.isalpha():
+    if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
         raise ValidationError(
             "Field 'currency' must be a three-letter ISO code", field="currency"
         )
