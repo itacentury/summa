@@ -17,19 +17,30 @@
       <button class="portfolio-period-btn" data-range="max">Max</button>
     </div>
 
-    <button class="portfolio-depot" data-el="portfolio-depot">
-      <span data-el="portfolio-depot-label">All depots</span>
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
+    {# Own listbox rather than a combobox instance: the filter commits a depot
+       id while the row shows a name, which combobox.js cannot express. #}
+    <div class="portfolio-depot" data-el="portfolio-depot">
+      <button
+        type="button"
+        class="portfolio-depot-trigger"
+        aria-haspopup="listbox"
+        aria-expanded="false"
       >
-        <polyline points="6 9 12 15 18 9" />
-      </svg>
-    </button>
+        <span class="portfolio-depot-label">All depots</span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      <ul class="portfolio-depot-menu" role="listbox" aria-label="Depot"></ul>
+    </div>
 
     <div class="portfolio-toolbar-spacer"></div>
 
@@ -52,8 +63,14 @@
     </button>
   </div>
 
+  <!-- Summary Cards -->
+  <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
+
+  <!-- Positions List -->
+  <div class="portfolio-list is-hidden" data-el="portfolio-list"></div>
+
   <!-- Empty State -->
-  <div class="portfolio-empty" data-el="portfolio-empty">
+  <div class="portfolio-empty is-hidden" data-el="portfolio-empty">
     <div class="empty-state">
       <svg
         class="portfolio-empty-icon"

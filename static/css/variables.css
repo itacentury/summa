@@ -7,6 +7,7 @@
   --bg-inset: #f7f1e4; /* inputs, inset surfaces */
   --bg-hover: #f9f4e8; /* row hover, expanded row, modal footer */
   --bg-selected: #f0e6d2; /* selected row, active dropdown entry */
+  --bg-hero: #e8dcc6; /* filled headline card (invoice total, portfolio value) */
   --bg-toolbar: #322c24; /* dark bulk-action pill */
   --bg-toolbar-text: #f3ede2; /* text on the dark pill */
 
@@ -27,6 +28,8 @@
   --accent: #c98d6b; /* terracotta: active pills, primary buttons */
   --accent-text-on: #fdf9f1;
   --amount: #7c6b3f; /* monetary amounts (instead of green) */
+  --success-subtle-bg: #d7e4d2;
+  --success-subtle-text: #54744a;
   --danger-subtle-bg: #eed9d3;
   --danger-subtle-text: #9c5b4a;
   --danger-solid: #b3573f; /* destructive primary button */

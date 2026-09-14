@@ -1,4 +1,4 @@
-/* Portfolio view: toolbar, empty state. */
+/* Portfolio view: toolbar, summary cards, positions list, empty state. */
 
 /* ====== PORTFOLIO VIEW ====== */
 
@@ -54,8 +54,12 @@
 }
 
 .portfolio-depot {
-  display: flex;
+  position: relative;
   flex: none;
+}
+
+.portfolio-depot-trigger {
+  display: flex;
   gap: 7px;
   align-items: center;
   height: 42px;
@@ -69,9 +73,53 @@
   border-radius: 12px;
 }
 
-.portfolio-depot svg {
+.portfolio-depot-trigger svg {
   flex: none;
   color: var(--text-faint);
+  transition: transform var(--transition);
+}
+
+.portfolio-depot.is-open .portfolio-depot-trigger svg {
+  transform: rotate(180deg);
+}
+
+.portfolio-depot-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  max-height: 240px;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* Closed is the default; the control adds .is-open only while the menu shows. */
+.portfolio-depot:not(.is-open) .portfolio-depot-menu {
+  display: none;
+}
+
+.portfolio-depot-option {
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.portfolio-depot-option.is-highlighted {
+  background: var(--bg-hover);
+}
+
+.portfolio-depot-option.is-active {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .portfolio-toolbar-spacer {
@@ -89,6 +137,342 @@
   color: var(--accent-text-on);
   white-space: nowrap;
   border-radius: 12px;
+}
+
+/* ====== SUMMARY CARDS ====== */
+
+.portfolio-summary {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 14px;
+}
+
+.portfolio-card {
+  padding: 17px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+/* The hero reuses the filled tone the invoice total card already carries, so
+   both areas read as the same kind of "headline" surface. */
+.portfolio-card-hero {
+  background: var(--bg-hero);
+  border-color: transparent;
+}
+
+.portfolio-card-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.portfolio-hero-value {
+  margin-top: 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.portfolio-hero-change {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-top: 11px;
+}
+
+.portfolio-chip {
+  padding: 4px 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 7px;
+}
+
+.portfolio-hero-percent {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.portfolio-hero-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.portfolio-card-value {
+  margin-top: 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.portfolio-card-value-amount {
+  color: var(--amount);
+}
+
+.portfolio-card-sub {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.portfolio-card-net {
+  display: block;
+}
+
+/* ====== GAIN / LOSS TONE ====== */
+
+/* One pair of classes for every signed figure on the screen, so the palette
+   never has to be repeated per component. */
+.is-gain {
+  color: var(--success-subtle-text);
+}
+
+.is-loss {
+  color: var(--danger-subtle-text);
+}
+
+.portfolio-chip.is-gain {
+  background: var(--success-subtle-bg);
+}
+
+.portfolio-chip.is-loss {
+  background: var(--danger-subtle-bg);
+}
+
+/* ====== POSITIONS LIST ====== */
+
+.portfolio-list {
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.portfolio-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.portfolio-group-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 11px 20px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--bg-hover);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.portfolio-group-chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+
+.portfolio-group.is-collapsed .portfolio-group-chevron {
+  transform: rotate(-90deg);
+}
+
+.portfolio-group.is-collapsed .portfolio-group-body {
+  display: none;
+}
+
+.portfolio-group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.portfolio-group-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.portfolio-group-gain {
+  min-width: 92px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.portfolio-group-percent {
+  min-width: 54px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ====== POSITION ROW ====== */
+
+.portfolio-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 11px 20px;
+  font: inherit;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--bg-primary);
+  transition: background var(--transition);
+}
+
+.portfolio-row:hover,
+.portfolio-row[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+
+/* A sold position keeps its row — its realized gain is part of the grand total
+   below, so removing it would leave a list that does not sum to its own footer. */
+.portfolio-row.is-closed .portfolio-row-name,
+.portfolio-row.is-closed .portfolio-row-value {
+  color: var(--text-muted);
+}
+
+.portfolio-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.portfolio-row-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.portfolio-row-meta {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.portfolio-badge {
+  padding: 2px 7px;
+  margin-left: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  vertical-align: 1px;
+  color: var(--cat-baecker-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--cat-baecker);
+  border-radius: 999px;
+}
+
+.portfolio-row-invested {
+  min-width: 88px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.portfolio-row-value {
+  min-width: 96px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  text-align: right;
+}
+
+.portfolio-row-gain {
+  min-width: 92px;
+  margin-left: 12px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.portfolio-row-percent {
+  min-width: 54px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ====== EXPANDED DETAIL STRIP ====== */
+
+/* A sibling of the row, never a child: expanding must not move a single cell
+   of the row itself (the same rule the invoice list follows). */
+.portfolio-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  padding: 0 20px 12px;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--bg-primary);
+}
+
+.portfolio-detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.portfolio-detail-value {
+  margin-top: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+}
+
+/* ====== LIST FOOTER ====== */
+
+.portfolio-list-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 20px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.portfolio-list-legend {
+  flex: 1;
+  min-width: 0;
+}
+
+.portfolio-list-invested {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.portfolio-list-total {
+  min-width: 96px;
+  margin-left: 12px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
 }
 
 /* ====== EMPTY STATE ====== */
@@ -151,5 +535,29 @@
 
   .portfolio-empty .empty-state {
     padding: 32px 20px;
+  }
+
+  /* Baseline only. The stacked hero + two small cards and the two-line position
+     row of design 18b land with the rest of the mobile layout; until then these
+     two rules are what keep the screen usable and the page from scrolling
+     sideways. */
+  .portfolio-summary {
+    grid-template-columns: 1fr;
+  }
+
+  /* The desktop row's fixed amount columns are wider than a phone, so the
+     overflow is contained in the card rather than left on the document. */
+  .portfolio-list {
+    overflow-x: auto;
+  }
+
+  .portfolio-group-header,
+  .portfolio-row,
+  .portfolio-list-footer {
+    min-width: max-content;
+  }
+
+  .portfolio-row-main {
+    min-width: 160px;
   }
 }
