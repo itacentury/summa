@@ -91,7 +91,12 @@ function renderPortfolio(payload) {
     if (!positionsById.has(id)) expandedPositions.delete(id);
   });
 
-  showSections({ hasPositions: payload.totals.position_count > 0 });
+  // Not `totals.position_count` — that counts only what is still held, so a
+  // fully sold portfolio would hide its own rows and realized gain behind the
+  // first-run empty state.
+  showSections({
+    hasPositions: payload.depots.some((depot) => depot.positions.length > 0),
+  });
   summary.innerHTML = summaryCardsHtml(payload.totals);
   list.innerHTML = positionsListHtml(payload, {
     collapsed: collapsedDepots,

@@ -487,6 +487,29 @@ describe("portfolio rendering", () => {
     ).toBe(true);
   });
 
+  it("keeps a fully sold portfolio visible instead of falling back to the empty state", async () => {
+    // Everything sold: `position_count` counts only what is still held and is 0
+    // here, but the depot, its row and the realized gain are still worth showing.
+    const payload = portfolioPayload();
+    payload.depots = [
+      { ...payload.depots[0], positions: [soldPosition], value_eur: 0 },
+    ];
+    payload.totals = { ...payload.totals, position_count: 0, value_eur: 0 };
+    global.fetch = vi.fn(async () => jsonResponse(payload));
+
+    await loadPortfolio();
+
+    expect(
+      document
+        .querySelector('[data-el="portfolio-empty"]')
+        .classList.contains("is-hidden"),
+    ).toBe(true);
+    expect(listEl().classList.contains("is-hidden")).toBe(false);
+    expect(rowFor(13).querySelector(".portfolio-row-gain").textContent).toBe(
+      "+50.00 €",
+    );
+  });
+
   it("reports a failed load without blanking what is already on screen", async () => {
     await loadPortfolio();
     const rendered = listEl().innerHTML;
