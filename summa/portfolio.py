@@ -35,6 +35,8 @@ class Snapshot:
 
     :param fx_rate: units of the position's currency per EUR at that date.
     :param carried: the value was copied forward, not entered by the user.
+    :param derived: the closing row of a sold position, computed on read rather
+        than recorded — see :func:`with_sale_recorded`.
     """
 
     date: str
@@ -42,6 +44,7 @@ class Snapshot:
     deposit: float = 0.0
     fx_rate: float = 1.0
     carried: bool = False
+    derived: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,8 @@ class PositionView:
     :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
     :param gain_pct: None when nothing was contributed — see :func:`gain_pct`.
     :param week_delta: None when there is no previous week — see :func:`week_delta`.
+    :param snapshot_count: how many weeks were recorded — the closing row a sold
+        position's history ends in was derived, not entered, and is not counted.
     """
 
     id: int
@@ -203,6 +208,10 @@ def with_sale_recorded(
     therefore share its date with a stored one — every consumer here reads a
     history of ascending dates, not of distinct ones.
 
+    The derived row is flagged as such: it is history like any other row for
+    every number computed here, but it is not a week the user recorded, so a
+    count of recorded weeks can leave it out.
+
     :param snapshots: ascending by date.
     """
     if closed_at is None:
@@ -222,6 +231,7 @@ def with_sale_recorded(
             deposit=-last.value,
             fx_rate=last.fx_rate,
             carried=False,
+            derived=True,
         )
     )
     return held
@@ -513,7 +523,9 @@ def build_position_view(position: Position) -> PositionView:
         week_delta=week_delta(position.snapshots),
         first_snapshot_date=position.snapshots[0].date if position.snapshots else None,
         last_snapshot_date=latest.date if latest is not None else None,
-        snapshot_count=len(position.snapshots),
+        snapshot_count=sum(
+            1 for snapshot in position.snapshots if not snapshot.derived
+        ),
         sort_order=position.sort_order,
     )
 

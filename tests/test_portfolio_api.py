@@ -1181,6 +1181,36 @@ def test_patch_position_close_follows_an_existing_row_for_today(
     assert payload["totals"]["contributed_eur"] == 450.0
 
 
+def test_patch_position_close_keeps_snapshot_count_at_the_weeks_recorded(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The closing row is derived on read, so it is no week the user entered.
+
+    Both positions hold two recorded weeks; the second is sold in a week it
+    already has a row for, which is where the derived row doubles up on a date.
+    """
+    depot_id = seed_depot()
+    sold_later = seed_position(depot_id, name="Sold later")
+    seed_snapshot(sold_later, _weeks_ago(2), 400.0, deposit=400.0)
+    seed_snapshot(sold_later, _weeks_ago(1), 500.0)
+    sold_this_week = seed_position(depot_id, name="Sold this week")
+    seed_snapshot(sold_this_week, _weeks_ago(1), 400.0, deposit=400.0)
+    seed_snapshot(sold_this_week, date.today().isoformat(), 500.0, deposit=50.0)
+
+    for position_id in (sold_later, sold_this_week):
+        client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+
+    positions = client.get("/api/portfolio").get_json()["depots"][0]["positions"]
+    counts = {position["name"]: position["snapshot_count"] for position in positions}
+    assert counts == {"Sold later": 2, "Sold this week": 2}
+    assert [
+        len(_snapshot_rows(position_id)) for position_id in (sold_later, sold_this_week)
+    ] == [2, 2]
+
+
 def test_patch_position_close_without_snapshots_reports_nothing(
     client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
 ) -> None:

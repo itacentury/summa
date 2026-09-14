@@ -67,7 +67,12 @@ def test_with_sale_recorded_appends_the_sale_after_the_last_week() -> None:
 
     assert result[:2] == snapshots
     assert result[-1] == Snapshot(
-        date="2026-01-18", value=0.0, deposit=-1080.0, fx_rate=1.08, carried=False
+        date="2026-01-18",
+        value=0.0,
+        deposit=-1080.0,
+        fx_rate=1.08,
+        carried=False,
+        derived=True,
     )
 
 
@@ -85,7 +90,9 @@ def test_with_sale_recorded_follows_the_week_it_was_sold_in() -> None:
     result = list(with_sale_recorded(snapshots, "2026-01-11"))
 
     assert result[:2] == snapshots
-    assert result[-1] == Snapshot(date="2026-01-11", value=0.0, deposit=-500.0)
+    assert result[-1] == Snapshot(
+        date="2026-01-11", value=0.0, deposit=-500.0, derived=True
+    )
 
 
 def test_with_sale_recorded_drops_weeks_after_the_close() -> None:
@@ -109,6 +116,18 @@ def test_with_sale_recorded_never_marks_the_sale_as_carried() -> None:
 
     assert with_sale_recorded(snapshots, "2026-01-11")[-1].carried is False
     assert with_sale_recorded(snapshots, "2026-01-18")[-1].carried is False
+
+
+def test_with_sale_recorded_flags_only_the_sale_row_as_derived() -> None:
+    """The closing row is the one row the user never recorded."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 400.0, deposit=400.0),
+        _snapshot("2026-01-11", 500.0),
+    ]
+
+    result = list(with_sale_recorded(snapshots, "2026-01-11"))
+
+    assert [snapshot.derived for snapshot in result] == [False, False, True]
 
 
 def test_with_sale_recorded_does_not_mutate_its_input() -> None:
@@ -618,6 +637,39 @@ def test_build_position_view_counts_the_deposit_of_the_week_it_was_sold_in() -> 
     assert view.contributed_eur == pytest.approx(450.0)
     assert view.gain == pytest.approx(50.0)
     assert view.gain_pct == pytest.approx(50.0 / 450.0 * 100)
+
+
+def test_build_position_view_counts_only_the_weeks_that_were_recorded() -> None:
+    """The derived closing row is not a week the user ever entered.
+
+    Both cases go through with_sale_recorded: selling in a week of its own and
+    selling in a week already recorded append the same single derived row.
+    """
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 400.0, deposit=400.0),
+        _snapshot("2026-01-11", 500.0, deposit=50.0),
+    ]
+
+    sold_later: Position = _position(
+        8,
+        closed_at="2026-01-18",
+        snapshots=list(with_sale_recorded(stored, "2026-01-18")),
+    )
+    sold_that_week: Position = _position(
+        9,
+        closed_at="2026-01-11",
+        snapshots=list(with_sale_recorded(stored, "2026-01-11")),
+    )
+
+    assert build_position_view(sold_later).snapshot_count == 2
+    assert build_position_view(sold_that_week).snapshot_count == 2
+
+
+def test_build_position_view_of_a_position_sold_before_it_was_snapshotted() -> None:
+    """Without a value to withdraw there is no closing row, and nothing to count."""
+    position: Position = _position(10, closed_at="2026-01-11")
+
+    assert build_position_view(position).snapshot_count == 0
 
 
 def test_build_position_view_of_a_position_bought_and_sold_in_one_week() -> None:
