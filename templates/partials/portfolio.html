@@ -11,10 +11,22 @@
       role="group"
       aria-label="Period"
     >
-      <button class="portfolio-period-btn" data-range="3m">3M</button>
-      <button class="portfolio-period-btn is-active" data-range="1y">1Y</button>
-      <button class="portfolio-period-btn" data-range="ytd">YTD</button>
-      <button class="portfolio-period-btn" data-range="max">Max</button>
+      <button type="button" class="portfolio-period-btn" data-range="3m">
+        3M
+      </button>
+      <button
+        type="button"
+        class="portfolio-period-btn is-active"
+        data-range="1y"
+      >
+        1Y
+      </button>
+      <button type="button" class="portfolio-period-btn" data-range="ytd">
+        YTD
+      </button>
+      <button type="button" class="portfolio-period-btn" data-range="max">
+        Max
+      </button>
     </div>
 
     {# Own listbox rather than a combobox instance: the filter commits a depot
@@ -45,6 +57,7 @@
     <div class="portfolio-toolbar-spacer"></div>
 
     <button
+      type="button"
       class="btn btn-primary portfolio-snapshot-btn"
       data-action="open-snapshot"
     >
@@ -89,7 +102,7 @@
         Add the positions you hold, then record one snapshot per week — value
         and deposit per position.
       </div>
-      <button class="btn btn-primary" data-action="add-position">
+      <button type="button" class="btn btn-primary" data-action="add-position">
         <svg
           width="13"
           height="13"

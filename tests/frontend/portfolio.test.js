@@ -575,6 +575,9 @@ describe("portfolio group collapsing and row expansion", () => {
     const group = header.closest(".portfolio-group");
     expect(group.classList.contains("is-collapsed")).toBe(true);
     expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(header.getAttribute("aria-controls")).toBe(
+      group.querySelector(".portfolio-group-body").id,
+    );
     expect(collapsedDepots.has(1)).toBe(true);
 
     await loadPortfolio();
@@ -597,6 +600,7 @@ describe("portfolio group collapsing and row expansion", () => {
     expect(strip.textContent).toContain("27");
     expect(rowFor(11).innerHTML).toBe(before);
     expect(row.getAttribute("aria-expanded")).toBe("true");
+    expect(row.getAttribute("aria-controls")).toBe(strip.id);
   });
 
   it("keeps several rows open at once and closes them individually", async () => {

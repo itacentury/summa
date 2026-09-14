@@ -191,7 +191,8 @@ export function positionRowHtml(
 
   return `
     <button type="button" class="portfolio-row${position.closed_at ? " is-closed" : ""}"
-            data-position-id="${position.id}" aria-expanded="${expanded}">
+            data-position-id="${position.id}" aria-expanded="${expanded}"
+            aria-controls="portfolio-detail-${position.id}">
       <span class="portfolio-row-main">
         <span class="portfolio-row-name">${escapeHtml(position.name)}${badge}</span>
         <span class="portfolio-row-meta">${positionMeta(position, rangeStart)}</span>
@@ -217,7 +218,7 @@ export function positionDetailHtml(position) {
     position.week_delta === null ? "" : toneClass(position.week_delta);
 
   return `
-    <div class="portfolio-detail">
+    <div class="portfolio-detail" id="portfolio-detail-${position.id}">
       <div class="portfolio-detail-item">
         <div class="portfolio-detail-label">Original</div>
         <div class="portfolio-detail-value">${escapeHtml(position.currency)} ${formatAmount(
@@ -262,7 +263,8 @@ export function depotGroupHtml(
 
   return `
     <div class="portfolio-group${collapsed ? " is-collapsed" : ""}" data-depot-id="${depot.id}">
-      <button type="button" class="portfolio-group-header" aria-expanded="${!collapsed}">
+      <button type="button" class="portfolio-group-header" aria-expanded="${!collapsed}"
+              aria-controls="portfolio-group-body-${depot.id}">
         <svg class="portfolio-group-chevron" width="11" height="11" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <polyline points="6 9 12 15 18 9" />
@@ -275,7 +277,7 @@ export function depotGroupHtml(
         <span class="portfolio-group-gain ${tone}">${formatSigned(depot.gain)}</span>
         <span class="portfolio-group-percent ${tone}">${formatPercent(depot.gain_pct)}</span>
       </button>
-      <div class="portfolio-group-body">${rows}</div>
+      <div class="portfolio-group-body" id="portfolio-group-body-${depot.id}">${rows}</div>
     </div>
   `;
 }
