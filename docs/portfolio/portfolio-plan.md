@@ -63,9 +63,25 @@ Exact DDL is in the handoff README. Plus the two indexes it specifies
 
 Notes:
 
-- Portfolio rows are **not** soft-deleted — `closed_at` on a position means "sold, exclude
-  from allocation", not "hidden". The `deleted_at IS NULL` invariant is an invoice-side rule
-  and must not be copy-pasted here.
+- Portfolio rows are **not** soft-deleted — `closed_at` on a position means "sold", not
+  "hidden". The `deleted_at IS NULL` invariant is an invoice-side rule and must not be
+  copy-pasted here.
+- **A sale is recorded, not flagged.** Closing a position writes a final snapshot dated
+  exactly `closed_at`, with `value = 0` and `deposit = -(what it was last worth)`. The money
+  leaves the portfolio the way it entered, so a sold position drops out of the allocation
+  _and_ the totals through its own numbers — the donut always sums to the hero card. The
+  negative deposit is what keeps the realized gain: 250 € paid in, sold for 300 € →
+  `invested = -50`, `gain = 0 - (-50) = +50`, and `week_delta = 0 - 300 - (-300) = 0`, so the
+  sale reads as neither a gain nor a loss. `PATCH /api/portfolio/positions/<id>` with
+  `{"close": true}` is the only thing expected to write that row, and `{"close": false}`
+  deletes it again.
+- Because deposits are signed, **`invested_eur` means net money at work**, not lifetime
+  contributions, and goes negative for a position sold at a profit. `gain_pct` is therefore
+  measured against the sum of the _positive_ deposits (`contributed_eur`); dividing by the
+  net amount would report exactly −100 % for every profitably sold position.
+- A closed position never contributes a `week_delta`: no further snapshot is ever recorded
+  for it, so its final week would otherwise report itself into "Last week" and the biggest
+  movers for good.
 - SQLite does not enforce foreign keys unless `PRAGMA foreign_keys = ON`. `get_db()` only sets
   WAL today. Add `PRAGMA foreign_keys = ON` inside `get_db()` so the `ON DELETE CASCADE`
   clauses actually fire; verify the existing invoice tests still pass (they should —
@@ -92,6 +108,8 @@ isolation:
 - `range_start(range_token, today)` → the `3m | 1y | ytd | max` window start
 - `build_series(snapshots_by_position, dates)` → the `portfolio` and `invested` series, each
   position contributing only from its first snapshot onward (never from 0)
+- `contributed_eur(snapshots)` → `sum(deposit / fx_rate)` over deposits above zero only —
+  the `gain_pct` basis, see the `closed_at` notes in Part 1
 - `allocation(positions)` → shares, closed positions excluded, top-5 + aggregated remainder
 - `biggest_changes(positions)` → top-3 gainers and top-3 losers by `week_delta`
 
@@ -100,8 +118,8 @@ untyped dicts, per `docs/code-style.md`.
 
 **Tests:** a table-driven `tests/test_portfolio.py` in the style of `tests/test_helpers.py` —
 parametrized cases for each derivation, plus explicit cases for "deposit must not read as a
-gain", "position starting mid-range does not begin at zero", and "closed position is excluded
-from allocation but still counted in totals".
+gain", "position starting mid-range does not begin at zero", and "a sold position leaves both
+the allocation and the totals while its realized gain stays in the grand total".
 
 Committing this before the API means the numeric logic is proven before any HTTP shape exists.
 

@@ -7,6 +7,11 @@ the weekly delta, the chart series, allocation shares and the biggest movers.
 
 Keeping this layer free of Flask and SQLite is what makes those rules testable on
 their own, before any HTTP or query shape exists to hide a mistake in.
+
+A sale is recorded, not flagged: closing a position writes a final snapshot worth
+0 with a deposit of minus the proceeds, so the money leaves the portfolio the way
+it entered. Every function here therefore needs no special case for a sold
+position — it simply stops carrying value. See :class:`Position.closed_at`.
 """
 
 import calendar
@@ -43,6 +48,10 @@ class Position:
     """A held position together with its full snapshot history.
 
     :param snapshots: ascending by date — every function here relies on that.
+    :param closed_at: the date the position was sold. Its last snapshot is then
+        the zeroing row written by the close endpoint: value 0 and a deposit of
+        minus what it was last worth, dated exactly `closed_at`. A sold position
+        is never hidden — it keeps its history and its realized gain.
     """
 
     id: int
@@ -70,7 +79,9 @@ class PositionView:
     """Every displayed number for one position.
 
     :param value: the latest snapshot value, still in the native currency.
-    :param gain_pct: None when nothing is invested — see :func:`gain_pct`.
+    :param invested_eur: net money at work — see :func:`invested_eur`.
+    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
+    :param gain_pct: None when nothing was contributed — see :func:`gain_pct`.
     :param week_delta: None when there is no previous week — see :func:`week_delta`.
     """
 
@@ -85,6 +96,7 @@ class PositionView:
     fx_rate: float
     value_eur: float
     invested_eur: float
+    contributed_eur: float
     gain: float
     gain_pct: float | None
     week_delta: float | None
@@ -163,8 +175,29 @@ def value_eur(value: float, fx_rate: float) -> float:
 
 
 def invested_eur(snapshots: Sequence[Snapshot]) -> float:
-    """Sum every deposit of a position's history, each at its own FX rate."""
+    """Sum every deposit of a position's history, each at its own FX rate.
+
+    Deposits are signed, so this is the net money still at work: a sale enters as
+    a negative deposit and takes its proceeds back out. A position sold at a
+    profit therefore ends below zero, which is the honest reading — more money
+    came out of it than ever went in.
+    """
     return sum(value_eur(snapshot.deposit, snapshot.fx_rate) for snapshot in snapshots)
+
+
+def contributed_eur(snapshots: Sequence[Snapshot]) -> float:
+    """Sum only the money paid *in*, ignoring withdrawals.
+
+    This is the denominator of :func:`gain_pct`. Dividing by the net invested
+    amount instead would report exactly -100 % for every profitably sold
+    position, whose net invested is the negation of its gain. For a position
+    that was never sold from, the two sums are identical.
+    """
+    return sum(
+        value_eur(snapshot.deposit, snapshot.fx_rate)
+        for snapshot in snapshots
+        if snapshot.deposit > 0
+    )
 
 
 def gain(value: float, invested: float) -> float:
@@ -172,15 +205,18 @@ def gain(value: float, invested: float) -> float:
     return value - invested
 
 
-def gain_pct(absolute_gain: float, invested: float) -> float | None:
-    """Return the gain as a percentage of the invested amount.
+def gain_pct(absolute_gain: float, contributed: float) -> float | None:
+    """Return the gain as a percentage of what was paid in.
 
-    None when nothing is invested: the percentage is undefined there, and a 0.0
-    would be indistinguishable from a genuinely flat position.
+    None when nothing was contributed: the percentage is undefined there, and a
+    0.0 would be indistinguishable from a genuinely flat position.
+
+    :param contributed: see :func:`contributed_eur` for why the basis is the sum
+        of the deposits rather than the net invested amount.
     """
-    if invested == 0:
+    if contributed == 0:
         return None
-    return absolute_gain / invested * 100
+    return absolute_gain / contributed * 100
 
 
 def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
@@ -395,6 +431,7 @@ def build_position_view(position: Position) -> PositionView:
     fx_rate: float = latest.fx_rate if latest is not None else 1.0
     current_value: float = value_eur(native_value, fx_rate)
     invested: float = invested_eur(position.snapshots)
+    contributed: float = contributed_eur(position.snapshots)
     absolute_gain: float = gain(current_value, invested)
     return PositionView(
         id=position.id,
@@ -408,8 +445,9 @@ def build_position_view(position: Position) -> PositionView:
         fx_rate=fx_rate,
         value_eur=current_value,
         invested_eur=invested,
+        contributed_eur=contributed,
         gain=absolute_gain,
-        gain_pct=gain_pct(absolute_gain, invested),
+        gain_pct=gain_pct(absolute_gain, contributed),
         week_delta=week_delta(position.snapshots),
         first_snapshot_date=position.snapshots[0].date if position.snapshots else None,
         last_snapshot_date=latest.date if latest is not None else None,
@@ -447,6 +485,7 @@ def build_depot_views(
         members: list[PositionView] = sorted(grouped[depot.id], key=_by_sort_order)
         depot_value: float = sum(member.value_eur for member in members)
         depot_invested: float = sum(member.invested_eur for member in members)
+        depot_contributed: float = sum(member.contributed_eur for member in members)
         depot_gain: float = gain(depot_value, depot_invested)
         views.append(
             DepotView(
@@ -456,7 +495,7 @@ def build_depot_views(
                 value_eur=depot_value,
                 invested_eur=depot_invested,
                 gain=depot_gain,
-                gain_pct=gain_pct(depot_gain, depot_invested),
+                gain_pct=gain_pct(depot_gain, depot_contributed),
             )
         )
     return views
@@ -465,14 +504,24 @@ def build_depot_views(
 def build_totals(
     position_views: Sequence[PositionView], depot_count: int
 ) -> PortfolioTotals:
-    """Sum every position into the grand total behind the summary cards."""
+    """Sum every position into the grand total behind the summary cards.
+
+    A sold position is summed in like any other: its zeroing snapshot already
+    leaves it worth nothing, and the negative deposit that took the proceeds out
+    is what keeps its realized gain in the total.
+    """
     total_value: float = sum(view.value_eur for view in position_views)
     total_invested: float = sum(view.invested_eur for view in position_views)
+    total_contributed: float = sum(view.contributed_eur for view in position_views)
     total_gain: float = gain(total_value, total_invested)
     # A position without a previous week contributes nothing here; falling back
-    # to its full value would read as a one-week gain of the whole position.
+    # to its full value would read as a one-week gain of the whole position. A
+    # closed one is skipped outright: no further snapshot will ever arrive for
+    # it, so its final week would otherwise report itself for good.
     total_delta: float = sum(
-        view.week_delta for view in position_views if view.week_delta is not None
+        view.week_delta
+        for view in position_views
+        if view.week_delta is not None and not view.is_closed
     )
     # ISO dates sort as text, so max() picks the most recent snapshot date.
     seen_dates: list[str] = [
@@ -484,7 +533,7 @@ def build_totals(
         value_eur=total_value,
         invested_eur=total_invested,
         gain=total_gain,
-        gain_pct=gain_pct(total_gain, total_invested),
+        gain_pct=gain_pct(total_gain, total_contributed),
         week_delta=total_delta,
         # The "n positions · m depots" sub-line counts what is still held.
         position_count=sum(1 for view in position_views if not view.is_closed),
@@ -503,9 +552,11 @@ def allocation(
 ) -> list[AllocationSlice]:
     """Return the donut slices: the largest positions, then the rest pooled into one.
 
-    Closed positions are left out — `closed_at` means sold, so that money is not
-    allocated anywhere any more. Worthless positions are dropped too: they would
-    draw an invisible slice and a 0 % legend row.
+    The slices sum to the same grand total the hero card shows: a sold position
+    is worth 0 by then and drops out of both. The explicit `is_closed` filter is
+    a guard for a row closed by hand without its zeroing snapshot — allocating
+    money that is no longer held would be the worse failure. Worthless positions
+    are dropped too: they would draw an invisible slice and a 0 % legend row.
     """
     held: list[PositionView] = [
         view for view in position_views if not view.is_closed and view.value_eur > 0
@@ -550,12 +601,14 @@ def biggest_changes(
     """Return the week's largest gainers and losers, biggest movement first.
 
     Fewer than `count` entries per side is normal: a position with no previous
-    week and a flat one are both not movers and are left out.
+    week, a flat one and a sold one are all not movers and are left out. The last
+    of those would otherwise report the same week forever, since no further
+    snapshot is ever recorded for it.
     """
     movers: list[Change] = []
     for view in position_views:
         delta: float | None = view.week_delta
-        if delta is None or delta == 0:
+        if delta is None or delta == 0 or view.is_closed:
             continue
         movers.append(Change(position_id=view.id, name=view.name, week_delta=delta))
 

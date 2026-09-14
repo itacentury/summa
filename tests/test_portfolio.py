@@ -17,6 +17,7 @@ from summa.portfolio import (
     build_series,
     build_totals,
     chart_window,
+    contributed_eur,
     gain,
     gain_pct,
     growth_points,
@@ -66,12 +67,19 @@ def _view(
     name: str = "Position",
     value: float = 100.0,
     invested: float = 100.0,
+    contributed: float | None = None,
     delta: float | None = None,
     closed: bool = False,
     depot_id: int = 1,
     sort_order: int = 0,
 ) -> PositionView:
-    """Build a PositionView directly, for the aggregating functions."""
+    """Build a PositionView directly, for the aggregating functions.
+
+    :param contributed: defaults to `invested`, which is what they are equal to
+        for any position that was never sold from.
+    """
+    if contributed is None:
+        contributed = invested
     return PositionView(
         id=position_id,
         depot_id=depot_id,
@@ -84,8 +92,9 @@ def _view(
         fx_rate=1.0,
         value_eur=value,
         invested_eur=invested,
+        contributed_eur=contributed,
         gain=value - invested,
-        gain_pct=gain_pct(value - invested, invested),
+        gain_pct=gain_pct(value - invested, contributed),
         week_delta=delta,
         first_snapshot_date="2026-01-04",
         last_snapshot_date="2026-03-01",
@@ -134,6 +143,16 @@ def test_value_eur(value: float, fx_rate: float, expected: float) -> None:
 def test_invested_eur(snapshots: list[Snapshot], expected: float) -> None:
     """invested_eur sums every deposit at its own FX rate."""
     assert invested_eur(snapshots) == pytest.approx(expected)
+
+
+def test_contributed_eur_ignores_a_withdrawal() -> None:
+    """Only money paid in counts towards the gain_pct basis."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 250.0, deposit=250.0),
+        _snapshot("2026-01-11", 0.0, deposit=-300.0),
+    ]
+    assert contributed_eur(snapshots) == pytest.approx(250.0)
+    assert invested_eur(snapshots) == pytest.approx(-50.0)
 
 
 @pytest.mark.parametrize(
@@ -195,6 +214,15 @@ def test_week_delta_subtracts_the_latest_deposit(
         _snapshot("2026-01-11", latest_value, deposit=latest_deposit),
     ]
     assert week_delta(snapshots) == pytest.approx(expected)
+
+
+def test_week_delta_of_a_sale_is_zero() -> None:
+    """Selling is neither a gain nor a loss: the deposit subtraction cancels it."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 300.0),
+        _snapshot("2026-01-11", 0.0, deposit=-300.0),
+    ]
+    assert week_delta(snapshots) == pytest.approx(0.0)
 
 
 def test_week_delta_converts_both_weeks_to_eur() -> None:
@@ -370,6 +398,30 @@ def test_build_series_carries_a_missing_week_forward() -> None:
     assert series.invested == pytest.approx([100.0, 150.0, 150.0])
 
 
+def test_build_series_steps_down_when_a_position_is_sold() -> None:
+    """Both lines drop on the sale date: the money left the portfolio."""
+    positions: list[Position] = [
+        _position(
+            1,
+            name="Sold",
+            closed_at="2026-01-18",
+            snapshots=[
+                _snapshot("2026-01-04", 100.0, deposit=100.0),
+                _snapshot("2026-01-18", 0.0, deposit=-120.0),
+            ],
+        ),
+        _position(
+            2,
+            name="Held",
+            snapshots=[_snapshot("2026-01-04", 500.0, deposit=500.0)],
+        ),
+    ]
+    series = build_series(positions, ["2026-01-04", "2026-01-11", "2026-01-18"])
+
+    assert series.portfolio == pytest.approx([600.0, 600.0, 500.0])
+    assert series.invested == pytest.approx([600.0, 600.0, 480.0])
+
+
 def test_build_position_view_derives_every_number() -> None:
     """A USD position's view converts value, invested and delta to EUR."""
     position: Position = _position(
@@ -413,6 +465,30 @@ def test_build_position_view_marks_a_closed_position() -> None:
         4, closed_at="2026-02-01", snapshots=[_snapshot("2026-01-04", 10.0)]
     )
     assert build_position_view(position).is_closed is True
+
+
+def test_build_position_view_of_a_sold_position_keeps_its_realized_gain() -> None:
+    """A sale leaves the position worth nothing but reports what it earned.
+
+    gain_pct divides by what was paid in, not by the net invested amount — the
+    latter is the negation of the gain here and would read as exactly -100 %.
+    """
+    position: Position = _position(
+        5,
+        closed_at="2026-01-11",
+        snapshots=[
+            _snapshot("2026-01-04", 250.0, deposit=250.0),
+            _snapshot("2026-01-11", 0.0, deposit=-300.0),
+        ],
+    )
+    view: PositionView = build_position_view(position)
+
+    assert view.is_closed is True
+    assert view.value_eur == pytest.approx(0.0)
+    assert view.invested_eur == pytest.approx(-50.0)
+    assert view.contributed_eur == pytest.approx(250.0)
+    assert view.gain == pytest.approx(50.0)
+    assert view.gain_pct == pytest.approx(20.0)
 
 
 def test_build_depot_views_groups_and_subtotals() -> None:
@@ -465,28 +541,60 @@ def test_build_totals_sums_values_and_known_deltas() -> None:
 
 
 def test_build_totals_counts_only_held_positions() -> None:
-    """A closed position still carries value but is not counted as held."""
+    """A sold position is worth nothing and is not counted as held."""
     views: list[PositionView] = [
         _view(1, value=1000.0, invested=800.0),
-        _view(2, value=300.0, invested=300.0, closed=True),
+        _view(2, value=0.0, invested=-50.0, contributed=250.0, closed=True),
     ]
     totals = build_totals(views, depot_count=1)
 
-    assert totals.value_eur == pytest.approx(1300.0)
+    assert totals.value_eur == pytest.approx(1000.0)
     assert totals.position_count == 1
 
 
-def test_allocation_excludes_closed_positions_but_totals_keep_them() -> None:
-    """A sold position leaves the donut while still counting in the grand total."""
+def test_build_totals_ignores_a_closed_positions_stale_delta() -> None:
+    """A position closed by hand keeps its last delta out of "Last week".
+
+    A sale recorded properly already zeroes its own delta; this covers the row
+    that was closed without one, which would otherwise report the same week for
+    as long as it exists.
+    """
+    views: list[PositionView] = [
+        _view(1, value=1000.0, invested=900.0, delta=25.0),
+        _view(2, value=300.0, invested=300.0, delta=400.0, closed=True),
+    ]
+    assert build_totals(views, depot_count=1).week_delta == pytest.approx(25.0)
+
+
+def test_allocation_and_totals_both_lose_a_sold_position() -> None:
+    """A sale takes the money out of the donut and the grand total alike.
+
+    The proceeds left as a negative deposit, so the realized gain survives in
+    the total even though the position itself is worth nothing.
+    """
+    views: list[PositionView] = [
+        _view(1, name="Held", value=750.0, invested=700.0),
+        _view(
+            2, name="Sold", value=0.0, invested=-50.0, contributed=250.0, closed=True
+        ),
+    ]
+    slices = allocation(views)
+    totals = build_totals(views, depot_count=1)
+
+    assert [allocation_slice.label for allocation_slice in slices] == ["Held"]
+    assert slices[0].share_pct == pytest.approx(100.0)
+    assert sum(entry.value_eur for entry in slices) == pytest.approx(totals.value_eur)
+    assert totals.value_eur == pytest.approx(750.0)
+    assert totals.gain == pytest.approx(100.0)
+
+
+def test_allocation_excludes_a_position_closed_without_its_zeroing_row() -> None:
+    """The is_closed guard still holds for a row closed by hand."""
     views: list[PositionView] = [
         _view(1, name="Held", value=750.0, invested=700.0),
         _view(2, name="Sold", value=250.0, invested=250.0, closed=True),
     ]
-    slices = allocation(views)
-
-    assert [allocation_slice.label for allocation_slice in slices] == ["Held"]
-    assert slices[0].share_pct == pytest.approx(100.0)
-    assert build_totals(views, depot_count=1).value_eur == pytest.approx(1000.0)
+    assert [entry.label for entry in allocation(views)] == ["Held"]
 
 
 def test_allocation_pools_the_remainder_into_one_slice() -> None:
@@ -543,6 +651,18 @@ def test_biggest_changes_skips_flat_and_unknown_deltas() -> None:
         _view(1, name="Flat", delta=0.0),
         _view(2, name="New", delta=None),
         _view(3, name="Mover", delta=7.5),
+    ]
+    gainers, losers = biggest_changes(views)
+
+    assert [change.name for change in gainers] == ["Mover"]
+    assert losers == []
+
+
+def test_biggest_changes_skips_a_closed_position() -> None:
+    """A sold position never moves again, so it must not stay in the list."""
+    views: list[PositionView] = [
+        _view(1, name="Sold", delta=400.0, closed=True),
+        _view(2, name="Mover", delta=7.5),
     ]
     gainers, losers = biggest_changes(views)
 

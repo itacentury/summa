@@ -813,6 +813,81 @@ def add_position() -> ApiResponse:
     return jsonify({"success": True, "id": position_id})
 
 
+def _stored_close_date(cursor: sqlite3.Cursor, position_id: int) -> str | None:
+    """Return the close date a position carries right now, if any."""
+    cursor.execute(
+        "SELECT closed_at FROM portfolio_positions WHERE id = ?", (position_id,)
+    )
+    row: Any | None = cursor.fetchone()
+    return None if row is None else row["closed_at"]
+
+
+def _record_sale(cursor: sqlite3.Cursor, position_id: int, close_date: str) -> None:
+    """Write the snapshot that takes a sold position's money back out.
+
+    A sale is recorded rather than flagged: the position ends worth 0, and the
+    proceeds leave as a negative deposit so its realized gain survives in
+    ``value - invested``. That is what lets every derivation treat a sold
+    position like any other one.
+
+    A row already standing on the close date is corrected instead of duplicated
+    — money paid in that same week stays counted, the value it reached does not.
+    A position that was never snapshotted has no value to take out.
+    """
+    stored: Any | None = _stored_snapshot(cursor, position_id, close_date)
+    if stored is not None:
+        deposit: float = stored["deposit"] - stored["value"]
+        fx_rate: float = stored["fx_rate"]
+    else:
+        previous: Any | None = _previous_snapshot(cursor, position_id, close_date)
+        if previous is None:
+            return
+        deposit = -previous["value"]
+        fx_rate = previous["fx_rate"]
+
+    cursor.execute(
+        "INSERT INTO portfolio_snapshots "
+        "(position_id, date, value, deposit, fx_rate, carried) "
+        "VALUES (?, ?, 0, ?, ?, 0) "
+        "ON CONFLICT(position_id, date) DO UPDATE SET "
+        "value = excluded.value, deposit = excluded.deposit, "
+        "fx_rate = excluded.fx_rate, carried = excluded.carried",
+        (position_id, close_date, deposit, fx_rate),
+    )
+
+
+def _revert_sale(cursor: sqlite3.Cursor, position_id: int, close_date: str) -> None:
+    """Remove the zeroing snapshot a close wrote, restoring the position's value.
+
+    The row is found by its date alone, because a close always dates it exactly
+    ``closed_at``. The ``value = 0`` guard is what keeps a genuine reading the
+    user happened to enter for that same date from being deleted with it.
+    """
+    cursor.execute(
+        "DELETE FROM portfolio_snapshots "
+        "WHERE position_id = ? AND date = ? AND value = 0",
+        (position_id, close_date),
+    )
+
+
+def _apply_close(
+    cursor: sqlite3.Cursor,
+    position_id: int,
+    previous_close: str | None,
+    close_date: str | None,
+) -> None:
+    """Keep the snapshots in step with a change to ``closed_at``.
+
+    Closing an already-closed position and reopening an already-open one are
+    both no-ops: the snapshots already say what the requested state means, and
+    re-running the sale would zero a position that is already worth nothing.
+    """
+    if close_date is not None and previous_close is None:
+        _record_sale(cursor, position_id, close_date)
+    elif close_date is None and previous_close is not None:
+        _revert_sale(cursor, position_id, previous_close)
+
+
 def _parse_position_patch(data: Any) -> dict[str, Any]:
     """Validate a partial position update into column/value pairs.
 
@@ -838,6 +913,8 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
         )
     if "close" in payload:
         closing: bool = _require_bool(payload["close"], "close")
+        # One reading of the date: it dates both the column and the snapshot
+        # _apply_close writes, and the two must agree for a reopen to find it.
         updates["closed_at"] = date.today().isoformat() if closing else None
 
     if not updates:
@@ -847,7 +924,14 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
 
 @portfolio_bp.route("/api/portfolio/positions/<int:position_id>", methods=["PATCH"])
 def update_position(position_id: int) -> ApiResponse:
-    """Rename, reclassify, move or close a position."""
+    """Rename, reclassify, move or close a position.
+
+    Closing writes a snapshot as well as the column — see :func:`_record_sale` —
+    in the same transaction, so a position is never left flagged as sold while
+    still carrying its value. The one state this cannot represent is a snapshot
+    dated after the close: only the import script can write one (the API rejects
+    future dates), and it would revive the position's value.
+    """
     try:
         updates: dict[str, Any] = _parse_position_patch(request.json)
     except ValidationError as e:
@@ -862,12 +946,19 @@ def update_position(position_id: int) -> ApiResponse:
         with db_cursor() as cursor:
             if "depot_id" in updates:
                 _require_existing_depot(cursor, updates["depot_id"])
+            # What the position carries now decides whether the snapshot work
+            # below is a sale or its reversal, so read it before overwriting it.
+            previous_close: str | None = None
+            if "closed_at" in updates:
+                previous_close = _stored_close_date(cursor, position_id)
             cursor.execute(
                 f"UPDATE portfolio_positions SET {assignments} WHERE id = ?",
                 [*updates.values(), position_id],
             )
             if cursor.rowcount == 0:
                 return error_response("Position not found", 404)
+            if "closed_at" in updates:
+                _apply_close(cursor, position_id, previous_close, updates["closed_at"])
             if updates.get("is_benchmark_fallback"):
                 _clear_other_fallbacks(cursor, position_id)
     except ValidationError as e:

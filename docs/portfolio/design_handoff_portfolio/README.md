@@ -29,6 +29,7 @@ Open `design-reference.html` and jump to the anchors `#18a` (desktop), `#18b` (m
 9. Empty snapshot fields **carry the previous value forward**; empty deposit = 0.
 10. **No import UI.** The existing Excel history is migrated once by a script. The only data-entry path in the app is "New snapshot" + adding positions.
 11. Delta is never stored — always derived from consecutive snapshots.
+12. **A sale is recorded, not flagged.** Closing a position writes a final snapshot dated exactly `closed_at`, `value = 0`, `deposit = −(what it was last worth)`. A sold position therefore leaves the allocation *and* the totals through its own numbers, so the donut always sums to the hero card, while keeping its history and its realized gain.
 
 ---
 
@@ -49,7 +50,7 @@ CREATE TABLE IF NOT EXISTS portfolio_positions (
     kind TEXT NOT NULL,                  -- 'etf' | 'fund' | 'stock'
     currency TEXT NOT NULL DEFAULT 'EUR',-- ISO-4217, e.g. 'USD'
     is_benchmark_fallback INTEGER NOT NULL DEFAULT 0,
-    closed_at TEXT DEFAULT NULL,         -- sold/ended; excluded from allocation
+    closed_at TEXT DEFAULT NULL,         -- sold; dates the zeroing snapshot (decision 12)
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (depot_id) REFERENCES portfolio_depots (id) ON DELETE CASCADE,
@@ -85,9 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_positions_depot
 **Derived values (never stored):**
 
 - `value_eur = value / fx_rate` (EUR positions have `fx_rate = 1.0`).
-- `invested_eur` per position = sum of `deposit / fx_rate` over all its snapshots.
-- `gain = value_eur − invested_eur`; `gain_pct = gain / invested_eur * 100`.
-- `week_delta` = `value_eur` of latest snapshot − `value_eur` of previous snapshot − `deposit_eur` of latest snapshot (so a deposit does not read as a gain). **This matters**: the user's Excel Delta column mixes deposits in; the app must not.
+- `invested_eur` per position = sum of `deposit / fx_rate` over all its snapshots. Deposits are signed, so this is the **net money at work**, not lifetime contributions: a sale enters as a negative deposit and takes its proceeds back out, leaving a profitably sold position below zero.
+- `contributed_eur` per position = the same sum over the **positive** deposits only.
+- `gain = value_eur − invested_eur`; `gain_pct = gain / contributed_eur * 100`. **The basis matters**: dividing by `invested_eur` would report exactly −100 % for every profitably sold position, whose net invested is the negation of its gain. For a position never sold from, the two sums are equal.
+- `week_delta` = `value_eur` of latest snapshot − `value_eur` of previous snapshot − `deposit_eur` of latest snapshot (so a deposit does not read as a gain). **This matters**: the user's Excel Delta column mixes deposits in; the app must not. The same subtraction makes a sale read as neither gain nor loss (`0 − 300 − (−300) = 0`). A **closed** position contributes no `week_delta` at all — no further snapshot is ever recorded for it, so its final week would otherwise report itself into "Last week" and the biggest movers for good.
 - Depot subtotal / grand total = sums of the position values and invested amounts.
 
 ## API (new blueprint, e.g. `summa/routes/portfolio.py`)

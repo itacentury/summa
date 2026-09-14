@@ -280,24 +280,32 @@ def test_get_portfolio_week_delta_removes_the_deposit(
     assert payload["totals"]["week_delta"] == 0.0
 
 
-def test_get_portfolio_keeps_a_closed_position_out_of_the_allocation_only(
+def test_get_portfolio_drops_a_sold_position_from_donut_and_total_alike(
     client: FlaskClient,
     seed_depot: SeedDepot,
     seed_position: SeedPosition,
     seed_snapshot: SeedSnapshot,
 ) -> None:
-    """closed_at means sold, not deleted: it leaves the donut but stays in the total."""
+    """closed_at means sold, not deleted: the money is gone, the history is not."""
     depot_id = seed_depot()
     held = seed_position(depot_id, name="Held")
-    sold = seed_position(depot_id, name="Sold", closed_at="2026-01-31")
-    seed_snapshot(held, _weeks_ago(1), 1500.0, deposit=1500.0)
-    seed_snapshot(sold, _weeks_ago(1), 500.0, deposit=500.0)
+    sold = seed_position(depot_id, name="Sold", closed_at=_weeks_ago(1))
+    seed_snapshot(held, _weeks_ago(2), 1500.0, deposit=1500.0)
+    seed_snapshot(sold, _weeks_ago(2), 500.0, deposit=400.0)
+    seed_snapshot(sold, _weeks_ago(1), 0.0, deposit=-500.0)
 
     payload = client.get("/api/portfolio").get_json()
+    totals = payload["totals"]
 
     assert [entry["label"] for entry in payload["allocation"]] == ["Held"]
-    assert payload["totals"]["value_eur"] == 2000.0
-    assert payload["totals"]["position_count"] == 1
+    assert (
+        sum(entry["value_eur"] for entry in payload["allocation"])
+        == (totals["value_eur"])
+    )
+    assert totals["value_eur"] == 1500.0
+    assert totals["position_count"] == 1
+    # The sale was a 100 EUR profit and that is all this position still adds.
+    assert totals["gain"] == 100.0
     assert "Sold" in _position_names(payload)
 
 
@@ -884,12 +892,12 @@ def test_patch_position_closes_it_and_it_leaves_the_allocation(
     seed_position: SeedPosition,
     seed_snapshot: SeedSnapshot,
 ) -> None:
-    """Closing is the one place closed_at differs from deleted_at over HTTP."""
+    """Closing records the sale rather than only flagging it."""
     depot_id = seed_depot()
     held = seed_position(depot_id, name="Held")
     sold = seed_position(depot_id, name="Sold")
     seed_snapshot(held, _weeks_ago(1), 1500.0)
-    seed_snapshot(sold, _weeks_ago(1), 500.0)
+    seed_snapshot(sold, _weeks_ago(1), 540.0, fx_rate=1.08)
 
     assert (
         client.patch(
@@ -898,21 +906,102 @@ def test_patch_position_closes_it_and_it_leaves_the_allocation(
         == 200
     )
 
+    zeroing = _snapshot_rows(sold)[-1]
+    assert zeroing["date"] == date.today().isoformat()
+    assert zeroing["value"] == 0.0
+    assert zeroing["deposit"] == -540.0
+    assert zeroing["fx_rate"] == 1.08
+
     payload = client.get("/api/portfolio").get_json()
     assert [entry["label"] for entry in payload["allocation"]] == ["Held"]
-    assert payload["totals"]["value_eur"] == 2000.0
+    assert payload["totals"]["value_eur"] == 1500.0
 
 
 def test_patch_position_reopens_a_closed_one(
-    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
 ) -> None:
-    """close: false clears closed_at, so a mistaken close is reversible."""
-    position_id = seed_position(seed_depot(), closed_at="2026-01-31")
+    """close: false undoes the sale, not just the flag, so a mistake is reversible."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(1), 500.0, deposit=400.0)
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
 
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
 
-    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert [row["date"] for row in _snapshot_rows(position_id)] == [_weeks_ago(1)]
+    payload = client.get("/api/portfolio").get_json()
+    position = payload["depots"][0]["positions"][0]
     assert position["is_closed"] is False
+    assert position["value_eur"] == 500.0
+    assert position["invested_eur"] == 400.0
+
+
+def test_patch_position_close_updates_an_existing_row_for_today(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Selling in a week already recorded keeps that week's deposit counted."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(1), 400.0, deposit=400.0)
+    seed_snapshot(position_id, date.today().isoformat(), 500.0, deposit=50.0)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+
+    rows = _snapshot_rows(position_id)
+    assert len(rows) == 2
+    assert rows[-1]["value"] == 0.0
+    # 50 paid in that week, 500 taken back out.
+    assert rows[-1]["deposit"] == -450.0
+
+
+def test_patch_position_close_without_snapshots_writes_none(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """There is no value to take out of a position that was never recorded."""
+    position_id = seed_position(seed_depot())
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+
+    assert _snapshot_rows(position_id) == []
+    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert position["is_closed"] is True
+
+
+def test_patch_position_close_twice_is_idempotent(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A position already sold has nothing left to sell."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(1), 500.0, deposit=400.0)
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+    before = _snapshot_rows(position_id)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+
+    assert _snapshot_rows(position_id) == before
+
+
+def test_patch_position_reopen_keeps_a_real_snapshot_on_the_close_date(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Only a zeroing row is deleted on reopen — a genuine reading survives."""
+    close_date = _weeks_ago(1)
+    position_id = seed_position(seed_depot(), closed_at=close_date)
+    seed_snapshot(position_id, close_date, 500.0, deposit=400.0)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
+
+    assert [row["value"] for row in _snapshot_rows(position_id)] == [500.0]
 
 
 def test_patch_position_rejects_an_empty_body(

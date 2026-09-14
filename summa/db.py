@@ -80,9 +80,12 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     """
     )
 
-    # closed_at marks a sold position: excluded from allocation, but never hidden.
-    # Portfolio rows are not soft-deleted, so the invoice-side "deleted_at IS NULL"
-    # read filter has no counterpart here.
+    # closed_at marks a sold position, and the sale is recorded rather than just
+    # flagged: the close endpoint writes a final snapshot dated exactly closed_at,
+    # worth 0 with a deposit of minus the proceeds. The position therefore leaves
+    # the allocation and the totals through its own numbers, while keeping its
+    # history and its realized gain. Portfolio rows are not soft-deleted, so the
+    # invoice-side "deleted_at IS NULL" read filter has no counterpart here.
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS portfolio_positions (
