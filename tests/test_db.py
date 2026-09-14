@@ -330,12 +330,16 @@ def test_portfolio_unique_constraints_reject_duplicates(
             "VALUES (?, ?, ?, ?)",
             (1, "2024-01-14", 900.0, 2),
         ),
+        (
+            "INSERT INTO portfolio_snapshots (position_id, date, value) VALUES (?, ?, ?)",
+            (1, "2024-01-14", -500.0),
+        ),
     ],
 )
 def test_portfolio_check_constraints_reject_invalid_values(
     temp_db: Path, statement: str, parameters: tuple[object, ...]
 ) -> None:
-    """An unknown kind, a non-positive fx_rate and a non-boolean carried are rejected."""
+    """An unknown kind, a non-positive fx_rate, a non-boolean carried and a negative value are rejected."""
     db.init_db()
 
     conn = db.get_db()

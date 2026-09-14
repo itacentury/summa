@@ -106,7 +106,9 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     )
 
     # value and deposit are in the position's own currency; fx_rate holds the units
-    # of that currency per EUR at that date. carried = 1 means the value was copied
+    # of that currency per EUR at that date. Only value has a floor: a deposit is a
+    # signed flow and goes negative on a withdrawal or a sale, while what a position
+    # is worth cannot. carried = 1 means the value was copied
     # forward from the previous week rather than entered by the user. The weekly
     # delta is always derived from consecutive snapshots, never stored.
     cursor.execute(
@@ -115,7 +117,7 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             position_id INTEGER NOT NULL,
             date TEXT NOT NULL,
-            value REAL NOT NULL,
+            value REAL NOT NULL CHECK (value >= 0),
             deposit REAL NOT NULL DEFAULT 0,
             fx_rate REAL NOT NULL DEFAULT 1.0 CHECK (fx_rate > 0),
             carried INTEGER NOT NULL DEFAULT 0 CHECK (carried IN (0, 1)),

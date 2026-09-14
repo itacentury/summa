@@ -607,10 +607,13 @@ def _parse_snapshot_payload(data: Any) -> tuple[str, list[_SnapshotRow]]:
             raise ValidationError(
                 "Field 'fx_rate' must be greater than zero", field="fx_rate"
             )
+        value: float | None = _optional_float(raw_row.get("value"), "value")
+        if value is not None and value < 0:
+            raise ValidationError("Field 'value' must not be negative", field="value")
         rows.append(
             _SnapshotRow(
                 position_id=_require_int(raw_row.get("position_id"), "position_id"),
-                value=_optional_float(raw_row.get("value"), "value"),
+                value=value,
                 deposit=_optional_float(raw_row.get("deposit"), "deposit"),
                 fx_rate=fx_rate,
             )
