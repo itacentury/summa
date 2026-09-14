@@ -68,6 +68,20 @@
   gap: 3px;
 }
 
+.sidebar-group-label {
+  padding: 0 11px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0.1em;
+}
+
+.sidebar-divider {
+  height: 1px;
+  margin: 12px 11px 11px;
+  background: var(--border-strong);
+}
+
 .nav-item {
   display: flex;
   gap: 10px;
@@ -219,7 +233,8 @@
   }
 
   /* Search lives only on the invoices view. */
-  body.stats-mode .topbar-search-btn {
+  body.stats-mode .topbar-search-btn,
+  body.portfolio-mode .topbar-search-btn {
     display: none;
   }
 
@@ -330,6 +345,11 @@
     opacity: 0;
     transform: scale(0.5);
   }
+
+  /* The New-Invoice FAB belongs to the invoice view only. */
+  body.portfolio-mode .fab {
+    display: none;
+  }
 }
 
 /* Intermediate widths (Design 7a): the sidebar collapses to a 64px icon rail —
@@ -351,6 +371,8 @@
   }
 
   .sidebar-title,
+  .sidebar-group-label,
+  .sidebar-divider,
   .nav-item span,
   .sidebar-action-btn span {
     display: none;

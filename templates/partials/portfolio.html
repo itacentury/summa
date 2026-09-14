@@ -1,0 +1,91 @@
+<!-- Portfolio View -->
+<div class="portfolio-view is-hidden" data-el="portfolio-view">
+  <h2 class="visually-hidden">Portfolio</h2>
+  <!-- Toolbar -->
+  <div class="portfolio-toolbar">
+    {# The period pills carry their own state; the invoice Week/Month/Year/All
+       switcher in filters.html is deliberately unrelated. #}
+    <div
+      class="portfolio-period"
+      data-el="portfolio-period"
+      role="group"
+      aria-label="Period"
+    >
+      <button class="portfolio-period-btn" data-range="3m">3M</button>
+      <button class="portfolio-period-btn is-active" data-range="1y">1Y</button>
+      <button class="portfolio-period-btn" data-range="ytd">YTD</button>
+      <button class="portfolio-period-btn" data-range="max">Max</button>
+    </div>
+
+    <button class="portfolio-depot" data-el="portfolio-depot">
+      <span data-el="portfolio-depot-label">All depots</span>
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </button>
+
+    <div class="portfolio-toolbar-spacer"></div>
+
+    <button
+      class="btn btn-primary portfolio-snapshot-btn"
+      data-action="open-snapshot"
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      New snapshot
+    </button>
+  </div>
+
+  <!-- Empty State -->
+  <div class="portfolio-empty" data-el="portfolio-empty">
+    <div class="empty-state">
+      <svg
+        class="portfolio-empty-icon"
+        width="32"
+        height="32"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+      >
+        <polyline points="3 17 9 11 13 15 21 7" />
+        <polyline points="21 12 21 7 16 7" />
+      </svg>
+      <div class="empty-title">No positions yet</div>
+      <div class="empty-text">
+        Add the positions you hold, then record one snapshot per week — value
+        and deposit per position.
+      </div>
+      <button class="btn btn-primary" data-action="add-position">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Add first position
+      </button>
+    </div>
+  </div>
+</div>

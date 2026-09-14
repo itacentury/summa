@@ -1,0 +1,155 @@
+/* Portfolio view: toolbar, empty state. */
+
+/* ====== PORTFOLIO VIEW ====== */
+
+/* fade-in is declared in stats.css, which is linked before this file. */
+.portfolio-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fade-in 0.2s ease;
+}
+
+/* ====== TOOLBAR ====== */
+
+.portfolio-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Period pills. Deliberately its own control, not .quick-filters: the portfolio
+   period is independent of the invoice one and neither may inherit the other. */
+.portfolio-period {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.portfolio-period-btn {
+  padding: 8px 15px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.portfolio-period-btn:hover {
+  color: var(--text-primary);
+}
+
+.portfolio-period-btn.is-active {
+  font-weight: 600;
+  color: var(--accent-text-on);
+  background: var(--accent);
+}
+
+.portfolio-depot {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 42px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.portfolio-depot svg {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.portfolio-toolbar-spacer {
+  flex: 1;
+}
+
+/* The one action in the toolbar; sized to match the depot select next to it. */
+.portfolio-snapshot-btn {
+  flex: none;
+  gap: 7px;
+  height: 42px;
+  padding: 0 15px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-text-on);
+  white-space: nowrap;
+  border-radius: 12px;
+}
+
+/* ====== EMPTY STATE ====== */
+
+.portfolio-empty {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.portfolio-empty .empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 40px;
+}
+
+.portfolio-empty-icon {
+  color: var(--chart-1);
+}
+
+.portfolio-empty .empty-title {
+  margin-top: 6px;
+  margin-bottom: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.portfolio-empty .empty-text {
+  max-width: 380px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.portfolio-empty .btn {
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 11px;
+}
+
+/* ====== PORTFOLIO RESPONSIVE ====== */
+
+/* Mobile (Design 18b): the toolbar stacks, with the period switcher full width
+   above the depot select and the snapshot action. */
+@media (width <= 640px) {
+  .portfolio-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .portfolio-period {
+    flex: 1 0 100%;
+  }
+
+  .portfolio-period-btn {
+    flex: 1;
+  }
+
+  .portfolio-empty .empty-state {
+    padding: 32px 20px;
+  }
+}

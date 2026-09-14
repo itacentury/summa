@@ -17,11 +17,15 @@ export const state = {
   currentDate: new Date(), // Current date for navigation reference
   editingInvoiceId: null, // Track if we're editing an invoice
   filterMode: "month", // 'week', 'month', 'year', 'all', 'custom'
-  currentView: "invoices", // 'invoices' or 'stats'
+  currentView: "invoices", // 'invoices', 'stats' or 'portfolio'
   categoryChart: null, // Chart.js instance for category doughnut
   storeChart: null, // Chart.js instance for store bar chart
   pendingFiles: [], // Staged JSON files for import
   importErrors: [], // Invalid entries from the last import (index/field/message/value)
+  portfolioRange: "1y", // Portfolio period: '3m', '1y', 'ytd', 'max'
+  depotFilter: "all", // 'all' or a depot id as a string
+  portfolioChart: null, // Chart.js instance for the value-over-time line
+  allocationChart: null, // Chart.js instance for the allocation doughnut
 };
 
 // Track selected invoice IDs for bulk operations (mutated, never reassigned).
@@ -36,6 +40,20 @@ export const ALL_PAGE_SIZE = "all";
 
 // localStorage key persisting the chosen page size across sessions.
 export const PAGE_SIZE_STORAGE_KEY = "summa.pageSize";
+
+// Portfolio depot groups the user collapsed, and position rows expanded into their
+// detail strip. Session-only by design (mutated, never reassigned).
+export const collapsedDepots = new Set();
+export const expandedPositions = new Set();
+
+// Period tokens the portfolio view accepts; also the allowlist a restored
+// localStorage value is validated against.
+export const PORTFOLIO_RANGES = ["3m", "1y", "ytd", "max"];
+
+// localStorage keys persisting the portfolio period and depot filter. They are
+// separate from the invoice filters so neither view inherits the other's period.
+export const PORTFOLIO_RANGE_STORAGE_KEY = "summa.portfolio.range";
+export const PORTFOLIO_DEPOT_STORAGE_KEY = "summa.portfolio.depot";
 
 // Chart.js color palette: warm-sand chart tones (--chart-1…8), donut/bar order.
 export const chartColors = [
