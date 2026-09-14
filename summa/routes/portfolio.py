@@ -249,7 +249,13 @@ class _Benchmark:
 def _feed_points(
     cursor: sqlite3.Cursor, start: str | None
 ) -> tuple[list[tuple[str, float]], str | None]:
-    """Return the freshest feed symbol's closes inside the window and its last date."""
+    """Return the freshest feed symbol's closes inside the window and its last date.
+
+    The symbol is implicit: whichever one in benchmark_prices carries the newest
+    close, ties broken arbitrarily. That only holds while the feed job writes a
+    single symbol. The planned Settings -> Portfolio "Benchmark" select (Part 8)
+    has to pass a symbol in here, leaving this query as the no-selection default.
+    """
     cursor.execute(
         "SELECT symbol, MAX(date) AS latest FROM benchmark_prices "
         "GROUP BY symbol ORDER BY latest DESC LIMIT 1"
