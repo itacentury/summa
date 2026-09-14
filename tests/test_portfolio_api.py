@@ -353,6 +353,33 @@ def test_get_portfolio_falls_back_when_the_feed_is_older_than_the_window(
     assert payload["benchmark_source"] == "fallback"
 
 
+def test_get_portfolio_keeps_the_fallback_benchmark_under_a_depot_filter(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The benchmark is the chart's yardstick, not a member of the selection.
+
+    The flag is global (one position across all depots), so filtering to the
+    depot that does not hold it must not drop the third line.
+    """
+    flagged_depot = seed_depot(name="Flagged")
+    other_depot = seed_depot(name="Other")
+    flagged = seed_position(flagged_depot, name="MSCI", is_benchmark_fallback=True)
+    other = seed_position(other_depot, name="Other")
+    seed_snapshot(flagged, _weeks_ago(2), 1000.0)
+    seed_snapshot(flagged, _weeks_ago(1), 1100.0)
+    seed_snapshot(other, _weeks_ago(2), 500.0)
+    seed_snapshot(other, _weeks_ago(1), 500.0)
+
+    payload = client.get(f"/api/portfolio?depot={other_depot}").get_json()
+
+    assert payload["benchmark_source"] == "fallback"
+    # Rebased onto the filtered depot's opening value, then its own 10 % growth.
+    assert payload["series"]["benchmark"] == [500.0, 550.0]
+
+
 def test_get_portfolio_has_no_benchmark_line_without_a_flagged_position(
     client: FlaskClient,
     seed_depot: SeedDepot,

@@ -278,24 +278,35 @@ def _feed_points(
 
 
 def _fallback_points(
-    positions: Sequence[portfolio.Position], start: str | None
+    cursor: sqlite3.Cursor, start: str | None
 ) -> list[tuple[str, float]]:
     """Return the deposit-free growth of the position flagged as benchmark fallback.
+
+    The lookup ignores the depot filter on purpose: the benchmark is the chart's
+    yardstick, not a member of the selection, and the feed path is global for the
+    same reason. Only one position carries the flag (_clear_other_fallbacks), so
+    LIMIT 1 is the whole set.
 
     Its raw value series would not do: a week the user paid into would lift the
     benchmark line as if the index had risen.
     """
+    cursor.execute(
+        "SELECT id FROM portfolio_positions WHERE is_benchmark_fallback = 1 LIMIT 1"
+    )
+    row: Any = cursor.fetchone()
+    if row is None:
+        return []
+
+    snapshots: list[portfolio.Snapshot] = _load_snapshots(cursor, [row["id"]])[
+        row["id"]
+    ]
+    # Growth over the full history, then cut to the window: the first return
+    # inside the window is still measured against the week before it, and
+    # rebasing divides the constant factor back out anyway.
     points: list[tuple[str, float]] = []
-    for position in positions:
-        if not position.is_benchmark_fallback:
-            continue
-        # Growth over the full history, then cut to the window: the first return
-        # inside the window is still measured against the week before it, and
-        # rebasing divides the constant factor back out anyway.
-        for point in portfolio.growth_points(position.snapshots):
-            if start is None or point[0] >= start:
-                points.append(point)
-        break
+    for point in portfolio.growth_points(snapshots):
+        if start is None or point[0] >= start:
+            points.append(point)
     return points
 
 
@@ -309,7 +320,6 @@ def _series_base(values: Sequence[float]) -> float:
 
 def _build_benchmark(
     cursor: sqlite3.Cursor,
-    positions: Sequence[portfolio.Position],
     grid: Sequence[str],
     base: float,
     start: str | None,
@@ -322,7 +332,7 @@ def _build_benchmark(
     points, updated_at = _feed_points(cursor, start)
     source: str | None = "feed"
     if not points:
-        points = _fallback_points(positions, start)
+        points = _fallback_points(cursor, start)
         source = "fallback"
         updated_at = points[-1][0] if points else None
 
@@ -457,7 +467,6 @@ def get_portfolio() -> Response:
         series: portfolio.ChartSeries = portfolio.build_series(positions, grid)
         benchmark: _Benchmark = _build_benchmark(
             cursor,
-            positions,
             grid,
             _series_base(series.portfolio),
             start.isoformat() if start is not None else None,
