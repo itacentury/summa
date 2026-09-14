@@ -974,8 +974,11 @@ def update_position(position_id: int) -> ApiResponse:
         return error_response(e.message, 400)
 
     # The column names come from _parse_position_patch's own keys, never from the
-    # request body, so interpolating them carries no injection surface.
-    assert all(column in _PATCHABLE_COLUMNS for column in updates)
+    # request body, so interpolating them carries no injection surface. Checked
+    # rather than asserted, because an assert would vanish under `python -O`.
+    unknown_columns: set[str] = set(updates) - set(_PATCHABLE_COLUMNS)
+    if unknown_columns:
+        raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
     assignments: str = ", ".join(f"{column} = ?" for column in updates)
 
     try:
