@@ -17,8 +17,10 @@ from summa.portfolio import (
     build_totals,
     gain,
     gain_pct,
+    growth_points,
     invested_eur,
     range_start,
+    rebase_to_grid,
     snapshot_dates,
     value_eur,
     week_delta,
@@ -498,3 +500,113 @@ def test_biggest_changes_skips_flat_and_unknown_deltas() -> None:
 
     assert [change.name for change in gainers] == ["Mover"]
     assert losers == []
+
+
+@pytest.mark.parametrize(
+    ("points", "grid", "base", "expected"),
+    [
+        # The first known point maps exactly onto the base.
+        ([("2026-01-04", 100.0)], ["2026-01-04"], 1000.0, [1000.0]),
+        # A 10 % rise in the index is a 10 % rise on the rebased line.
+        (
+            [("2026-01-04", 100.0), ("2026-01-11", 110.0)],
+            ["2026-01-04", "2026-01-11"],
+            1000.0,
+            [1000.0, 1100.0],
+        ),
+        # Grid dates before the first point contribute nothing yet.
+        (
+            [("2026-01-11", 100.0)],
+            ["2026-01-04", "2026-01-11"],
+            500.0,
+            [0.0, 500.0],
+        ),
+        # A grid date the feed has no close for keeps the previous one.
+        (
+            [("2026-01-04", 100.0), ("2026-01-18", 120.0)],
+            ["2026-01-04", "2026-01-11", "2026-01-18"],
+            1000.0,
+            [1000.0, 1000.0, 1200.0],
+        ),
+        # Nothing to draw: no points, no grid, or an unusable base.
+        ([], ["2026-01-04"], 1000.0, []),
+        ([("2026-01-04", 100.0)], [], 1000.0, []),
+        ([("2026-01-04", 0.0)], ["2026-01-04"], 1000.0, []),
+    ],
+)
+def test_rebase_to_grid(
+    points: list[tuple[str, float]],
+    grid: list[str],
+    base: float,
+    expected: list[float],
+) -> None:
+    """Dated values are carried onto the grid and indexed to the base value."""
+    assert rebase_to_grid(points, grid, base) == pytest.approx(expected)
+
+
+def test_rebase_to_grid_uses_a_close_between_two_grid_dates() -> None:
+    """A feed publishing on trading days still lands on a weekly grid."""
+    points: list[tuple[str, float]] = [("2026-01-06", 100.0), ("2026-01-09", 105.0)]
+
+    values: list[float] = rebase_to_grid(points, ["2026-01-04", "2026-01-11"], 200.0)
+
+    assert values == pytest.approx([0.0, 210.0])
+
+
+def test_growth_points_start_at_one() -> None:
+    """The index is relative, so the first snapshot is always 1.0."""
+    points = growth_points([_snapshot("2026-01-04", 1000.0)])
+
+    assert points == [("2026-01-04", 1.0)]
+
+
+def test_growth_points_ignore_a_deposit() -> None:
+    """Money paid in is not performance — the rule of this whole feature."""
+    snapshots = [
+        _snapshot("2026-01-04", 1000.0),
+        _snapshot("2026-01-11", 2000.0, deposit=1000.0),
+    ]
+
+    dates, index = zip(*growth_points(snapshots))
+
+    assert list(dates) == ["2026-01-04", "2026-01-11"]
+    # 2000 - 1000 paid in = 1000, unchanged against the opening 1000.
+    assert list(index) == pytest.approx([1.0, 1.0])
+
+
+def test_growth_points_compound_weekly_returns() -> None:
+    """Two 10 % weeks make 21 %, not 20 %."""
+    snapshots = [
+        _snapshot("2026-01-04", 100.0),
+        _snapshot("2026-01-11", 110.0),
+        _snapshot("2026-01-18", 121.0),
+    ]
+
+    _, index = zip(*growth_points(snapshots))
+
+    assert list(index) == pytest.approx([1.0, 1.1, 1.21])
+
+
+def test_growth_points_survive_a_worthless_week() -> None:
+    """A week following a zero value contributes no return instead of dividing by it."""
+    snapshots = [
+        _snapshot("2026-01-04", 0.0),
+        _snapshot("2026-01-11", 500.0, deposit=500.0),
+    ]
+
+    _, index = zip(*growth_points(snapshots))
+
+    assert list(index) == pytest.approx([1.0, 1.0])
+
+
+def test_growth_points_convert_to_eur_first() -> None:
+    """A position whose FX rate moved is measured in EUR, not in its own currency."""
+    snapshots = [
+        _snapshot("2026-01-04", 1080.0, fx_rate=1.08),
+        _snapshot("2026-01-11", 1080.0, fx_rate=1.00),
+    ]
+
+    _, index = zip(*growth_points(snapshots))
+
+    # 1000 EUR -> 1080 EUR purely from the rate: an 8 % gain for a EUR investor.
+    assert list(index) == pytest.approx([1.0, 1.08])

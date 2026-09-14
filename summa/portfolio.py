@@ -207,6 +207,35 @@ def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
     )
 
 
+def growth_points(snapshots: Sequence[Snapshot]) -> list[tuple[str, float]]:
+    """Return a position's deposit-free growth index, one point per snapshot.
+
+    The index starts at 1.0 and compounds each week's return with that week's
+    deposit removed: ``(value - deposit) / previous_value``. Feeding raw values
+    to a benchmark line instead would make the line jump every time money was
+    paid into the position, reading as index performance nobody earned — the
+    same mistake the Excel Delta column makes, one chart line over.
+
+    A week following a worthless one contributes no return: there is nothing for
+    the new value to be a multiple of.
+
+    :param snapshots: ascending by date.
+    """
+    points: list[tuple[str, float]] = []
+    index: float = 1.0
+    previous: Snapshot | None = None
+    for snapshot in snapshots:
+        if previous is not None:
+            opening: float = value_eur(previous.value, previous.fx_rate)
+            if opening != 0:
+                closing: float = value_eur(snapshot.value, snapshot.fx_rate)
+                paid_in: float = value_eur(snapshot.deposit, snapshot.fx_rate)
+                index *= (closing - paid_in) / opening
+        points.append((snapshot.date, index))
+        previous = snapshot
+    return points
+
+
 def _shift_months(anchor: date, months: int) -> date:
     """Return `anchor` moved back by `months`, clamped to the target month's length."""
     total_months: int = (anchor.year * 12 + anchor.month - 1) - months
@@ -288,6 +317,41 @@ def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSe
             portfolio[slot] += values[slot]
             invested[slot] += deposits[slot]
     return ChartSeries(dates=grid, portfolio=portfolio, invested=invested)
+
+
+def rebase_to_grid(
+    points: Sequence[tuple[str, float]], grid: Sequence[str], base: float
+) -> list[float]:
+    """Align dated values onto a date grid and scale them to start at `base`.
+
+    Points are carried forward exactly as position values are: a grid date
+    without a point of its own keeps the most recent earlier one, and dates
+    before the first point yield 0.0. A benchmark feed publishes on trading days
+    while the portfolio grid is weekly, so the two rarely line up.
+
+    The scaling is what makes the line comparable at all. An index close is a
+    number like 142.18 while the portfolio is in euros, so the raw series would
+    draw a flat line along the bottom of the chart. Indexed to `base` it answers
+    the question the chart actually asks: what the same starting money would have
+    done in the index.
+
+    :param points: (date, value) pairs, ascending by date.
+    :param grid: the chart's dates, ascending.
+    :param base: the value the first known point is scaled to.
+    """
+    if not points or not grid or base == 0 or points[0][1] == 0:
+        return []
+
+    factor: float = base / points[0][1]
+    values: list[float] = []
+    index: int = 0
+    current: float = 0.0
+    for grid_date in grid:
+        while index < len(points) and points[index][0] <= grid_date:
+            current = points[index][1] * factor
+            index += 1
+        values.append(current)
+    return values
 
 
 def build_position_view(position: Position) -> PositionView:
