@@ -27,6 +27,7 @@ from summa.portfolio import (
     snapshot_dates,
     value_eur,
     week_delta,
+    with_sale_recorded,
 )
 
 
@@ -38,6 +39,82 @@ def _snapshot(
 ) -> Snapshot:
     """Build a snapshot, defaulting to a EUR position with no deposit."""
     return Snapshot(date=snapshot_date, value=value, deposit=deposit, fx_rate=fx_rate)
+
+
+def test_with_sale_recorded_leaves_an_open_position_alone() -> None:
+    """Without a close date there is no sale to record."""
+    snapshots: list[Snapshot] = [_snapshot("2026-01-04", 1000.0, deposit=1000.0)]
+
+    assert with_sale_recorded(snapshots, None) == snapshots
+
+
+def test_with_sale_recorded_has_nothing_to_take_out_of_an_unsnapshotted_position() -> (
+    None
+):
+    """A position that was never recorded holds no value to withdraw."""
+    assert with_sale_recorded([], "2026-01-11") == []
+    assert with_sale_recorded([_snapshot("2026-01-18", 500.0)], "2026-01-11") == []
+
+
+def test_with_sale_recorded_appends_the_sale_after_the_last_week() -> None:
+    """Selling in a week not yet recorded takes the last known value back out."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 900.0, deposit=1000.0),
+        _snapshot("2026-01-11", 1080.0, fx_rate=1.08),
+    ]
+
+    result = list(with_sale_recorded(snapshots, "2026-01-18"))
+
+    assert result[:2] == snapshots
+    assert result[-1] == Snapshot(
+        date="2026-01-18", value=0.0, deposit=-1080.0, fx_rate=1.08, carried=False
+    )
+
+
+def test_with_sale_recorded_replaces_the_week_it_was_sold_in() -> None:
+    """Money paid in that week stays counted, the value it reached does not."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 400.0, deposit=400.0),
+        _snapshot("2026-01-11", 500.0, deposit=50.0),
+    ]
+
+    result = list(with_sale_recorded(snapshots, "2026-01-11"))
+
+    assert len(result) == 2
+    # 50 paid in that week, 500 taken back out.
+    assert result[-1] == Snapshot(date="2026-01-11", value=0.0, deposit=-450.0)
+
+
+def test_with_sale_recorded_drops_weeks_after_the_close() -> None:
+    """A snapshot dated after the sale would revive a position already sold."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 500.0, deposit=500.0),
+        _snapshot("2026-01-18", 520.0),
+    ]
+
+    result = list(with_sale_recorded(snapshots, "2026-01-11"))
+
+    assert [snapshot.date for snapshot in result] == ["2026-01-04", "2026-01-11"]
+    assert result[-1].deposit == -500.0
+
+
+def test_with_sale_recorded_never_marks_the_sale_as_carried() -> None:
+    """The closing row is computed, not a value copied forward from last week."""
+    snapshots: list[Snapshot] = [
+        Snapshot(date="2026-01-11", value=500.0, deposit=0.0, carried=True)
+    ]
+
+    assert with_sale_recorded(snapshots, "2026-01-11")[-1].carried is False
+    assert with_sale_recorded(snapshots, "2026-01-18")[-1].carried is False
+
+
+def test_with_sale_recorded_does_not_mutate_its_input() -> None:
+    """Deriving the sale must leave the stored history untouched."""
+    snapshots: list[Snapshot] = [_snapshot("2026-01-11", 500.0, deposit=50.0)]
+
+    with_sale_recorded(snapshots, "2026-01-11")
+
+    assert snapshots == [_snapshot("2026-01-11", 500.0, deposit=50.0)]
 
 
 def _position(

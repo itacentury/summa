@@ -8,10 +8,11 @@ the weekly delta, the chart series, allocation shares and the biggest movers.
 Keeping this layer free of Flask and SQLite is what makes those rules testable on
 their own, before any HTTP or query shape exists to hide a mistake in.
 
-A sale is recorded, not flagged: closing a position writes a final snapshot worth
-0 with a deposit of minus the proceeds, so the money leaves the portfolio the way
-it entered. Every function here therefore needs no special case for a sold
-position — it simply stops carrying value. See :class:`Position.closed_at`.
+A sale is recorded, not flagged: a closed position's history ends in a snapshot
+worth 0 with a deposit of minus the proceeds, so the money leaves the portfolio
+the way it entered. Every function here therefore needs no special case for a
+sold position — it simply stops carrying value. That closing row is derived, not
+stored: :func:`with_sale_recorded` computes it from `closed_at` on every read.
 """
 
 import calendar
@@ -48,10 +49,11 @@ class Position:
     """A held position together with its full snapshot history.
 
     :param snapshots: ascending by date — every function here relies on that.
-    :param closed_at: the date the position was sold. Its last snapshot is then
-        the zeroing row written by the close endpoint: value 0 and a deposit of
-        minus what it was last worth, dated exactly `closed_at`. A sold position
-        is never hidden — it keeps its history and its realized gain.
+    :param closed_at: the date the position was sold. `snapshots` is then
+        expected to end in the zeroing row :func:`with_sale_recorded` derives:
+        value 0 and a deposit of minus what it was last worth, dated exactly
+        `closed_at`. A sold position is never hidden — it keeps its history and
+        its realized gain.
     """
 
     id: int
@@ -163,6 +165,48 @@ class Change:
     position_id: int
     name: str
     week_delta: float
+
+
+def with_sale_recorded(
+    snapshots: Sequence[Snapshot], closed_at: str | None
+) -> Sequence[Snapshot]:
+    """Return the history a sold position ends with: worth 0, proceeds withdrawn.
+
+    A sale is recorded rather than flagged, but it is derived here instead of
+    being stored: the schema keeps only what the user entered, and the closing
+    row is computed from `closed_at` on every read. Deriving it is what makes a
+    close reversible — reopening drops this row again and the week the position
+    was sold in keeps the value and the deposit the user actually typed.
+
+    The money leaves as a negative deposit so the realized gain survives in
+    ``value - invested``, which is why every other function here needs no special
+    case for a sold position. A week already recorded on the close date is
+    replaced rather than followed: money paid in that week stays counted, the
+    value it reached does not. A position that was never snapshotted has no value
+    to take out.
+
+    :param snapshots: ascending by date.
+    """
+    if closed_at is None:
+        return snapshots
+
+    held: list[Snapshot] = [
+        snapshot for snapshot in snapshots if snapshot.date <= closed_at
+    ]
+    if not held:
+        return held
+
+    last: Snapshot = held[-1]
+    replaces_last: bool = last.date == closed_at
+    deposit: float = last.deposit - last.value if replaces_last else -last.value
+    sale: Snapshot = Snapshot(
+        date=closed_at, value=0.0, deposit=deposit, fx_rate=last.fx_rate, carried=False
+    )
+    if replaces_last:
+        held[-1] = sale
+    else:
+        held.append(sale)
+    return held
 
 
 def value_eur(value: float, fx_rate: float) -> float:

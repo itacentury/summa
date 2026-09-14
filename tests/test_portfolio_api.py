@@ -1011,13 +1011,14 @@ def test_patch_position_closes_it_and_it_leaves_the_allocation(
         == 200
     )
 
-    zeroing = _snapshot_rows(sold)[-1]
-    assert zeroing["date"] == date.today().isoformat()
-    assert zeroing["value"] == 0.0
-    assert zeroing["deposit"] == -540.0
-    assert zeroing["fx_rate"] == 1.08
-
     payload = client.get("/api/portfolio").get_json()
+    positions = {
+        position["name"]: position for position in payload["depots"][0]["positions"]
+    }
+    assert positions["Sold"]["value_eur"] == 0.0
+    # 540 USD at 1.08 = 500 EUR taken back out, so the sale is neither gain nor loss.
+    assert positions["Sold"]["invested_eur"] == -500.0
+    assert positions["Sold"]["gain"] == 500.0
     assert [entry["label"] for entry in payload["allocation"]] == ["Held"]
     assert payload["totals"]["value_eur"] == 1500.0
 
@@ -1056,14 +1057,14 @@ def test_patch_position_close_updates_an_existing_row_for_today(
 
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
 
-    rows = _snapshot_rows(position_id)
-    assert len(rows) == 2
-    assert rows[-1]["value"] == 0.0
-    # 50 paid in that week, 500 taken back out.
-    assert rows[-1]["deposit"] == -450.0
+    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert position["value_eur"] == 0.0
+    # 450 paid in across both weeks, 500 taken back out.
+    assert position["invested_eur"] == -50.0
+    assert position["gain"] == 50.0
 
 
-def test_patch_position_close_without_snapshots_writes_none(
+def test_patch_position_close_without_snapshots_reports_nothing(
     client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
 ) -> None:
     """There is no value to take out of a position that was never recorded."""
@@ -1099,7 +1100,12 @@ def test_patch_position_reopen_keeps_a_real_snapshot_on_the_close_date(
     seed_position: SeedPosition,
     seed_snapshot: SeedSnapshot,
 ) -> None:
-    """Only a zeroing row is deleted on reopen — a genuine reading survives."""
+    """Reopening leaves every recorded week standing, close date included.
+
+    Seeded directly rather than closed through the API, because that is what a
+    database written by an earlier version looks like: the close used to
+    overwrite this row, and reopening used to delete it.
+    """
     close_date = _weeks_ago(1)
     position_id = seed_position(seed_depot(), closed_at=close_date)
     seed_snapshot(position_id, close_date, 500.0, deposit=400.0)
@@ -1107,6 +1113,47 @@ def test_patch_position_reopen_keeps_a_real_snapshot_on_the_close_date(
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
 
     assert [row["value"] for row in _snapshot_rows(position_id)] == [500.0]
+
+
+def test_patch_position_close_then_reopen_restores_the_close_week(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The full round trip through the API gives back exactly what was entered."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(1), 400.0, deposit=400.0)
+    seed_snapshot(position_id, date.today().isoformat(), 500.0, deposit=50.0)
+    before = _snapshot_rows(position_id)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
+
+    assert _snapshot_rows(position_id) == before
+    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert position["is_closed"] is False
+    assert position["value_eur"] == 500.0
+    assert position["invested_eur"] == 450.0
+
+
+def test_patch_position_close_then_reopen_keeps_a_genuine_zero_reading(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A position that really went to zero is not mistaken for a sale's own row."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, date.today().isoformat(), 0.0, deposit=120.0)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
+
+    rows = _snapshot_rows(position_id)
+    assert [(row["value"], row["deposit"]) for row in rows] == [(0.0, 120.0)]
+    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert position["invested_eur"] == 120.0
 
 
 def test_patch_position_rejects_an_empty_body(

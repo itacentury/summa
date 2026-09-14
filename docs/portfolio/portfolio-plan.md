@@ -66,15 +66,17 @@ Notes:
 - Portfolio rows are **not** soft-deleted — `closed_at` on a position means "sold", not
   "hidden". The `deleted_at IS NULL` invariant is an invoice-side rule and must not be
   copy-pasted here.
-- **A sale is recorded, not flagged.** Closing a position writes a final snapshot dated
+- **A sale is recorded, not flagged.** A closed position's history ends in a snapshot dated
   exactly `closed_at`, with `value = 0` and `deposit = -(what it was last worth)`. The money
   leaves the portfolio the way it entered, so a sold position drops out of the allocation
   _and_ the totals through its own numbers — the donut always sums to the hero card. The
   negative deposit is what keeps the realized gain: 250 € paid in, sold for 300 € →
   `invested = -50`, `gain = 0 - (-50) = +50`, and `week_delta = 0 - 300 - (-300) = 0`, so the
-  sale reads as neither a gain nor a loss. `PATCH /api/portfolio/positions/<id>` with
-  `{"close": true}` is the only thing expected to write that row, and `{"close": false}`
-  deletes it again.
+  sale reads as neither a gain nor a loss. That row is **derived, not stored**: the schema
+  keeps only what the user entered, and `with_sale_recorded()` computes the closing row from
+  `closed_at` on every read. `PATCH /api/portfolio/positions/<id>` with `{"close": true}`
+  therefore only sets the column, and `{"close": false}` only clears it — a close can never
+  overwrite the week it was sold in, which makes the round trip exactly reversible.
 - Because deposits are signed, **`invested_eur` means net money at work**, not lifetime
   contributions, and goes negative for a position sold at a profit. `gain_pct` is therefore
   measured against the sum of the _positive_ deposits (`contributed_eur`); dividing by the
