@@ -16,7 +16,7 @@ from typing import Any, Final
 from flask import Blueprint, Response, jsonify, request
 
 from summa import portfolio
-from summa.db import db_cursor, placeholders_for
+from summa.db import chunked, db_cursor, placeholders_for
 from summa.helpers import (
     ApiResponse,
     ValidationError,
@@ -171,29 +171,31 @@ def _load_snapshots(
 ) -> dict[int, list[portfolio.Snapshot]]:
     """Load every snapshot of the given positions, grouped by position.
 
-    One query rather than one per position, and ``ORDER BY date`` is what
-    satisfies the ascending precondition every function in
-    :mod:`summa.portfolio` relies on.
+    One query per chunk of positions rather than one per position, and
+    ``ORDER BY date`` is what satisfies the ascending precondition every function
+    in :mod:`summa.portfolio` relies on — chunking cannot disturb it, since a
+    position's rows always land in a single chunk.
     """
     history: dict[int, list[portfolio.Snapshot]] = {
         position_id: [] for position_id in position_ids
     }
-    cursor.execute(
-        "SELECT position_id, date, value, deposit, fx_rate, carried "
-        f"FROM portfolio_snapshots WHERE position_id IN ({placeholders_for(len(position_ids))}) "
-        "ORDER BY position_id, date",
-        list(position_ids),
-    )
-    for row in cursor.fetchall():
-        history[row["position_id"]].append(
-            portfolio.Snapshot(
-                date=row["date"],
-                value=row["value"],
-                deposit=row["deposit"],
-                fx_rate=row["fx_rate"],
-                carried=bool(row["carried"]),
-            )
+    for chunk in chunked(list(position_ids)):
+        cursor.execute(
+            "SELECT position_id, date, value, deposit, fx_rate, carried "
+            f"FROM portfolio_snapshots WHERE position_id IN ({placeholders_for(len(chunk))}) "
+            "ORDER BY position_id, date",
+            chunk,
         )
+        for row in cursor.fetchall():
+            history[row["position_id"]].append(
+                portfolio.Snapshot(
+                    date=row["date"],
+                    value=row["value"],
+                    deposit=row["deposit"],
+                    fx_rate=row["fx_rate"],
+                    carried=bool(row["carried"]),
+                )
+            )
     return history
 
 
@@ -204,16 +206,21 @@ def _load_positions(
     if not depot_ids:
         return []
 
-    cursor.execute(
-        "SELECT id, depot_id, name, kind, currency, is_benchmark_fallback, "
-        "closed_at, sort_order FROM portfolio_positions "
-        f"WHERE depot_id IN ({placeholders_for(len(depot_ids))}) "
-        "ORDER BY sort_order, name",
-        list(depot_ids),
-    )
-    rows: list[Any] = cursor.fetchall()
+    rows: list[Any] = []
+    for chunk in chunked(list(depot_ids)):
+        cursor.execute(
+            "SELECT id, depot_id, name, kind, currency, is_benchmark_fallback, "
+            "closed_at, sort_order FROM portfolio_positions "
+            f"WHERE depot_id IN ({placeholders_for(len(chunk))})",
+            chunk,
+        )
+        rows.extend(cursor.fetchall())
     if not rows:
         return []
+
+    # The order is global across depots, so it cannot come from a per-chunk
+    # ORDER BY; sorting the merged rows keeps one source of ordering truth.
+    rows.sort(key=lambda row: (row["sort_order"], row["name"]))
 
     position_ids: list[int] = [row["id"] for row in rows]
     history: dict[int, list[portfolio.Snapshot]] = _load_snapshots(cursor, position_ids)

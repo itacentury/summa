@@ -12,6 +12,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from summa import db
+from summa.routes import portfolio as portfolio_route
 from tests.conftest import SeedDepot, SeedPosition, SeedSnapshot
 
 
@@ -58,6 +59,15 @@ def _seed_benchmark_price(symbol: str, price_date: str, close: float) -> None:
 
 def _position_names(payload: dict[str, Any]) -> list[str]:
     """Return every position name in the response, across all depot groups."""
+    names: list[str] = []
+    for depot in payload["depots"]:
+        for position in depot["positions"]:
+            names.append(position["name"])
+    return names
+
+
+def _prefill_position_names(payload: dict[str, Any]) -> list[str]:
+    """Return every position name in a snapshot prefill, across all depot groups."""
     names: list[str] = []
     for depot in payload["depots"]:
         for position in depot["positions"]:
@@ -375,6 +385,49 @@ def test_get_portfolio_splits_biggest_changes_into_gainers_and_losers(
     assert changes["gainers"][0]["week_delta"] == 100.0
     assert [entry["name"] for entry in changes["losers"]] == ["Loser"]
     assert changes["losers"][0]["week_delta"] == -50.0
+
+
+def test_get_portfolio_loads_depots_and_snapshots_across_chunks(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chunked id lists load the same rows, ordered the same, as a single query."""
+    # sort_order deliberately contradicts the alphabet: the UNIQUE (depot_id, name)
+    # index makes SQLite hand back name order on its own, which would hide a lost
+    # ORDER BY if the expected order were alphabetical too.
+    for index in range(3):
+        depot_id = seed_depot(name=f"Depot {index}", sort_order=index)
+        for name, sort_order in (("A position", 1), ("B position", 0)):
+            position_id = seed_position(
+                depot_id, name=f"{name} {index}", sort_order=sort_order
+            )
+            seed_snapshot(position_id, _weeks_ago(2), 100.0, deposit=100.0)
+            seed_snapshot(position_id, _weeks_ago(1), 110.0)
+
+    unchunked = client.get("/api/portfolio").get_json()
+    # The prefill is the one consumer that reuses the loader's own order instead
+    # of re-sorting in the pure layer, so it is where a lost ORDER BY surfaces.
+    unchunked_prefill = client.get("/api/portfolio/snapshot/new").get_json()
+
+    # Chunks of 2 split both id lists — three depots, six positions — so a lost
+    # chunk or a broken cross-chunk merge shows up as a difference below.
+    monkeypatch.setattr(portfolio_route, "chunked", lambda items: db.chunked(items, 2))
+    chunked = client.get("/api/portfolio").get_json()
+    chunked_prefill = client.get("/api/portfolio/snapshot/new").get_json()
+
+    assert chunked == unchunked
+    assert chunked_prefill == unchunked_prefill
+    assert _prefill_position_names(chunked_prefill) == [
+        "B position 0",
+        "A position 0",
+        "B position 1",
+        "A position 1",
+        "B position 2",
+        "A position 2",
+    ]
 
 
 # --- Benchmark --------------------------------------------------------------
