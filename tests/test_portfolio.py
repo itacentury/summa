@@ -585,8 +585,30 @@ def test_build_depot_views_groups_and_subtotals() -> None:
     assert [position.name for position in depot_views[0].positions] == ["A", "B"]
     assert depot_views[0].value_eur == pytest.approx(300.0)
     assert depot_views[0].invested_eur == pytest.approx(250.0)
+    assert depot_views[0].contributed_eur == pytest.approx(250.0)
     assert depot_views[0].gain == pytest.approx(50.0)
     assert depot_views[1].gain == pytest.approx(-100.0)
+
+
+def test_build_depot_views_subtotal_keeps_the_contributed_basis() -> None:
+    """A sold member pulls the subtotal's net invested below its contributions.
+
+    The two sums stop being equal as soon as money was taken out, and gain_pct
+    stays measured against what was paid in — dividing by the net amount would
+    report 100 % here instead of 14.29 %.
+    """
+    views: list[PositionView] = [
+        _view(1, name="Held", value=100.0, invested=100.0),
+        _view(
+            2, name="Sold", value=0.0, invested=-50.0, contributed=250.0, closed=True
+        ),
+    ]
+    depot_views = build_depot_views([Depot(id=1, name="Trade Republic")], views)
+
+    assert depot_views[0].invested_eur == pytest.approx(50.0)
+    assert depot_views[0].contributed_eur == pytest.approx(350.0)
+    assert depot_views[0].gain == pytest.approx(50.0)
+    assert depot_views[0].gain_pct == pytest.approx(50.0 / 350.0 * 100)
 
 
 def test_build_depot_views_keeps_an_empty_depot() -> None:
@@ -610,6 +632,7 @@ def test_build_totals_sums_values_and_known_deltas() -> None:
 
     assert totals.value_eur == pytest.approx(1700.0)
     assert totals.invested_eur == pytest.approx(1700.0)
+    assert totals.contributed_eur == pytest.approx(1700.0)
     assert totals.gain == pytest.approx(0.0)
     assert totals.week_delta == pytest.approx(20.0)
     assert totals.position_count == 3

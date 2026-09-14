@@ -110,23 +110,31 @@ class PositionView:
 
 @dataclass(frozen=True)
 class DepotView:
-    """One depot group with its positions and subtotal."""
+    """One depot group with its positions and subtotal.
+
+    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
+    """
 
     id: int
     name: str
     positions: list[PositionView]
     value_eur: float
     invested_eur: float
+    contributed_eur: float
     gain: float
     gain_pct: float | None
 
 
 @dataclass(frozen=True)
 class PortfolioTotals:
-    """The grand total behind the three summary cards."""
+    """The grand total behind the three summary cards.
+
+    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
+    """
 
     value_eur: float
     invested_eur: float
+    contributed_eur: float
     gain: float
     gain_pct: float | None
     week_delta: float
@@ -538,6 +546,7 @@ def build_depot_views(
                 positions=members,
                 value_eur=depot_value,
                 invested_eur=depot_invested,
+                contributed_eur=depot_contributed,
                 gain=depot_gain,
                 gain_pct=gain_pct(depot_gain, depot_contributed),
             )
@@ -576,6 +585,7 @@ def build_totals(
     return PortfolioTotals(
         value_eur=total_value,
         invested_eur=total_invested,
+        contributed_eur=total_contributed,
         gain=total_gain,
         gain_pct=gain_pct(total_gain, total_contributed),
         week_delta=total_delta,

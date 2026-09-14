@@ -380,6 +380,7 @@ def _serialize_position(view: portfolio.PositionView) -> dict[str, Any]:
         "fx_rate": view.fx_rate,
         "value_eur": _amount(view.value_eur),
         "invested_eur": _amount(view.invested_eur),
+        "contributed_eur": _amount(view.contributed_eur),
         "gain": _amount(view.gain),
         "gain_pct": _optional_percent(view.gain_pct),
         "week_delta": _optional_amount(view.week_delta),
@@ -397,6 +398,7 @@ def _serialize_depot(view: portfolio.DepotView) -> dict[str, Any]:
         "positions": [_serialize_position(member) for member in view.positions],
         "value_eur": _amount(view.value_eur),
         "invested_eur": _amount(view.invested_eur),
+        "contributed_eur": _amount(view.contributed_eur),
         "gain": _amount(view.gain),
         "gain_pct": _optional_percent(view.gain_pct),
     }
@@ -407,6 +409,7 @@ def _serialize_totals(totals: portfolio.PortfolioTotals) -> dict[str, Any]:
     return {
         "value_eur": _amount(totals.value_eur),
         "invested_eur": _amount(totals.invested_eur),
+        "contributed_eur": _amount(totals.contributed_eur),
         "gain": _amount(totals.gain),
         "gain_pct": _optional_percent(totals.gain_pct),
         "week_delta": _amount(totals.week_delta),

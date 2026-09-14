@@ -131,6 +131,7 @@ def test_get_portfolio_groups_positions_under_depots_with_subtotals(
     assert [position["name"] for position in depot["positions"]] == ["A", "B"]
     assert depot["value_eur"] == 1500.0
     assert depot["invested_eur"] == 1400.0
+    assert depot["contributed_eur"] == 1400.0
     assert depot["gain"] == 100.0
     assert payload["totals"]["value_eur"] == 1500.0
     assert payload["totals"]["depot_count"] == 1
@@ -1142,11 +1143,18 @@ def test_patch_position_close_updates_an_existing_row_for_today(
 
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
 
-    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    payload = client.get("/api/portfolio").get_json()
+    position = payload["depots"][0]["positions"][0]
     assert position["value_eur"] == 0.0
     # 450 paid in across both weeks, 500 taken back out.
     assert position["invested_eur"] == -50.0
     assert position["gain"] == 50.0
+    # The close week's own deposit nets off inside the derived sale row, so it is
+    # the earlier week alone that shows up as money paid in.
+    assert position["contributed_eur"] == 400.0
+    # The grand total inherits the negative net, so it carries the paid-in sum too.
+    assert payload["totals"]["invested_eur"] == -50.0
+    assert payload["totals"]["contributed_eur"] == 400.0
 
 
 def test_patch_position_close_without_snapshots_reports_nothing(

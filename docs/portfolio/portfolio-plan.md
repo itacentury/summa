@@ -80,7 +80,9 @@ Notes:
 - Because deposits are signed, **`invested_eur` means net money at work**, not lifetime
   contributions, and goes negative for a position sold at a profit. `gain_pct` is therefore
   measured against the sum of the _positive_ deposits (`contributed_eur`); dividing by the
-  net amount would report exactly −100 % for every profitably sold position.
+  net amount would report exactly −100 % for every profitably sold position. Both figures are
+  serialized side by side at position, depot and total level, so a client can show "paid in"
+  next to "net at work" without having to guess either one back.
 - A closed position never contributes a `week_delta`: no further snapshot is ever recorded
   for it, so its final week would otherwise report itself into "Last week" and the biggest
   movers for good.
@@ -103,7 +105,7 @@ isolation:
 
 - `value_eur(value, fx_rate)` → `value / fx_rate`
 - `invested_eur(snapshots)` → `sum(deposit / fx_rate)`
-- `gain`, `gain_pct` (guard `invested == 0`)
+- `gain`, `gain_pct` (guard `contributed == 0`)
 - `week_delta(latest, previous)` →
   `latest.value_eur - previous.value_eur - latest.deposit_eur` — the deliberate difference
   from the Excel Delta column; give it a docstring saying so
@@ -232,7 +234,9 @@ from `static/js/http.js` (mandatory — no bare `fetch`).
   Week/Month/Year/All switcher), depot select, spacer, and the single primary button
   `New snapshot`. Changing period or depot writes localStorage and refetches.
 - **Summary cards:** grid `1.35fr 1fr 1fr` — hero (portfolio value + gain chip + percent +
-  `all-time`), Invested, Last week. Negative values use the danger-subtle token pair.
+  `all-time`), Invested, Last week. Negative values use the danger-subtle token pair. The
+  Invested card may read either `invested_eur` (net at work, can go negative once a position
+  was sold) or `contributed_eur` (lifetime paid in) — the payload carries both.
 - **Positions list card:** collapsible depot group headers carrying the subtotal, position rows
   (name + `ETF · EUR` meta, invested, value, gain, percent with the `min-width` right-aligned
   mono grid), the `BENCHMARK FALLBACK` badge, and the footer with the column legend and grand
