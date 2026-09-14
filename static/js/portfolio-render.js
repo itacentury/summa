@@ -283,12 +283,20 @@ export function depotGroupHtml(
 /**
  * Build the list footer: the column legend and the grand total the groups above
  * have to add up to.
+ *
+ * The invested column carries `invested_eur`, not the `contributed_eur` of the
+ * card above, so it is marked `net` the same way the card's sub-line is — the two
+ * diverge as soon as anything is sold, and one unqualified "invested" on the
+ * screen for both figures reads as a contradiction.
  */
 export function listFooterHtml(totals) {
   return `
     <div class="portfolio-list-footer">
-      <span class="portfolio-list-legend">Columns: position · invested · value · gain/loss</span>
-      <span class="portfolio-list-invested">${formatEuroSuffixed(totals.invested_eur)}</span>
+      <span class="portfolio-list-legend">Columns: position · net invested · value · gain/loss</span>
+      <span class="portfolio-list-net">
+        <span class="portfolio-list-net-label">net</span>
+        <span class="portfolio-list-invested">${formatEuroSuffixed(totals.invested_eur)}</span>
+      </span>
       <span class="portfolio-list-total">${formatEuroSuffixed(totals.value_eur)}</span>
     </div>
   `;

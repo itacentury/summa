@@ -461,6 +461,14 @@
   min-width: 0;
 }
 
+/* Its own box rather than two footer columns: the footer's own 12px gap is too
+   wide for the marker to read as part of the amount it qualifies. */
+.portfolio-list-net {
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
 .portfolio-list-invested {
   font-family: "JetBrains Mono", monospace;
 }

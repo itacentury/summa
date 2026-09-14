@@ -442,6 +442,19 @@ describe("portfolio rendering", () => {
     expect(summaryText()).toContain("€ 6,727.42");
   });
 
+  it("marks the footer's invested column net, unlike the card above it", async () => {
+    await loadPortfolio();
+
+    expect(
+      document.querySelector(".portfolio-list-legend").textContent,
+    ).toContain("net invested");
+    const net = document.querySelector(".portfolio-list-net");
+    expect(net.textContent).toContain("net");
+    // invested_eur, next to the card's contributed_eur — two figures, two labels.
+    expect(net.textContent).toContain("6,350.00 €");
+    expect(summaryText()).toContain("€ 6,650.00");
+  });
+
   it("keeps a sold position in its group, marked and muted", async () => {
     await loadPortfolio();
 
