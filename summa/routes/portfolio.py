@@ -708,6 +708,13 @@ def _clear_other_fallbacks(cursor: sqlite3.Cursor, keep_id: int | None) -> None:
     )
 
 
+def _require_existing_depot(cursor: sqlite3.Cursor, depot_id: int) -> None:
+    """Reject an unknown depot before the foreign key turns it into an IntegrityError."""
+    cursor.execute("SELECT id FROM portfolio_depots WHERE id = ?", (depot_id,))
+    if cursor.fetchone() is None:
+        raise ValidationError("Depot not found", field="depot_id")
+
+
 @portfolio_bp.route("/api/portfolio/positions", methods=["POST"])
 def add_position() -> ApiResponse:
     """Create a position in a depot."""
@@ -727,9 +734,7 @@ def add_position() -> ApiResponse:
     position_id: int | None = None
     try:
         with db_cursor() as cursor:
-            cursor.execute("SELECT id FROM portfolio_depots WHERE id = ?", (depot_id,))
-            if cursor.fetchone() is None:
-                raise ValidationError("Depot not found", field="depot_id")
+            _require_existing_depot(cursor, depot_id)
             cursor.execute(
                 "INSERT INTO portfolio_positions "
                 "(depot_id, name, kind, currency, is_benchmark_fallback, sort_order) "
@@ -805,6 +810,8 @@ def update_position(position_id: int) -> ApiResponse:
 
     try:
         with db_cursor() as cursor:
+            if "depot_id" in updates:
+                _require_existing_depot(cursor, updates["depot_id"])
             cursor.execute(
                 f"UPDATE portfolio_positions SET {assignments} WHERE id = ?",
                 [*updates.values(), position_id],
@@ -813,6 +820,8 @@ def update_position(position_id: int) -> ApiResponse:
                 return error_response("Position not found", 404)
             if updates.get("is_benchmark_fallback"):
                 _clear_other_fallbacks(cursor, position_id)
+    except ValidationError as e:
+        return error_response(e.message, 400)
     except sqlite3.IntegrityError:
         return error_response("A position with that name already exists", 409)
     except sqlite3.Error as e:

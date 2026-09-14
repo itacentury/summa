@@ -775,6 +775,34 @@ def test_patch_unknown_position_is_not_found(client: FlaskClient) -> None:
     )
 
 
+def test_patch_position_rejects_an_unknown_depot(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """Moving a position into a depot that does not exist is a 400, not a collision."""
+    position_id = seed_position(seed_depot())
+
+    response = client.patch(
+        f"/api/portfolio/positions/{position_id}", json={"depot_id": 999}
+    )
+
+    assert response.status_code == 400
+
+
+def test_patch_position_rejects_a_duplicate_name_in_the_same_depot(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """Renaming onto a sibling's name is still the 409 the handler claims."""
+    depot_id = seed_depot()
+    seed_position(depot_id, name="MSCI World SRI")
+    position_id = seed_position(depot_id, name="FTSE All-World")
+
+    response = client.patch(
+        f"/api/portfolio/positions/{position_id}", json={"name": "MSCI World SRI"}
+    )
+
+    assert response.status_code == 409
+
+
 def test_post_depot_creates_it(client: FlaskClient) -> None:
     """A created depot shows up as an empty group."""
     response = client.post("/api/portfolio/depots", json={"name": "Trade Republic"})
