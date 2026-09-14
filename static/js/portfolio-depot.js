@@ -169,10 +169,6 @@ export function createDepotFilter(root, { onChange } = {}) {
       applyLabel();
       if (open) renderMenu();
     },
-    /** Whether a depot id (or the "all" token) is among the current options. */
-    hasOption(candidate) {
-      return entries.some((entry) => entry.value === candidate);
-    },
     setValue(next) {
       value = next;
       applyLabel();
