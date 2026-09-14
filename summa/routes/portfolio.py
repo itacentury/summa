@@ -69,6 +69,11 @@ def _optional_amount(value: float | None) -> float | None:
     return None if value is None else round(value, AMOUNT_DIGITS)
 
 
+def _percent(value: float) -> float:
+    """Round a percentage for the JSON boundary."""
+    return round(value, PERCENT_DIGITS)
+
+
 def _optional_percent(value: float | None) -> float | None:
     """Round a percentage, keeping None as None."""
     return None if value is None else round(value, PERCENT_DIGITS)
@@ -412,7 +417,7 @@ def _serialize_slice(allocation_slice: portfolio.AllocationSlice) -> dict[str, A
     return {
         "label": allocation_slice.label,
         "value_eur": _amount(allocation_slice.value_eur),
-        "share_pct": _optional_percent(allocation_slice.share_pct),
+        "share_pct": _percent(allocation_slice.share_pct),
         "aggregated_count": allocation_slice.aggregated_count,
     }
 
