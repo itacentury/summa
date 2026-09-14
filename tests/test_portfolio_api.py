@@ -536,6 +536,78 @@ def test_post_snapshot_is_idempotent_per_position_and_date(
     assert rows[0]["value"] == 1250.0
 
 
+def test_post_snapshot_re_post_preserves_stored_blanks(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A blank row on a re-post keeps that week, instead of reverting it.
+
+    The weekly form sends every position at once, so correcting one row re-posts
+    blanks for all the others: those must not fall back to the week before, and
+    a recorded deposit must not be zeroed.
+    """
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(2), 500.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1000.0, deposit=250.0)
+
+    response = client.post(
+        "/api/portfolio/snapshot",
+        json={"date": _weeks_ago(1), "rows": [{"position_id": position_id}]},
+    )
+
+    assert response.status_code == 200
+    rows = _snapshot_rows(position_id)
+    assert len(rows) == 2
+    assert rows[-1]["value"] == 1000.0
+    assert rows[-1]["deposit"] == 250.0
+    assert rows[-1]["carried"] == 0
+
+
+def test_post_snapshot_re_post_accepts_an_explicit_zero_deposit(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Preserving blanks must not swallow a deposit the user cleared to zero."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(1), 1000.0, deposit=250.0)
+
+    client.post(
+        "/api/portfolio/snapshot",
+        json={
+            "date": _weeks_ago(1),
+            "rows": [{"position_id": position_id, "deposit": 0.0}],
+        },
+    )
+
+    assert _snapshot_rows(position_id)[-1]["deposit"] == 0.0
+
+
+def test_post_snapshot_re_post_keeps_a_carried_row_carried(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Re-posting a carried row blank repeats it, rather than re-deriving it."""
+    position_id = seed_position(seed_depot())
+    seed_snapshot(position_id, _weeks_ago(2), 500.0)
+    body: dict[str, Any] = {
+        "date": _weeks_ago(1),
+        "rows": [{"position_id": position_id}],
+    }
+
+    assert client.post("/api/portfolio/snapshot", json=body).status_code == 200
+    assert client.post("/api/portfolio/snapshot", json=body).status_code == 200
+
+    latest = _snapshot_rows(position_id)[-1]
+    assert latest["value"] == 500.0
+    assert latest["carried"] == 1
+
+
 def test_post_snapshot_rejects_a_carry_without_history(
     client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
 ) -> None:

@@ -118,14 +118,14 @@ Routes (all reading via `with db_cursor()`, writes wrapped in the canonical
 `try / with db_cursor() / except sqlite3.Error → error_response("Internal server error", 500)`
 shape copied from `add_invoice` in `summa/routes/invoices.py`):
 
-| Route                           | Method | Notes                                                                                                                                                                                          |
-| ------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/portfolio`                | GET    | `?range=3m\|1y\|ytd\|max&depot=<id\|all>` → depots + positions + subtotals + grand total + allocation + biggest changes + the three chart series + `benchmark_source` / `benchmark_updated_at` |
-| `/api/portfolio/snapshot/new`   | GET    | prefill: active positions per depot, previous value each, suggested next un-snapshotted week                                                                                                   |
-| `/api/portfolio/snapshot`       | POST   | `{date, rows:[{position_id, value\|null, deposit\|null}]}`; `value: null` → carried row (`carried = 1`); idempotent per `(position_id, date)` via `INSERT … ON CONFLICT(…) DO UPDATE`          |
-| `/api/portfolio/positions`      | POST   | create                                                                                                                                                                                         |
-| `/api/portfolio/positions/<id>` | PATCH  | rename, kind, currency, depot, close                                                                                                                                                           |
-| `/api/portfolio/depots`         | POST   | create                                                                                                                                                                                         |
+| Route                           | Method | Notes                                                                                                                                                                                                                                                                                                 |
+| ------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/portfolio`                | GET    | `?range=3m\|1y\|ytd\|max&depot=<id\|all>` → depots + positions + subtotals + grand total + allocation + biggest changes + the three chart series + `benchmark_source` / `benchmark_updated_at`                                                                                                        |
+| `/api/portfolio/snapshot/new`   | GET    | prefill: active positions per depot, previous value each, suggested next un-snapshotted week                                                                                                                                                                                                          |
+| `/api/portfolio/snapshot`       | POST   | `{date, rows:[{position_id, value\|null, deposit\|null}]}`; on a new week `value: null` → carried row (`carried = 1`) and `deposit: null` → 0; on a re-post of an existing week a `null` field preserves what is stored; idempotent per `(position_id, date)` via `INSERT … ON CONFLICT(…) DO UPDATE` |
+| `/api/portfolio/positions`      | POST   | create                                                                                                                                                                                                                                                                                                |
+| `/api/portfolio/positions/<id>` | PATCH  | rename, kind, currency, depot, close                                                                                                                                                                                                                                                                  |
+| `/api/portfolio/depots`         | POST   | create                                                                                                                                                                                                                                                                                                |
 
 Conventions to reuse rather than reinvent:
 
@@ -143,7 +143,8 @@ set `benchmark_source: "fallback"`. No error, no toast.
 **Tests** (`tests/test_portfolio_api.py`): add a `seed_position` / `seed_snapshot` fixture pair
 to `tests/conftest.py` mirroring the existing `seed_invoice`. Cover: response shape per range;
 depot filter narrows list, totals, allocation and series; snapshot POST inserts, carries
-forward on `null`, and is idempotent on re-post; benchmark falls back silently when
+forward on `null`, is idempotent on re-post and preserves the stored row when a
+re-post leaves a field blank; benchmark falls back silently when
 `benchmark_prices` is empty; the auth gate rejects unauthenticated calls (extend
 `tests/test_auth_gate.py`).
 

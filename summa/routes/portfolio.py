@@ -601,28 +601,50 @@ def _parse_snapshot_payload(data: Any) -> tuple[str, list[_SnapshotRow]]:
     return snapshot_date, rows
 
 
+def _stored_snapshot(
+    cursor: sqlite3.Cursor, position_id: int, snapshot_date: str
+) -> Any | None:
+    """Return the row already recorded for that exact week, if any."""
+    cursor.execute(
+        "SELECT value, deposit, fx_rate, carried FROM portfolio_snapshots "
+        "WHERE position_id = ? AND date = ?",
+        (position_id, snapshot_date),
+    )
+    return cursor.fetchone()
+
+
 def _previous_snapshot(
     cursor: sqlite3.Cursor, position_id: int, before: str
 ) -> Any | None:
     """Return the position's most recent snapshot strictly before `before`."""
     cursor.execute(
-        "SELECT value, fx_rate FROM portfolio_snapshots "
+        "SELECT value, deposit, fx_rate, carried FROM portfolio_snapshots "
         "WHERE position_id = ? AND date < ? ORDER BY date DESC LIMIT 1",
         (position_id, before),
     )
     return cursor.fetchone()
 
 
-def _resolve_snapshot_row(row: _SnapshotRow, previous: Any | None) -> _ResolvedRow:
-    """Fill an empty value, deposit or FX rate from the previous week.
+def _resolve_snapshot_row(
+    row: _SnapshotRow, stored: Any | None, previous: Any | None
+) -> _ResolvedRow:
+    """Fill an empty value, deposit or FX rate from what is already known.
 
-    An empty value carries the previous one forward (handoff decision 9). The FX
-    rate is inherited the same way, so a USD position keeps its rate without the
-    weekly form having to ask for one.
+    On a new week an empty value carries the previous one forward and an empty
+    deposit is 0 (handoff decision 9). On a re-post of a week that already has a
+    row, an empty field preserves what is stored instead: the weekly form sends
+    every position at once, so a user correcting one row re-posts blanks for all
+    the others, and those must not be reverted or zeroed.
+
+    The FX rate is inherited the same way, so a USD position keeps its rate
+    without the weekly form having to ask for one.
     """
     if row.value is not None:
         value: float = row.value
         carried: bool = False
+    elif stored is not None:
+        value = stored["value"]
+        carried = bool(stored["carried"])
     elif previous is not None:
         value = previous["value"]
         carried = True
@@ -632,14 +654,19 @@ def _resolve_snapshot_row(row: _SnapshotRow, previous: Any | None) -> _ResolvedR
             field="value",
         )
 
+    deposit: float | None = row.deposit
+    if deposit is None:
+        deposit = 0.0 if stored is None else stored["deposit"]
+
     fx_rate: float | None = row.fx_rate
     if fx_rate is None:
-        fx_rate = 1.0 if previous is None else previous["fx_rate"]
+        baseline: Any | None = stored if stored is not None else previous
+        fx_rate = 1.0 if baseline is None else baseline["fx_rate"]
 
     return _ResolvedRow(
         position_id=row.position_id,
         value=value,
-        deposit=0.0 if row.deposit is None else row.deposit,
+        deposit=deposit,
         fx_rate=fx_rate,
         carried=carried,
     )
@@ -666,11 +693,19 @@ def save_snapshot() -> ApiResponse:
                     raise ValidationError(
                         f"Position {row.position_id} not found", field="position_id"
                     )
-                resolved: _ResolvedRow = _resolve_snapshot_row(
-                    row, _previous_snapshot(cursor, row.position_id, snapshot_date)
+                stored: Any | None = _stored_snapshot(
+                    cursor, row.position_id, snapshot_date
                 )
+                previous: Any | None = (
+                    None
+                    if stored is not None
+                    else _previous_snapshot(cursor, row.position_id, snapshot_date)
+                )
+                resolved: _ResolvedRow = _resolve_snapshot_row(row, stored, previous)
                 # Re-posting a date corrects it instead of colliding with the
                 # UNIQUE constraint: the user fixing last week is the normal case.
+                # Blank fields keep what that row already holds (see
+                # _resolve_snapshot_row), so only what the user typed changes.
                 cursor.execute(
                     "INSERT INTO portfolio_snapshots "
                     "(position_id, date, value, deposit, fx_rate, carried) "
