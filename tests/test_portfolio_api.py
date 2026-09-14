@@ -198,6 +198,51 @@ def test_get_portfolio_falls_back_to_the_default_range_on_a_bad_token(
     assert response.get_json()["range"] == "1y"
 
 
+def test_get_portfolio_rejects_a_malformed_depot(client: FlaskClient) -> None:
+    """A depot that is not a number is an error, not a silent 'all depots'."""
+    response = client.get("/api/portfolio?depot=abc")
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["success"] is False
+    assert "depot" in payload["error"]
+
+
+def test_get_portfolio_rejects_an_unknown_depot(client: FlaskClient) -> None:
+    """An id no depot carries is a client bug, not an empty depot."""
+    response = client.get("/api/portfolio?depot=9999")
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Depot not found"
+
+
+def test_get_portfolio_treats_all_as_no_depot_filter(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """The documented 'all' token clears the filter instead of naming a depot."""
+    seed_depot(name="Trade Republic")
+    seed_depot(name="Deka")
+
+    response = client.get("/api/portfolio?depot=all")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["depot"] is None
+    assert len(payload["depots"]) == 2
+
+
+def test_get_portfolio_treats_an_empty_depot_as_no_filter(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """An unset select submits an empty value; that is every depot, not an error."""
+    seed_depot(name="Trade Republic")
+
+    response = client.get("/api/portfolio?depot=")
+
+    assert response.status_code == 200
+    assert response.get_json()["depot"] is None
+
+
 def test_get_portfolio_depot_filter_narrows_everything(
     client: FlaskClient,
     seed_depot: SeedDepot,

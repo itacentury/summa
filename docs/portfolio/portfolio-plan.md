@@ -151,7 +151,10 @@ Conventions to reuse rather than reinvent:
   `error_response(e.message, 400)` — never `str(e)`.
 - Input normalisation: `strip_text()`, `require_non_empty_str()`, `parse_bounded_int()`.
 - Range/depot params are read with `request.args.get(...)` and validated against a literal
-  allowlist (the `sort_by` pattern in `get_invoices`), never interpolated.
+  allowlist (the `sort_by` pattern in `get_invoices`), never interpolated. `range` degrades
+  to the default on an unknown token; `depot` instead rejects a malformed or unknown id with
+  a 400, because a filter that silently widens to every depot is indistinguishable from an
+  empty one.
 - Log an `INFO` line on every successful write, as the invoice routes do.
 
 The benchmark series is assembled here: read `benchmark_prices` for the requested window; if

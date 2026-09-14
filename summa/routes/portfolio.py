@@ -33,6 +33,9 @@ portfolio_bp: Blueprint = Blueprint("portfolio", __name__)
 # constraint violation (a 500) into a 400 naming the accepted values.
 POSITION_KINDS: Final[tuple[str, ...]] = ("etf", "fund", "stock")
 DEFAULT_CURRENCY: Final[str] = "EUR"
+# The explicit "no filter" token, so ?depot=all is intended behaviour rather than
+# a side effect of int() failing.
+DEPOT_ALL: Final[str] = "all"
 CURRENCY_CODE_LENGTH: Final[int] = 3
 SNAPSHOT_INTERVAL_DAYS: Final[int] = 7
 AMOUNT_DIGITS: Final[int] = 2
@@ -434,18 +437,29 @@ def _requested_range() -> str:
 
 
 def _requested_depot() -> int | None:
-    """Return the requested depot id, or None for all depots."""
-    try:
-        return int(request.args.get("depot", ""))
-    except (TypeError, ValueError):
+    """Return the requested depot id, or None for all depots.
+
+    Unlike ``_requested_range``, a malformed value is rejected rather than
+    degraded: a filter that silently widens to every depot answers a question the
+    client did not ask, and the caller cannot tell the difference.
+    """
+    raw: str = request.args.get("depot", "")
+    if not raw or raw == DEPOT_ALL:
         return None
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValidationError(
+            f"Query parameter 'depot' must be a depot id or '{DEPOT_ALL}'",
+            field="depot",
+        ) from None
 
 
 # --- Routes -----------------------------------------------------------------
 
 
 @portfolio_bp.route("/api/portfolio", methods=["GET"])
-def get_portfolio() -> Response:
+def get_portfolio() -> ApiResponse:
     """Return the whole Portfolio screen: groups, totals, allocation, series.
 
     The depot filter narrows everything, because it changes which positions
@@ -453,30 +467,40 @@ def get_portfolio() -> Response:
     always shows current values.
     """
     range_token: str = _requested_range()
-    depot_id: int | None = _requested_depot()
 
-    with db_cursor() as cursor:
-        depots: list[portfolio.Depot] = _load_depots(cursor, depot_id)
-        positions: list[portfolio.Position] = _load_positions(
-            cursor, [depot.id for depot in depots]
-        )
+    try:
+        depot_id: int | None = _requested_depot()
 
-        views: list[portfolio.PositionView] = [
-            portfolio.build_position_view(position) for position in positions
-        ]
-        # One reading of the date for the whole response: two calls could land on
-        # either side of midnight and describe a window the grid does not match.
-        today: date = date.today()
-        start: date | None = portfolio.range_start(range_token, today)
-        grid: list[str] = portfolio.snapshot_dates(positions, start)
-        series: portfolio.ChartSeries = portfolio.build_series(positions, grid)
-        window: portfolio.ChartWindow = portfolio.chart_window(range_token, today, grid)
-        benchmark: _Benchmark = _build_benchmark(
-            cursor,
-            grid,
-            _series_base(series.portfolio),
-            start.isoformat() if start is not None else None,
-        )
+        with db_cursor() as cursor:
+            depots: list[portfolio.Depot] = _load_depots(cursor, depot_id)
+            # An id that matches no depot is a client bug, not an empty portfolio.
+            if depot_id is not None and not depots:
+                raise ValidationError("Depot not found", field="depot")
+            positions: list[portfolio.Position] = _load_positions(
+                cursor, [depot.id for depot in depots]
+            )
+
+            views: list[portfolio.PositionView] = [
+                portfolio.build_position_view(position) for position in positions
+            ]
+            # One reading of the date for the whole response: two calls could land
+            # on either side of midnight and describe a window the grid does not
+            # match.
+            today: date = date.today()
+            start: date | None = portfolio.range_start(range_token, today)
+            grid: list[str] = portfolio.snapshot_dates(positions, start)
+            series: portfolio.ChartSeries = portfolio.build_series(positions, grid)
+            window: portfolio.ChartWindow = portfolio.chart_window(
+                range_token, today, grid
+            )
+            benchmark: _Benchmark = _build_benchmark(
+                cursor,
+                grid,
+                _series_base(series.portfolio),
+                start.isoformat() if start is not None else None,
+            )
+    except ValidationError as e:
+        return error_response(e.message, 400)
 
     depot_views: list[portfolio.DepotView] = portfolio.build_depot_views(depots, views)
     totals: portfolio.PortfolioTotals = portfolio.build_totals(views, len(depots))
