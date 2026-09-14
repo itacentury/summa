@@ -44,6 +44,19 @@ def _snapshot_rows(position_id: int) -> list[dict[str, Any]]:
         conn.close()
 
 
+def _closed_at(position_id: int) -> str | None:
+    """Read a position's stored sale date straight from the database."""
+    conn = db.get_db()
+    try:
+        cursor = conn.execute(
+            "SELECT closed_at FROM portfolio_positions WHERE id = ?", (position_id,)
+        )
+        closed_at: str | None = cursor.fetchone()["closed_at"]
+        return closed_at
+    finally:
+        conn.close()
+
+
 def _seed_benchmark_price(symbol: str, price_date: str, close: float) -> None:
     """Insert one feed close straight into the database."""
     conn = db.get_db()
@@ -1088,10 +1101,50 @@ def test_patch_position_close_twice_is_idempotent(
     seed_snapshot(position_id, _weeks_ago(1), 500.0, deposit=400.0)
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
     before = _snapshot_rows(position_id)
+    closed_at = _closed_at(position_id)
 
     client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
 
     assert _snapshot_rows(position_id) == before
+    assert _closed_at(position_id) == closed_at
+
+
+def test_patch_position_close_again_keeps_the_original_sale_date(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A second close must not re-date a sale that happened weeks ago.
+
+    Dating it today would carry the sold position's value through the weeks in
+    between and only drop it now — money the user no longer held.
+    """
+    close_date = _weeks_ago(1)
+    position_id = seed_position(seed_depot(), closed_at=close_date)
+    seed_snapshot(position_id, close_date, 500.0, deposit=400.0)
+    before = client.get("/api/portfolio").get_json()
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": True})
+
+    assert _closed_at(position_id) == close_date
+    assert client.get("/api/portfolio").get_json() == before
+
+
+def test_patch_position_reopen_clears_an_older_close(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Keeping the first sale date must not make a close unreversible."""
+    close_date = _weeks_ago(1)
+    position_id = seed_position(seed_depot(), closed_at=close_date)
+    seed_snapshot(position_id, close_date, 500.0, deposit=400.0)
+
+    client.patch(f"/api/portfolio/positions/{position_id}", json={"close": False})
+
+    assert _closed_at(position_id) is None
 
 
 def test_patch_position_reopen_keeps_a_real_snapshot_on_the_close_date(

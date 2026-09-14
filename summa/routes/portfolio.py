@@ -892,6 +892,18 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
     return updates
 
 
+def _assignment(column: str, value: Any) -> str:
+    """Return one SET clause for a patched column.
+
+    Closing keeps an existing sale date: the user sold once, on the day the
+    column already records, so a second close must not re-date that sale.
+    Reopening writes NULL unconditionally.
+    """
+    if column == "closed_at" and value is not None:
+        return "closed_at = COALESCE(closed_at, ?)"
+    return f"{column} = ?"
+
+
 @portfolio_bp.route("/api/portfolio/positions/<int:position_id>", methods=["PATCH"])
 def update_position(position_id: int) -> ApiResponse:
     """Rename, reclassify, move or close a position.
@@ -900,7 +912,7 @@ def update_position(position_id: int) -> ApiResponse:
     that takes a sold position's money back out is derived on every read by
     :func:`summa.portfolio.with_sale_recorded`. Nothing the user entered is
     rewritten, so the round trip is exactly reversible, and closing an
-    already-closed position is idempotent for free.
+    already-closed position keeps the date of the first close.
     """
     try:
         updates: dict[str, Any] = _parse_position_patch(request.json)
@@ -913,7 +925,9 @@ def update_position(position_id: int) -> ApiResponse:
     unknown_columns: set[str] = set(updates) - set(_PATCHABLE_COLUMNS)
     if unknown_columns:
         raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
-    assignments: str = ", ".join(f"{column} = ?" for column in updates)
+    assignments: str = ", ".join(
+        _assignment(column, value) for column, value in updates.items()
+    )
 
     try:
         with db_cursor() as cursor:
