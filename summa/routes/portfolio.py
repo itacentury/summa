@@ -124,9 +124,12 @@ def _require_kind(value: Any) -> str:
 
 
 def _require_currency(value: Any) -> str:
-    """Return an upper-cased three-letter currency code, defaulting to EUR."""
-    if value is None:
-        return DEFAULT_CURRENCY
+    """Return an upper-cased three-letter currency code; raise ValidationError otherwise.
+
+    Defaulting is the caller's job: inside a PATCH branch an explicit ``null``
+    means "set this to null", not "leave it alone", so swallowing it here would
+    silently overwrite the stored code.
+    """
     code: str = require_non_empty_str(value, "currency").upper()
     if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
         raise ValidationError(
@@ -840,7 +843,7 @@ def add_position() -> ApiResponse:
         depot_id: int = _require_int(payload.get("depot_id"), "depot_id")
         name: str = require_non_empty_str(payload.get("name"), "name")
         kind: str = _require_kind(payload.get("kind"))
-        currency: str = _require_currency(payload.get("currency"))
+        currency: str = _require_currency(payload.get("currency", DEFAULT_CURRENCY))
         is_fallback: bool = _require_bool(
             payload.get("is_benchmark_fallback", False), "is_benchmark_fallback"
         )

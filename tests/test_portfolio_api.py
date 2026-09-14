@@ -1000,13 +1000,14 @@ def test_post_position_normalizes_the_currency(
         {"name": "   "},
         {"currency": "EURO"},
         {"currency": "\u0415UR"},  # Cyrillic homoglyph of "E"
+        {"currency": None},
         {"depot_id": 999},
     ],
 )
 def test_post_position_rejects_invalid_input(
     client: FlaskClient, seed_depot: SeedDepot, overrides: dict[str, Any]
 ) -> None:
-    """An unknown kind, an empty name, a bad code or a missing depot is a 400."""
+    """An unknown kind, an empty name, a bad or null code or a missing depot is a 400."""
     body: dict[str, Any] = {
         "depot_id": seed_depot(),
         "name": "MSCI World SRI",
@@ -1299,6 +1300,21 @@ def test_patch_position_rejects_an_empty_body(
         client.patch(f"/api/portfolio/positions/{position_id}", json={}).status_code
         == 400
     )
+
+
+def test_patch_position_rejects_a_null_currency(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """An explicit null names a field, so it is a 400 — never a silent reset to EUR."""
+    position_id = seed_position(seed_depot(), currency="USD")
+
+    response = client.patch(
+        f"/api/portfolio/positions/{position_id}", json={"currency": None}
+    )
+
+    assert response.status_code == 400
+    position = client.get("/api/portfolio").get_json()["depots"][0]["positions"][0]
+    assert position["currency"] == "USD"
 
 
 def test_patch_unknown_position_is_not_found(client: FlaskClient) -> None:
