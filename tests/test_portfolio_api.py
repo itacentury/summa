@@ -830,6 +830,78 @@ def test_post_snapshot_rejects_a_carry_without_history(
     assert _snapshot_rows(position_id) == []
 
 
+def test_post_snapshot_rejects_a_week_after_the_sale(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A sold position has no further weeks: the read layer would drop the row."""
+    position_id = seed_position(seed_depot(), closed_at=_weeks_ago(1))
+    seed_snapshot(position_id, _weeks_ago(2), 500.0, deposit=500.0)
+
+    response = client.post(
+        "/api/portfolio/snapshot",
+        json={
+            "date": _weeks_ago(0),
+            "rows": [{"position_id": position_id, "value": 999.0}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert [row["date"] for row in _snapshot_rows(position_id)] == [_weeks_ago(2)]
+
+
+def test_post_snapshot_after_the_sale_cannot_resurface_on_reopen(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The rejected value must not be waiting in the DB for the reopen to reveal."""
+    position_id = seed_position(seed_depot(), closed_at=_weeks_ago(1))
+    seed_snapshot(position_id, _weeks_ago(2), 500.0, deposit=500.0)
+    client.post(
+        "/api/portfolio/snapshot",
+        json={
+            "date": _weeks_ago(0),
+            "rows": [{"position_id": position_id, "value": 999.0}],
+        },
+    )
+
+    assert (
+        client.patch(
+            f"/api/portfolio/positions/{position_id}", json={"close": False}
+        ).status_code
+        == 200
+    )
+    payload = client.get("/api/portfolio").get_json()
+
+    assert payload["totals"]["value_eur"] == 500.0
+
+
+def test_post_snapshot_still_corrects_a_week_before_the_sale(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The sale is derived from the last held week, so that week stays correctable."""
+    position_id = seed_position(seed_depot(), closed_at=_weeks_ago(1))
+    seed_snapshot(position_id, _weeks_ago(2), 500.0, deposit=500.0)
+
+    response = client.post(
+        "/api/portfolio/snapshot",
+        json={
+            "date": _weeks_ago(2),
+            "rows": [{"position_id": position_id, "value": 600.0}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert _snapshot_rows(position_id)[0]["value"] == 600.0
+
+
 def test_post_snapshot_writes_nothing_when_one_row_is_invalid(
     client: FlaskClient,
     seed_depot: SeedDepot,

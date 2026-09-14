@@ -661,6 +661,32 @@ def _parse_snapshot_payload(data: Any) -> tuple[str, list[_SnapshotRow]]:
     return snapshot_date, rows
 
 
+def _require_open_position(
+    cursor: sqlite3.Cursor, position_id: int, snapshot_date: str
+) -> None:
+    """Reject an unknown position, and a week that falls after its sale.
+
+    A snapshot dated after ``closed_at`` is discarded by
+    :func:`summa.portfolio.with_sale_recorded` on every read, so writing one only
+    stores a value that reappears the moment the position is reopened. A week at
+    or before the sale stays writable: correcting it corrects the proceeds the
+    closing row is derived from.
+    """
+    cursor.execute(
+        "SELECT closed_at FROM portfolio_positions WHERE id = ?", (position_id,)
+    )
+    row: Any | None = cursor.fetchone()
+    if row is None:
+        raise ValidationError(f"Position {position_id} not found", field="position_id")
+
+    closed_at: str | None = row["closed_at"]
+    # ISO dates compare as text, as everywhere else in this module.
+    if closed_at is not None and snapshot_date > closed_at:
+        raise ValidationError(
+            f"Position {position_id} was closed on {closed_at}", field="position_id"
+        )
+
+
 def _stored_snapshot(
     cursor: sqlite3.Cursor, position_id: int, snapshot_date: str
 ) -> Any | None:
@@ -745,14 +771,7 @@ def save_snapshot() -> ApiResponse:
         # portfolio value that matches no real point in time.
         with db_cursor() as cursor:
             for row in rows:
-                cursor.execute(
-                    "SELECT id FROM portfolio_positions WHERE id = ?",
-                    (row.position_id,),
-                )
-                if cursor.fetchone() is None:
-                    raise ValidationError(
-                        f"Position {row.position_id} not found", field="position_id"
-                    )
+                _require_open_position(cursor, row.position_id, snapshot_date)
                 stored: Any | None = _stored_snapshot(
                     cursor, row.position_id, snapshot_date
                 )
@@ -912,7 +931,9 @@ def update_position(position_id: int) -> ApiResponse:
     that takes a sold position's money back out is derived on every read by
     :func:`summa.portfolio.with_sale_recorded`. Nothing the user entered is
     rewritten, so the round trip is exactly reversible, and closing an
-    already-closed position keeps the date of the first close.
+    already-closed position keeps the date of the first close. Reopening brings
+    back the state the position was closed in, because no week after the sale can
+    be recorded while it is closed (see :func:`_require_open_position`).
     """
     try:
         updates: dict[str, Any] = _parse_position_patch(request.json)
