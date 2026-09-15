@@ -91,7 +91,9 @@ class PositionView:
     :param invested_eur: net money at work — see :func:`invested_eur`.
     :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
     :param gain_pct: None when nothing was contributed — see :func:`gain_pct`.
-    :param week_delta: None when there is no previous week — see :func:`week_delta`.
+    :param week_delta: the last recorded week's move, the derived closing row of a
+        sold position excluded. None when there is no previous week — see
+        :func:`week_delta`.
     :param snapshot_count: how many weeks were recorded — the closing row a sold
         position's history ends in was derived, not entered, and is not counted.
     """
@@ -237,6 +239,16 @@ def with_sale_recorded(
     return held
 
 
+def recorded_weeks(snapshots: Sequence[Snapshot]) -> list[Snapshot]:
+    """Return only the weeks the user entered, dropping the derived closing row.
+
+    The row :func:`with_sale_recorded` appends is history for every sum computed
+    here, but it is not a week anybody recorded — so anything that reads the
+    history *as weeks* rather than as money goes through this filter.
+    """
+    return [snapshot for snapshot in snapshots if not snapshot.derived]
+
+
 def value_eur(value: float, fx_rate: float) -> float:
     """Convert a native-currency amount to EUR.
 
@@ -298,16 +310,23 @@ def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
     the deposit is the deliberate difference from the Delta column of the
     spreadsheet this feature replaces: money paid in is not a gain.
 
-    None when the position has fewer than two snapshots — without a previous
-    week any number would be invented, and a fresh position's first deposit
-    would surface as the week's biggest winner.
+    Only the weeks that were recorded count: the derived closing row of a sold
+    position is a withdrawal, not a market move, and reading it as the latest
+    week would net every sale to exactly zero — reporting each closed position as
+    flat and hiding the move of the very week it was sold in, which is the last
+    place that number is shown at all.
+
+    None when fewer than two weeks were recorded — without a previous week any
+    number would be invented, and a fresh position's first deposit would surface
+    as the week's biggest winner.
 
     :param snapshots: ascending by date.
     """
-    if len(snapshots) < 2:
+    weeks: list[Snapshot] = recorded_weeks(snapshots)
+    if len(weeks) < 2:
         return None
-    latest: Snapshot = snapshots[-1]
-    previous: Snapshot = snapshots[-2]
+    latest: Snapshot = weeks[-1]
+    previous: Snapshot = weeks[-2]
     return (
         value_eur(latest.value, latest.fx_rate)
         - value_eur(previous.value, previous.fx_rate)
@@ -523,9 +542,7 @@ def build_position_view(position: Position) -> PositionView:
         week_delta=week_delta(position.snapshots),
         first_snapshot_date=position.snapshots[0].date if position.snapshots else None,
         last_snapshot_date=latest.date if latest is not None else None,
-        snapshot_count=sum(
-            1 for snapshot in position.snapshots if not snapshot.derived
-        ),
+        snapshot_count=len(recorded_weeks(position.snapshots)),
         sort_order=position.sort_order,
     )
 
@@ -591,8 +608,9 @@ def build_totals(
     total_gain: float = gain(total_value, total_invested)
     # A position without a previous week contributes nothing here; falling back
     # to its full value would read as a one-week gain of the whole position. A
-    # closed one is skipped outright: no further snapshot will ever arrive for
-    # it, so its final week would otherwise report itself for good.
+    # closed one is skipped outright: its delta is the real move of the last week
+    # it was held, but no further snapshot will ever arrive to replace it, so that
+    # one week would keep reporting itself into "this week" for good.
     total_delta: float = sum(
         view.week_delta
         for view in position_views
@@ -678,8 +696,9 @@ def biggest_changes(
 
     Fewer than `count` entries per side is normal: a position with no previous
     week, a flat one and a sold one are all not movers and are left out. The last
-    of those would otherwise report the same week forever, since no further
-    snapshot is ever recorded for it.
+    of those still carries the real move of the last week it was held, but no
+    further snapshot is ever recorded for it, so that week would otherwise stand
+    in the movers list forever.
     """
     movers: list[Change] = []
     for view in position_views:

@@ -1,5 +1,6 @@
 """Unit tests for the pure derivations in :mod:`summa.portfolio`."""
 
+from collections.abc import Sequence
 from datetime import date
 
 import pytest
@@ -315,13 +316,36 @@ def test_week_delta_subtracts_the_latest_deposit(
     assert week_delta(snapshots) == pytest.approx(expected)
 
 
-def test_week_delta_of_a_sale_is_zero() -> None:
-    """Selling is neither a gain nor a loss: the deposit subtraction cancels it."""
-    snapshots: list[Snapshot] = [
-        _snapshot("2026-01-04", 300.0),
-        _snapshot("2026-01-11", 0.0, deposit=-300.0),
+def test_week_delta_skips_the_derived_sale_row() -> None:
+    """A sale is a withdrawal, not a market move: the last real week still counts.
+
+    Reading the derived closing row as the latest week would net every sold
+    position to exactly zero and hide the move of the week it was sold in.
+    """
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 210.0),
+        _snapshot("2026-01-11", 220.0, deposit=50.0),
     ]
-    assert week_delta(snapshots) == pytest.approx(0.0)
+    sold: Sequence[Snapshot] = with_sale_recorded(stored, "2026-01-11")
+
+    # 220 - 210 - 50: the week lost 40 while 50 was paid into it.
+    assert week_delta(sold) == pytest.approx(-40.0)
+
+
+def test_week_delta_of_a_position_sold_in_a_week_of_its_own() -> None:
+    """Closing later than the last recorded week leaves that week's delta alone."""
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 300.0),
+        _snapshot("2026-01-11", 320.0),
+    ]
+    assert week_delta(with_sale_recorded(stored, "2026-01-18")) == pytest.approx(20.0)
+
+
+def test_week_delta_needs_two_recorded_weeks_not_two_rows() -> None:
+    """One recorded week plus its sale row is still only one week."""
+    stored: list[Snapshot] = [_snapshot("2026-01-04", 300.0, deposit=250.0)]
+
+    assert week_delta(with_sale_recorded(stored, "2026-01-04")) is None
 
 
 def test_week_delta_converts_both_weeks_to_eur() -> None:
@@ -614,6 +638,25 @@ def test_build_position_view_of_a_sold_position_keeps_its_realized_gain() -> Non
     assert view.gain_pct == pytest.approx(20.0)
 
 
+def test_build_position_view_of_a_sold_position_reports_its_last_held_week() -> None:
+    """The row still names what the last week it was held did.
+
+    Nowhere else shows that number: the grand total and the biggest movers both
+    leave a closed position out on purpose.
+    """
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 210.0, deposit=200.0),
+        _snapshot("2026-01-11", 220.0, deposit=50.0),
+    ]
+    position: Position = _position(
+        6,
+        closed_at="2026-01-11",
+        snapshots=list(with_sale_recorded(stored, "2026-01-11")),
+    )
+
+    assert build_position_view(position).week_delta == pytest.approx(-40.0)
+
+
 def test_build_position_view_counts_the_deposit_of_the_week_it_was_sold_in() -> None:
     """Selling in a week that was paid into must not drop that deposit.
 
@@ -782,11 +825,11 @@ def test_build_totals_counts_only_held_positions() -> None:
 
 
 def test_build_totals_ignores_a_closed_positions_stale_delta() -> None:
-    """A position closed by hand keeps its last delta out of "Last week".
+    """A closed position keeps its last delta out of "Last week".
 
-    A sale recorded properly already zeroes its own delta; this covers the row
-    that was closed without one, which would otherwise report the same week for
-    as long as it exists.
+    Its delta is the real move of the last week it was held, but no further
+    snapshot will ever arrive to replace it, so it would otherwise report the
+    same week for as long as the position exists.
     """
     views: list[PositionView] = [
         _view(1, value=1000.0, invested=900.0, delta=25.0),

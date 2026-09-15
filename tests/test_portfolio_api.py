@@ -1179,6 +1179,10 @@ def test_patch_position_close_follows_an_existing_row_for_today(
     # The grand total inherits the negative net, so it carries the paid-in sum too.
     assert payload["totals"]["invested_eur"] == -50.0
     assert payload["totals"]["contributed_eur"] == 450.0
+    # The row still reports what the last week it was held did (500 - 400 - 50),
+    # while the total leaves that week out — it would stand there for good.
+    assert position["week_delta"] == 50.0
+    assert payload["totals"]["week_delta"] == 0.0
 
 
 def test_patch_position_close_keeps_snapshot_count_at_the_weeks_recorded(

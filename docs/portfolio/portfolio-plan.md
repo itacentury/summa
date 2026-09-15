@@ -71,8 +71,9 @@ Notes:
   leaves the portfolio the way it entered, so a sold position drops out of the allocation
   _and_ the totals through its own numbers — the donut always sums to the hero card. The
   negative deposit is what keeps the realized gain: 250 € paid in, sold for 300 € →
-  `invested = -50`, `gain = 0 - (-50) = +50`, and `week_delta = 0 - 300 - (-300) = 0`, so the
-  sale reads as neither a gain nor a loss. That row is **derived, not stored**: the schema
+  `invested = -50` and `gain = 0 - (-50) = +50`. The closing row is a withdrawal, not a
+  market move, so `week_delta` skips it and keeps reporting the last week the position was
+  actually held. That row is **derived, not stored**: the schema
   keeps only what the user entered, and `with_sale_recorded()` computes the closing row from
   `closed_at` on every read. `PATCH /api/portfolio/positions/<id>` with `{"close": true}`
   therefore only sets the column, and `{"close": false}` only clears it — a close can never
@@ -83,9 +84,10 @@ Notes:
   net amount would report exactly −100 % for every profitably sold position. Both figures are
   serialized side by side at position, depot and total level, so a client can show "paid in"
   next to "net at work" without having to guess either one back.
-- A closed position never contributes a `week_delta`: no further snapshot is ever recorded
-  for it, so its final week would otherwise report itself into "Last week" and the biggest
-  movers for good.
+- A closed position's own row still reports a `week_delta` — the real move of the last week
+  it was held, and the only place that number is shown at all. It contributes none to the
+  grand total or the biggest movers: no further snapshot is ever recorded for it, so that one
+  week would otherwise stand in "Last week" and the movers list for good.
 - SQLite does not enforce foreign keys unless `PRAGMA foreign_keys = ON`. `get_db()` only sets
   WAL today. Add `PRAGMA foreign_keys = ON` inside `get_db()` so the `ON DELETE CASCADE`
   clauses actually fire; verify the existing invoice tests still pass (they should —
@@ -106,9 +108,10 @@ isolation:
 - `value_eur(value, fx_rate)` → `value / fx_rate`
 - `invested_eur(snapshots)` → `sum(deposit / fx_rate)`
 - `gain`, `gain_pct` (guard `contributed == 0`)
-- `week_delta(latest, previous)` →
-  `latest.value_eur - previous.value_eur - latest.deposit_eur` — the deliberate difference
-  from the Excel Delta column; give it a docstring saying so
+- `week_delta(snapshots)` →
+  `latest.value_eur - previous.value_eur - latest.deposit_eur` over the last two _recorded_
+  weeks (the derived sale row excluded) — the deliberate difference from the Excel Delta
+  column; give it a docstring saying so
 - `range_start(range_token, today)` → the `3m | 1y | ytd | max` window start
 - `build_series(snapshots_by_position, dates)` → the `portfolio` and `invested` series, each
   position contributing only from its first snapshot onward (never from 0)
