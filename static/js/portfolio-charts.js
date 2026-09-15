@@ -285,7 +285,8 @@ function renderValueChart(payload) {
           type: "linear",
           min,
           max,
-          grid: { color: GRID_COLOR, drawBorder: false },
+          grid: { color: GRID_COLOR },
+          border: { display: false },
           afterBuildTicks: (scale) => {
             scale.ticks = tickValues.map((value) => ({ value }));
           },
@@ -299,7 +300,8 @@ function renderValueChart(payload) {
           },
         },
         y: {
-          grid: { color: GRID_COLOR, drawBorder: false },
+          grid: { color: GRID_COLOR },
+          border: { display: false },
           ticks: {
             // Dropped on a phone, as in the design's mock: the labels would take
             // a third of the plot and squeeze the month labels into each other.
