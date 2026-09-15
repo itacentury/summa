@@ -530,6 +530,206 @@
   border-radius: 11px;
 }
 
+/* ====== CHARTS ====== */
+
+/* The card chrome (.chart-card / .chart-header / .chart-title / .chart-container)
+   comes from stats.css, which is linked first; only the deltas live here. */
+
+.portfolio-chart-header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.portfolio-chart-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.portfolio-legend-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.portfolio-legend-bar {
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+}
+
+/* Fixed markup, not data — so these three read the tokens directly, unlike the
+   series in portfolio-charts.js, which Canvas forces into literal hex. */
+.portfolio-legend-bar.is-portfolio {
+  background: var(--accent);
+}
+
+.portfolio-legend-bar.is-invested {
+  background: var(--chart-4);
+}
+
+.portfolio-legend-bar.is-benchmark {
+  background: var(--chart-7);
+}
+
+/* A fixed pixel height, never a viewport unit: the card sits below the summary
+   and the axis has to stay readable regardless of how tall the page is. */
+.portfolio-chart-body {
+  height: 200px;
+  padding: 14px 20px 8px;
+}
+
+.portfolio-chart-empty .empty-state {
+  padding: 40px 20px;
+}
+
+.portfolio-chart-note {
+  padding: 0 20px 12px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+/* ====== ALLOCATION ====== */
+
+.portfolio-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.portfolio-alloc-body {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 20px;
+}
+
+.portfolio-donut {
+  position: relative;
+  flex: none;
+  width: 132px;
+  height: 132px;
+}
+
+.portfolio-alloc-legend {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.portfolio-alloc-item {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 11.5px;
+}
+
+.portfolio-alloc-color {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.portfolio-alloc-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The pooled "N more" row has no swatch of its own to anchor it, so it is muted
+   instead — it names a group, not a position. */
+.portfolio-alloc-item.is-aggregated .portfolio-alloc-label {
+  color: var(--text-muted);
+}
+
+.portfolio-alloc-percent {
+  color: var(--text-muted);
+}
+
+.portfolio-card-empty {
+  padding: 24px 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ====== BIGGEST CHANGES ====== */
+
+.portfolio-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 16px 20px;
+}
+
+.portfolio-change-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.portfolio-change-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.portfolio-bar-track {
+  display: flex;
+  flex: none;
+  width: 140px;
+  height: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  border-radius: 999px;
+}
+
+/* Width is set from the payload through the CSSOM (portfolio-charts.js); only
+   the fill colour and the side it grows from are decided here. */
+.portfolio-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.portfolio-bar-fill.is-gain {
+  background: var(--chart-2);
+}
+
+/* A loss grows towards the axis, so it is pushed to the right of its track. */
+.portfolio-bar-fill.is-loss {
+  margin-left: auto;
+  background: var(--chart-3);
+}
+
+.portfolio-change-amount {
+  flex: none;
+  min-width: 72px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.portfolio-change-divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
 /* Mobile (Design 18b): the toolbar stacks, with the period switcher full width
@@ -555,6 +755,33 @@
      row of design 18b land with the rest of the mobile layout; until then these
      two rules are what keep the screen usable and the page from scrolling
      sideways. */
+
+  /* Baseline only until Part 8: the chart header stacks so the title keeps one
+     line, the bottom row goes single column, and the donut sits above its legend
+     rather than being squeezed below its fixed 132px. */
+  .portfolio-chart-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .portfolio-chart-legend {
+    gap: 12px;
+    margin-left: 0;
+  }
+
+  .portfolio-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-alloc-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portfolio-donut {
+    align-self: center;
+  }
+
   .portfolio-summary {
     grid-template-columns: 1fr;
   }

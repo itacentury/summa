@@ -285,9 +285,36 @@ const portfolioPayload = () => ({
     depot_count: 2,
     last_snapshot_date: "2026-09-06",
   },
-  allocation: [],
-  changes: { gainers: [], losers: [] },
-  series: { dates: [], portfolio: [], invested: [], benchmark: [] },
+  allocation: [
+    {
+      label: "Deka Industrie 0",
+      value_eur: 4925.73,
+      share_pct: 73.2,
+      aggregated_count: 0,
+    },
+    {
+      label: "MSCI World SRI",
+      value_eur: 1389.27,
+      share_pct: 20.7,
+      aggregated_count: 0,
+    },
+    {
+      label: "FTSE All-World",
+      value_eur: 412.42,
+      share_pct: 6.1,
+      aggregated_count: 0,
+    },
+  ],
+  changes: {
+    gainers: [{ position_id: 12, name: "FTSE All-World", week_delta: 5.12 }],
+    losers: [{ position_id: 21, name: "Deka Industrie 0", week_delta: -33.2 }],
+  },
+  series: {
+    dates: ["2026-08-30", "2026-09-06"],
+    portfolio: [6743.0, 6727.42],
+    invested: [6350.0, 6350.0],
+    benchmark: [6743.0, 6751.4],
+  },
   benchmark_source: "feed",
   benchmark_updated_at: "2026-09-06",
 });
@@ -357,7 +384,18 @@ const viewMarkup = `
       <ul class="portfolio-depot-menu" role="listbox"></ul>
     </div>
     <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
+    <div class="is-hidden" data-el="portfolio-chart-card">
+      <span class="is-hidden" data-el="portfolio-legend-benchmark"></span>
+      <div class="portfolio-chart-body"><canvas data-el="portfolio-chart"></canvas></div>
+      <div class="is-hidden" data-el="portfolio-chart-empty"></div>
+      <div data-el="portfolio-chart-note"></div>
+    </div>
     <div class="portfolio-list is-hidden" data-el="portfolio-list"></div>
+    <div class="portfolio-bottom is-hidden" data-el="portfolio-bottom">
+      <div class="portfolio-donut"><canvas data-el="portfolio-allocation-chart"></canvas></div>
+      <div data-el="portfolio-allocation-legend"></div>
+      <div data-el="portfolio-changes"></div>
+    </div>
     <div class="portfolio-empty is-hidden" data-el="portfolio-empty"></div>
   </div>
 `;
@@ -379,6 +417,11 @@ describe("portfolio rendering", () => {
     state.portfolioRange = "1y";
     state.depotFilter = "all";
     vi.clearAllMocks();
+    // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
+    // A function declaration, not an arrow: the charts call it with `new`.
+    globalThis.Chart = vi.fn(function ChartStub() {
+      this.destroy = vi.fn();
+    });
     global.fetch = vi.fn(async () => jsonResponse(portfolioPayload()));
     setupPortfolioListeners();
   });
@@ -563,6 +606,11 @@ describe("portfolio group collapsing and row expansion", () => {
     state.portfolioRange = "1y";
     state.depotFilter = "all";
     vi.clearAllMocks();
+    // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
+    // A function declaration, not an arrow: the charts call it with `new`.
+    globalThis.Chart = vi.fn(function ChartStub() {
+      this.destroy = vi.fn();
+    });
     global.fetch = vi.fn(async () => jsonResponse(portfolioPayload()));
     setupPortfolioListeners();
     await loadPortfolio();

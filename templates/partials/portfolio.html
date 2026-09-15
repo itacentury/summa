@@ -79,8 +79,73 @@
   <!-- Summary Cards -->
   <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
 
+  {# The legend is hand-built markup rather than Chart.js' own, so it can sit in
+     the card header next to the title the way the stats cards do. #}
+  <div
+    class="chart-card portfolio-chart-card is-hidden"
+    data-el="portfolio-chart-card"
+  >
+    <div class="chart-header portfolio-chart-header">
+      <h3 class="chart-title">Value over time</h3>
+      <div class="portfolio-chart-legend">
+        <span class="portfolio-legend-item">
+          <span class="portfolio-legend-bar is-portfolio"></span>Portfolio
+        </span>
+        <span class="portfolio-legend-item">
+          <span class="portfolio-legend-bar is-invested"></span>Invested
+        </span>
+        <span
+          class="portfolio-legend-item"
+          data-el="portfolio-legend-benchmark"
+        >
+          <span class="portfolio-legend-bar is-benchmark"></span>MSCI World
+        </span>
+      </div>
+    </div>
+    <div class="chart-container portfolio-chart-body">
+      <canvas data-el="portfolio-chart"></canvas>
+    </div>
+    <div
+      class="portfolio-chart-empty is-hidden"
+      data-el="portfolio-chart-empty"
+    >
+      <div class="empty-state">
+        <div class="empty-title">No snapshots in this period</div>
+        <div class="empty-text">
+          Pick a longer period, or record a snapshot for this week.
+        </div>
+      </div>
+    </div>
+    <div class="portfolio-chart-note" data-el="portfolio-chart-note"></div>
+  </div>
+
   <!-- Positions List -->
   <div class="portfolio-list is-hidden" data-el="portfolio-list"></div>
+
+  <!-- Allocation and Biggest Changes -->
+  <div class="portfolio-bottom is-hidden" data-el="portfolio-bottom">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3 class="chart-title">Allocation</h3>
+      </div>
+      <div class="portfolio-alloc-body">
+        <div class="portfolio-donut">
+          <canvas data-el="portfolio-allocation-chart"></canvas>
+        </div>
+        <div
+          class="portfolio-alloc-legend"
+          data-el="portfolio-allocation-legend"
+        ></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3 class="chart-title">Biggest changes · last week</h3>
+      </div>
+      <div class="portfolio-changes" data-el="portfolio-changes"></div>
+    </div>
+  </div>
 
   <!-- Empty State -->
   <div class="portfolio-empty is-hidden" data-el="portfolio-empty">

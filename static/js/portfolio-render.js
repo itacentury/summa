@@ -325,3 +325,95 @@ export function positionsListHtml(
     .join("");
   return groups + listFooterHtml(payload.totals);
 }
+
+/**
+ * Build the allocation legend rows.
+ *
+ * Nothing is recomputed here: `share_pct` arrives as a finished 0-100 figure and
+ * the server has already capped the list at the top slices plus one pooled
+ * entry, whose `label` reads `"4 more"`. The swatches are left uncoloured — their
+ * fill is painted through the CSSOM in `portfolio-charts.js`, which a strict
+ * `style-src` CSP requires.
+ */
+export function allocationLegendHtml(allocation) {
+  if (allocation.length === 0)
+    return '<div class="portfolio-card-empty">Nothing held in this period.</div>';
+
+  return allocation
+    .map((slice) => {
+      const aggregated = slice.aggregated_count > 0 ? " is-aggregated" : "";
+      return `
+        <div class="portfolio-alloc-item${aggregated}">
+          <span class="portfolio-alloc-color"></span>
+          <span class="portfolio-alloc-label">${escapeHtml(slice.label)}</span>
+          <span class="portfolio-alloc-percent">${slice.share_pct.toFixed(1)} %</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+/**
+ * Build one biggest-changes row.
+ *
+ * The bar's length rides on `data-share` rather than a style attribute, for the
+ * same CSP reason as the allocation swatches.
+ */
+function changeRowHtml(change, largest) {
+  const share = largest > 0 ? Math.abs(change.week_delta) / largest : 0;
+  const tone = toneClass(change.week_delta);
+
+  return `
+    <div class="portfolio-change-row">
+      <span class="portfolio-change-name">${escapeHtml(change.name)}</span>
+      <span class="portfolio-bar-track">
+        <span class="portfolio-bar-fill ${tone}" data-share="${share}"></span>
+      </span>
+      <span class="portfolio-change-amount ${tone}">${formatSigned(change.week_delta)}</span>
+    </div>
+  `;
+}
+
+/**
+ * Build the biggest-changes list: gainers, then losers under a divider.
+ *
+ * Both halves are scaled against the single largest absolute move across the two
+ * lists, so the longest gainer and the longest loser bar stay comparable instead
+ * of each filling its own track.
+ */
+export function biggestChangesHtml({ gainers = [], losers = [] } = {}) {
+  if (gainers.length === 0 && losers.length === 0)
+    return '<div class="portfolio-card-empty">No movement in this period.</div>';
+
+  const largest = [...gainers, ...losers].reduce(
+    (max, change) => Math.max(max, Math.abs(change.week_delta)),
+    0,
+  );
+  const gainerRows = gainers
+    .map((change) => changeRowHtml(change, largest))
+    .join("");
+  const loserRows = losers
+    .map((change) => changeRowHtml(change, largest))
+    .join("");
+  const divider =
+    gainerRows && loserRows
+      ? '<div class="portfolio-change-divider"></div>'
+      : "";
+
+  return gainerRows + divider + loserRows;
+}
+
+/**
+ * Build the note under the value-over-time chart naming the benchmark's origin.
+ *
+ * A failed feed is not an error the user can act on — it only changes this one
+ * sentence, which is why the fallback wording names the substitute rather than
+ * the failure. Returns plain text, so the caller assigns it as `textContent`.
+ */
+export function benchmarkNoteText(source, updatedAt) {
+  if (source === "fallback")
+    return "Benchmark: own MSCI World SRI (index feed unavailable)";
+  if (source === "feed")
+    return `Benchmark from index feed · last updated ${formatDateDots(updatedAt)}`;
+  return "";
+}

@@ -18,6 +18,7 @@ import { apiFetch } from "./http.js";
 import { showErrorToast } from "./toast.js";
 import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
 import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
+import { renderPortfolioCharts } from "./portfolio-charts.js";
 
 // The live depot dropdown, and the ids of the last rendered payload's positions —
 // what the pruning below needs to drop expansions that no longer exist.
@@ -44,22 +45,25 @@ export function restorePortfolioPrefs() {
     state.depotFilter = depot;
 }
 
-/** The four containers the view toggles between its loading, empty and data states. */
+/** The containers the view toggles between its loading, empty and data states. */
 function portfolioElements() {
   return {
     summary: document.querySelector('[data-el="portfolio-summary"]'),
+    chartCard: document.querySelector('[data-el="portfolio-chart-card"]'),
     list: document.querySelector('[data-el="portfolio-list"]'),
+    bottom: document.querySelector('[data-el="portfolio-bottom"]'),
     empty: document.querySelector('[data-el="portfolio-empty"]'),
   };
 }
 
 /**
- * Show the empty state, or the summary and list, but never both.
+ * Show the empty state, or the data sections, but never both.
  */
 function showSections({ hasPositions }) {
-  const { summary, list, empty } = portfolioElements();
-  summary.classList.toggle("is-hidden", !hasPositions);
-  list.classList.toggle("is-hidden", !hasPositions);
+  const { summary, chartCard, list, bottom, empty } = portfolioElements();
+  [summary, chartCard, list, bottom].forEach((section) =>
+    section?.classList.toggle("is-hidden", !hasPositions),
+  );
   empty.classList.toggle("is-hidden", hasPositions);
 }
 
@@ -98,6 +102,7 @@ function renderPortfolio(payload) {
     collapsed: collapsedDepots,
     expanded: expandedPositions,
   });
+  renderPortfolioCharts(payload);
   hasRendered = true;
 }
 
