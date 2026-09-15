@@ -479,6 +479,12 @@ body.stats-mode .filters-collapsible {
   display: none;
 }
 
+/* Portfolio view: unlike stats it brings its own period switcher, so the whole
+   invoice filter row goes rather than just the search and the panel. */
+body.portfolio-mode .filters {
+  display: none;
+}
+
 @media (width <= 900px) {
   .filters-panel {
     grid-template-columns: 1fr 1fr;

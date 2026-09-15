@@ -101,6 +101,10 @@
     />
     <link
       rel="stylesheet"
+      href="{{ url_for('static', filename='css/portfolio.css') }}"
+    />
+    <link
+      rel="stylesheet"
       href="{{ url_for('static', filename='css/utilities.css') }}"
     />
   </head>
@@ -113,6 +117,7 @@
         {% include "partials/filters.html" %}
         {% include "partials/invoices.html" %}
         {% include "partials/stats.html" %}
+        {% include "partials/portfolio.html" %}
       </main>
     </div>
 
@@ -124,6 +129,8 @@
     {% endif %}
     {% include "partials/modals/shortcuts-help.html" %}
     {% include "partials/modals/settings.html" %}
+    {% include "partials/modals/portfolio-snapshot.html" %}
+    {% include "partials/modals/portfolio-position.html" %}
     {% include "partials/bulk-toolbar.html" %}
 
     {# Toasts must follow the bulk-action toolbar in the DOM so toast.css can

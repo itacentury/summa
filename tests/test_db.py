@@ -202,3 +202,185 @@ def test_get_db_enables_wal(temp_db: Path) -> None:
         conn.close()
 
     assert mode.lower() == "wal"
+
+
+def _seed_snapshot(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Insert one depot, one position and one snapshot, returning the parent ids."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO portfolio_depots (name) VALUES (?)", ("Trade Republic",)
+    )
+    depot_id: int | None = cursor.lastrowid
+    assert depot_id is not None
+    cursor.execute(
+        "INSERT INTO portfolio_positions (depot_id, name, kind) VALUES (?, ?, ?)",
+        (depot_id, "MSCI World SRI", "etf"),
+    )
+    position_id: int | None = cursor.lastrowid
+    assert position_id is not None
+    cursor.execute(
+        "INSERT INTO portfolio_snapshots (position_id, date, value) VALUES (?, ?, ?)",
+        (position_id, "2024-01-07", 1131.16),
+    )
+    conn.commit()
+    return depot_id, position_id
+
+
+def test_init_db_creates_portfolio_tables(temp_db: Path) -> None:
+    """init_db creates the four portfolio tables with the expected columns."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        depot_columns: list[str] = _columns(conn, "portfolio_depots")
+        position_columns: list[str] = _columns(conn, "portfolio_positions")
+        snapshot_columns: list[str] = _columns(conn, "portfolio_snapshots")
+        benchmark_columns: list[str] = _columns(conn, "benchmark_prices")
+    finally:
+        conn.close()
+
+    assert {"id", "name", "sort_order", "created_at"} <= set(depot_columns)
+    assert {
+        "id",
+        "depot_id",
+        "name",
+        "kind",
+        "currency",
+        "is_benchmark_fallback",
+        "closed_at",
+        "sort_order",
+        "created_at",
+    } <= set(position_columns)
+    assert {
+        "id",
+        "position_id",
+        "date",
+        "value",
+        "deposit",
+        "fx_rate",
+        "carried",
+        "created_at",
+    } <= set(snapshot_columns)
+    assert {"symbol", "date", "close"} <= set(benchmark_columns)
+
+
+def test_init_db_creates_portfolio_indexes(temp_db: Path) -> None:
+    """init_db creates the portfolio access-pattern indexes."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+        indexes: set[str] = {row[0] for row in cursor.fetchall()}
+    finally:
+        conn.close()
+
+    assert {
+        "idx_portfolio_snapshots_position_date",
+        "idx_portfolio_positions_depot",
+    } <= indexes
+
+
+@pytest.mark.parametrize(
+    ("statement", "parameters"),
+    [
+        (
+            "INSERT INTO portfolio_depots (name) VALUES (?)",
+            ("Trade Republic",),
+        ),
+        (
+            "INSERT INTO portfolio_positions (depot_id, name, kind) VALUES (?, ?, ?)",
+            (1, "MSCI World SRI", "etf"),
+        ),
+        (
+            "INSERT INTO portfolio_snapshots (position_id, date, value) VALUES (?, ?, ?)",
+            (1, "2024-01-07", 900.0),
+        ),
+    ],
+)
+def test_portfolio_unique_constraints_reject_duplicates(
+    temp_db: Path, statement: str, parameters: tuple[object, ...]
+) -> None:
+    """Re-inserting a depot name, a depot position or a position date is rejected."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        _seed_snapshot(conn)
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(statement, parameters)
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    ("statement", "parameters"),
+    [
+        (
+            "INSERT INTO portfolio_positions (depot_id, name, kind) VALUES (?, ?, ?)",
+            (1, "Bitcoin", "crypto"),
+        ),
+        (
+            "INSERT INTO portfolio_snapshots (position_id, date, value, fx_rate) "
+            "VALUES (?, ?, ?, ?)",
+            (1, "2024-01-14", 900.0, 0.0),
+        ),
+        (
+            "INSERT INTO portfolio_snapshots (position_id, date, value, carried) "
+            "VALUES (?, ?, ?, ?)",
+            (1, "2024-01-14", 900.0, 2),
+        ),
+        (
+            "INSERT INTO portfolio_snapshots (position_id, date, value) VALUES (?, ?, ?)",
+            (1, "2024-01-14", -500.0),
+        ),
+    ],
+)
+def test_portfolio_check_constraints_reject_invalid_values(
+    temp_db: Path, statement: str, parameters: tuple[object, ...]
+) -> None:
+    """An unknown kind, a non-positive fx_rate, a non-boolean carried and a negative value are rejected."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        _seed_snapshot(conn)
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(statement, parameters)
+    finally:
+        conn.close()
+
+
+def test_deleting_depot_cascades_to_positions_and_snapshots(temp_db: Path) -> None:
+    """Deleting a depot removes its positions and their snapshots."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        depot_id, _ = _seed_snapshot(conn)
+        conn.execute("DELETE FROM portfolio_depots WHERE id = ?", (depot_id,))
+        conn.commit()
+        positions: int = conn.execute(
+            "SELECT COUNT(*) FROM portfolio_positions"
+        ).fetchone()[0]
+        snapshots: int = conn.execute(
+            "SELECT COUNT(*) FROM portfolio_snapshots"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert positions == 0
+    assert snapshots == 0
+
+
+def test_get_db_enforces_foreign_keys(temp_db: Path) -> None:
+    """get_db turns on foreign key enforcement, without which cascades are inert."""
+    db.init_db()
+
+    conn = db.get_db()
+    try:
+        enabled = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert enabled == 1

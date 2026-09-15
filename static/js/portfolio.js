@@ -1,0 +1,277 @@
+/**
+ * Portfolio view: loading `GET /api/portfolio` and driving the toolbar, the
+ * summary cards and the grouped positions list.
+ *
+ * The markup itself is built in `portfolio-render.js`; this module owns the
+ * fetching, the persisted preferences and the delegated listeners.
+ */
+
+import {
+  state,
+  collapsedDepots,
+  expandedPositions,
+  PORTFOLIO_RANGES,
+  PORTFOLIO_RANGE_STORAGE_KEY,
+  PORTFOLIO_DEPOT_STORAGE_KEY,
+} from "./state.js";
+import { apiFetch } from "./http.js";
+import { showErrorToast } from "./toast.js";
+import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
+import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
+import { renderPortfolioCharts } from "./portfolio-charts.js";
+
+// The live depot dropdown, and the ids of the last rendered payload's positions —
+// what the pruning below needs to drop expansions that no longer exist.
+let depotFilter = null;
+const positionIds = new Set();
+
+// A refetch keeps the current list on screen; only the very first load has
+// nothing to show and gets the spinner.
+let hasRendered = false;
+
+/**
+ * Restore the persisted period and depot filter before the first render.
+ *
+ * The depot id cannot be checked against the real depots this early, so only
+ * its shape is validated; the view falls back to "all" once it sees a payload
+ * without that depot.
+ */
+export function restorePortfolioPrefs() {
+  const range = localStorage.getItem(PORTFOLIO_RANGE_STORAGE_KEY);
+  if (PORTFOLIO_RANGES.includes(range)) state.portfolioRange = range;
+
+  const depot = localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY);
+  if (depot === DEPOT_ALL || /^\d+$/.test(depot ?? ""))
+    state.depotFilter = depot;
+}
+
+/** The containers the view toggles between its loading, empty and data states. */
+function portfolioElements() {
+  return {
+    summary: document.querySelector('[data-el="portfolio-summary"]'),
+    chartCard: document.querySelector('[data-el="portfolio-chart-card"]'),
+    list: document.querySelector('[data-el="portfolio-list"]'),
+    bottom: document.querySelector('[data-el="portfolio-bottom"]'),
+    empty: document.querySelector('[data-el="portfolio-empty"]'),
+  };
+}
+
+/**
+ * Show the empty state, or the data sections, but never both.
+ */
+function showSections({ hasPositions }) {
+  const { summary, chartCard, list, bottom, empty } = portfolioElements();
+  [summary, chartCard, list, bottom].forEach((section) =>
+    section?.classList.toggle("is-hidden", !hasPositions),
+  );
+  empty.classList.toggle("is-hidden", hasPositions);
+}
+
+/**
+ * Render a payload into the cards and the list, and record its position ids so
+ * a vanished one cannot keep a stale expansion alive.
+ */
+function renderPortfolio(payload) {
+  const { summary, list } = portfolioElements();
+
+  positionIds.clear();
+  payload.depots.forEach((depot) => {
+    depot.positions.forEach((position) => positionIds.add(position.id));
+  });
+
+  // A depot or position that disappeared (filter change, sale) must not keep a
+  // stale id alive in either set, where it would silently re-open later.
+  const depotIds = new Set(payload.depots.map((depot) => depot.id));
+  collapsedDepots.forEach((id) => {
+    if (!depotIds.has(id)) collapsedDepots.delete(id);
+  });
+  expandedPositions.forEach((id) => {
+    if (!positionIds.has(id)) expandedPositions.delete(id);
+  });
+
+  // Not `totals.position_count` — that counts only what is still held, so a
+  // fully sold portfolio would hide its own rows and realized gain behind the
+  // first-run empty state.
+  showSections({
+    hasPositions: payload.depots.some((depot) => depot.positions.length > 0),
+  });
+  summary.innerHTML = summaryCardsHtml(payload.totals);
+  list.innerHTML = positionsListHtml(payload, {
+    collapsed: collapsedDepots,
+    expanded: expandedPositions,
+  });
+  renderPortfolioCharts(payload);
+  hasRendered = true;
+}
+
+/**
+ * Whether the persisted depot filter still names a depot the server knows.
+ *
+ * `restorePortfolioPrefs()` can only validate the *shape* of a stored id; this
+ * is where a deleted or renumbered depot is actually caught.
+ */
+function depotFilterIsStale(payload) {
+  if (state.depotFilter === DEPOT_ALL) return false;
+  return !payload.depots.some(
+    (depot) => String(depot.id) === state.depotFilter,
+  );
+}
+
+/** Drop a depot filter the server does not recognise, both in state and storage. */
+function clearDepotFilter() {
+  state.depotFilter = DEPOT_ALL;
+  localStorage.removeItem(PORTFOLIO_DEPOT_STORAGE_KEY);
+  if (depotFilter) depotFilter.setValue(DEPOT_ALL);
+}
+
+/**
+ * Load and render the portfolio for the active period and depot filter.
+ *
+ * `allowRetry` guards the one recovery this function performs: a stored depot
+ * the server rejects is cleared and the load repeated exactly once, so a
+ * permanently unknown id cannot spin.
+ */
+export async function loadPortfolio(allowRetry = true) {
+  const { list } = portfolioElements();
+  if (!list) return;
+
+  const params = new URLSearchParams({ range: state.portfolioRange });
+  if (state.depotFilter !== DEPOT_ALL) params.set("depot", state.depotFilter);
+
+  if (!hasRendered) {
+    list.classList.remove("is-hidden");
+    list.innerHTML =
+      '<div class="portfolio-loading"><div class="spinner"></div></div>';
+  }
+
+  let payload;
+  try {
+    const response = await apiFetch(`/api/portfolio?${params}`);
+    // The server rejects an unknown depot id with a 400 rather than widening
+    // the filter, so the stale-filter recovery has to run from here too. Any
+    // other failure is transient and must leave the persisted filter alone.
+    if (
+      response.status === 400 &&
+      allowRetry &&
+      state.depotFilter !== DEPOT_ALL
+    ) {
+      clearDepotFilter();
+      await loadPortfolio(false);
+      return;
+    }
+    // apiFetch resolves for any status, so `ok` is checked here rather than
+    // letting an error body fall through as if it were a payload.
+    if (!response.ok)
+      throw new Error(`Portfolio request failed: ${response.status}`);
+    payload = await response.json();
+  } catch (error) {
+    console.error("Error loading portfolio:", error);
+    if (!hasRendered) list.innerHTML = "";
+    showErrorToast("Failed to load portfolio");
+    return;
+  }
+
+  if (allowRetry && depotFilterIsStale(payload)) {
+    clearDepotFilter();
+    await loadPortfolio(false);
+    return;
+  }
+
+  if (depotFilter) depotFilter.setOptions(payload.depots);
+  renderPortfolio(payload);
+}
+
+/** Mark the pill matching the active period, clearing the others. */
+function syncPeriodButtons() {
+  document.querySelectorAll(".portfolio-period-btn").forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      button.dataset.range === state.portfolioRange,
+    );
+  });
+}
+
+/**
+ * Switch the portfolio period, persist it and reload. Unknown tokens are
+ * ignored — the pills are the only caller, but the value ends up in
+ * localStorage and must stay within the allowlist.
+ */
+function setPortfolioRange(range) {
+  if (!PORTFOLIO_RANGES.includes(range)) return;
+  state.portfolioRange = range;
+  localStorage.setItem(PORTFOLIO_RANGE_STORAGE_KEY, range);
+  syncPeriodButtons();
+  loadPortfolio();
+}
+
+/** Switch the depot filter, persist it and reload. */
+function setDepotFilter(depot) {
+  state.depotFilter = depot;
+  localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, depot);
+  loadPortfolio();
+}
+
+/** Collapse or expand a depot group in place, without refetching. */
+function toggleDepotGroup(header) {
+  const group = header.closest(".portfolio-group");
+  const id = Number(group.dataset.depotId);
+  const collapsed = group.classList.toggle("is-collapsed");
+  header.setAttribute("aria-expanded", String(!collapsed));
+  if (collapsed) collapsedDepots.add(id);
+  else collapsedDepots.delete(id);
+}
+
+/**
+ * Reveal or hide a position's detail strip.
+ *
+ * The strip is only shown and hidden, never inserted or removed: the row's own
+ * markup has to survive expanding untouched, and an always-present strip is what
+ * keeps the row's `aria-controls` resolvable while collapsed.
+ */
+function togglePositionRow(row) {
+  const detail = row.nextElementSibling;
+  if (!detail || !detail.classList.contains("portfolio-detail")) return;
+
+  detail.hidden = !detail.hidden;
+  row.setAttribute("aria-expanded", String(!detail.hidden));
+
+  const id = Number(row.dataset.positionId);
+  if (detail.hidden) expandedPositions.delete(id);
+  else expandedPositions.add(id);
+}
+
+/**
+ * Wire the portfolio toolbar and list. Both are delegated because their
+ * contents are rendered at runtime, while the containers are static markup.
+ */
+export function setupPortfolioListeners() {
+  const period = document.querySelector('[data-el="portfolio-period"]');
+  if (!period) return;
+
+  period.addEventListener("click", (event) => {
+    const button = event.target.closest(".portfolio-period-btn");
+    if (button) setPortfolioRange(button.dataset.range);
+  });
+
+  const depotRoot = document.querySelector('[data-el="portfolio-depot"]');
+  if (depotRoot) {
+    depotFilter = createDepotFilter(depotRoot, { onChange: setDepotFilter });
+    depotFilter.setValue(state.depotFilter);
+  }
+
+  const list = document.querySelector('[data-el="portfolio-list"]');
+  if (list) {
+    list.addEventListener("click", (event) => {
+      const header = event.target.closest(".portfolio-group-header");
+      if (header) {
+        toggleDepotGroup(header);
+        return;
+      }
+      const row = event.target.closest(".portfolio-row");
+      if (row) togglePositionRow(row);
+    });
+  }
+
+  // The markup ships with 1Y active; a restored preference may say otherwise.
+  syncPeriodButtons();
+}
