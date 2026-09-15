@@ -299,7 +299,7 @@ export function listFooterHtml(totals) {
     <div class="portfolio-list-footer">
       <span class="portfolio-list-legend">Columns: position · net invested · value · gain/loss</span>
       <span class="portfolio-list-net">
-        <span class="portfolio-list-net-label">net</span>
+        net
         <span class="portfolio-list-invested">${formatEuroSuffixed(totals.invested_eur)}</span>
       </span>
       <span class="portfolio-list-total">${formatEuroSuffixed(totals.value_eur)}</span>
