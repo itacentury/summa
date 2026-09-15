@@ -23,7 +23,7 @@ import { renderPortfolioCharts } from "./portfolio-charts.js";
 // The live depot dropdown, and the ids of the last rendered payload's positions —
 // what the pruning below needs to drop expansions that no longer exist.
 let depotFilter = null;
-const positionsById = new Map();
+const positionIds = new Set();
 
 // A refetch keeps the current list on screen; only the very first load has
 // nothing to show and gets the spinner.
@@ -68,17 +68,15 @@ function showSections({ hasPositions }) {
 }
 
 /**
- * Render a payload into the cards and the list, and index its positions so a
- * vanished one cannot keep a stale expansion alive.
+ * Render a payload into the cards and the list, and record its position ids so
+ * a vanished one cannot keep a stale expansion alive.
  */
 function renderPortfolio(payload) {
   const { summary, list } = portfolioElements();
 
-  positionsById.clear();
+  positionIds.clear();
   payload.depots.forEach((depot) => {
-    depot.positions.forEach((position) =>
-      positionsById.set(position.id, position),
-    );
+    depot.positions.forEach((position) => positionIds.add(position.id));
   });
 
   // A depot or position that disappeared (filter change, sale) must not keep a
@@ -88,7 +86,7 @@ function renderPortfolio(payload) {
     if (!depotIds.has(id)) collapsedDepots.delete(id);
   });
   expandedPositions.forEach((id) => {
-    if (!positionsById.has(id)) expandedPositions.delete(id);
+    if (!positionIds.has(id)) expandedPositions.delete(id);
   });
 
   // Not `totals.position_count` — that counts only what is still held, so a

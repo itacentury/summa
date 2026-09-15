@@ -647,8 +647,8 @@
   white-space: nowrap;
 }
 
-/* The pooled "N more" row has no swatch of its own to anchor it, so it is muted
-   instead — it names a group, not a position. */
+/* The pooled "N more" row names a group, not a position, so its label is muted
+   against the named slices above it. */
 .portfolio-alloc-item.is-aggregated .portfolio-alloc-label {
   color: var(--text-muted);
 }
