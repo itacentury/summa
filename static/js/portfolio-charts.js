@@ -63,6 +63,10 @@ const TICK_MONTHS = [
 const MAX_AXIS_TICKS = 6;
 const MAX_AXIS_TICKS_MOBILE = 3;
 
+// UTC has no DST, so a week is always exactly seven fixed-length days.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
 /**
  * Convert an ISO day to epoch milliseconds at UTC midnight.
  *
@@ -82,6 +86,13 @@ function formatTick(ms) {
   return `${TICK_MONTHS[date.getUTCMonth()]} ${year}`;
 }
 
+/** Format an axis tick as `02 Sep` — day and month, for a sub-month window. */
+function formatDayTick(ms) {
+  const date = new Date(ms);
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${day} ${TICK_MONTHS[date.getUTCMonth()]}`;
+}
+
 /** Format a tooltip title as `06.09.2026`, matching the dates in the list. */
 function formatTooltipDate(ms) {
   const date = new Date(ms);
@@ -90,26 +101,67 @@ function formatTooltipDate(ms) {
   return `${day}.${month}.${date.getUTCFullYear()}`;
 }
 
+/** Step a UTC timestamp to the first of the following month. */
+function nextMonthStart(ms) {
+  const at = new Date(ms);
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1);
+}
+
+/** The month starts inside the window, ascending. */
+function monthTicks(minMs, maxMs) {
+  const first = new Date(minMs);
+  // The window's own month counts when it opens exactly on the 1st — which is
+  // what "ytd" does every January.
+  let cursor = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1);
+  if (cursor < minMs) cursor = nextMonthStart(cursor);
+
+  const starts = [];
+  while (cursor <= maxMs) {
+    starts.push(cursor);
+    cursor = nextMonthStart(cursor);
+  }
+  return starts;
+}
+
+/** The Monday starts inside the window, ascending. */
+function weekTicks(minMs, maxMs) {
+  const days = (8 - new Date(minMs).getUTCDay()) % 7;
+  const mondays = [];
+  for (let cursor = minMs + days * DAY_MS; cursor <= maxMs; cursor += WEEK_MS) {
+    mondays.push(cursor);
+  }
+  return mondays;
+}
+
+/** Keep at most `limit` values, evenly spaced across the list. */
+function thin(values, limit) {
+  if (values.length <= limit) return values;
+  const step = Math.ceil(values.length / limit);
+  return values.filter((_, index) => index % step === 0);
+}
+
 /**
- * Pick the x-axis ticks: month starts spread across the window.
+ * Pick the x-axis ticks and the resolution to label them in.
  *
  * A linear scale would otherwise place them on round millisecond values, which
  * land mid-month and collapse into duplicate `Oct 25` labels once formatted.
  * This is label placement only — the window itself still comes from the server.
+ *
+ * Month starts carry every window wide enough to hold one. Below that (an early
+ * January under "ytd", a "max" over days of history) there is no month boundary
+ * to place, and an empty tick list renders the axis bare — so the fallback steps
+ * down to weeks, then to the window ends, and the labels step down with it.
+ *
+ * @returns {{values: number[], daily: boolean}} ticks, and whether they need the
+ *   day-resolution format.
  */
-function monthTicks(minMs, maxMs, limit) {
-  const starts = [];
-  const first = new Date(minMs);
-  let cursor = Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1);
-  while (cursor <= maxMs) {
-    starts.push(cursor);
-    const at = new Date(cursor);
-    cursor = Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1);
-  }
+export function axisTicks(minMs, maxMs, limit) {
+  const months = monthTicks(minMs, maxMs);
+  if (months.length > 0) return { values: thin(months, limit), daily: false };
 
-  if (starts.length <= limit) return starts;
-  const step = Math.ceil(starts.length / limit);
-  return starts.filter((_, index) => index % step === 0);
+  const weeks = weekTicks(minMs, maxMs);
+  const ends = minMs === maxMs ? [minMs] : [minMs, maxMs];
+  return { values: thin(weeks.length > 1 ? weeks : ends, limit), daily: true };
 }
 
 /** Zip a value series onto the shared date grid as `{x, y}` points. */
@@ -205,6 +257,9 @@ function renderValueChart(payload) {
   const max = isoToMs(payload.range_end ?? series.dates.at(-1));
   const mobile = mobileViewport.matches;
   const tickLimit = mobile ? MAX_AXIS_TICKS_MOBILE : MAX_AXIS_TICKS;
+  // Built once: the window is fixed for this chart, while `afterBuildTicks`
+  // fires again on every resize.
+  const { values: tickValues, daily } = axisTicks(min, max, tickLimit);
 
   state.portfolioChart = new Chart(canvas, {
     type: "line",
@@ -232,16 +287,15 @@ function renderValueChart(payload) {
           max,
           grid: { color: GRID_COLOR, drawBorder: false },
           afterBuildTicks: (scale) => {
-            scale.ticks = monthTicks(min, max, tickLimit).map((value) => ({
-              value,
-            }));
+            scale.ticks = tickValues.map((value) => ({ value }));
           },
           ticks: {
             color: TICK_COLOR,
             font: MONO_FONT,
             autoSkip: false,
             maxRotation: 0,
-            callback: (value) => formatTick(value),
+            callback: (value) =>
+              daily ? formatDayTick(value) : formatTick(value),
           },
         },
         y: {

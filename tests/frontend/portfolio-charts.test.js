@@ -14,7 +14,10 @@ import {
   benchmarkNoteText,
   biggestChangesHtml,
 } from "../../static/js/portfolio-render.js";
-import { renderPortfolioCharts } from "../../static/js/portfolio-charts.js";
+import {
+  axisTicks,
+  renderPortfolioCharts,
+} from "../../static/js/portfolio-charts.js";
 import { state, chartColors } from "../../static/js/state.js";
 
 const markup = `
@@ -181,6 +184,98 @@ describe("benchmarkNoteText", () => {
   });
 });
 
+describe("axisTicks", () => {
+  const iso = (values) =>
+    values.map((ms) => new Date(ms).toISOString().slice(0, 10));
+
+  it("keeps the opening month of a window that starts on the 1st", () => {
+    // What "ytd" hands the chart every January.
+    const { values } = axisTicks(
+      Date.UTC(2026, 0, 1),
+      Date.UTC(2026, 8, 14),
+      6,
+    );
+
+    expect(iso(values)[0]).toBe("2026-01-01");
+  });
+
+  it("still opens on the next month start when the window starts mid-month", () => {
+    const { values, daily } = axisTicks(
+      Date.UTC(2025, 8, 14),
+      Date.UTC(2026, 8, 14),
+      6,
+    );
+
+    expect(iso(values)[0]).toBe("2025-10-01");
+    expect(daily).toBe(false);
+  });
+
+  it("places every tick on a month start inside the window, ascending", () => {
+    const min = Date.UTC(2025, 8, 14);
+    const max = Date.UTC(2026, 8, 14);
+    const { values } = axisTicks(min, max, 12);
+
+    expect(iso(values).every((date) => date.endsWith("-01"))).toBe(true);
+    expect(values.every((ms) => ms >= min && ms <= max)).toBe(true);
+    expect([...values].sort((a, b) => a - b)).toEqual(values);
+  });
+
+  it("falls back to week starts when no month boundary fits in the window", () => {
+    // "max" over a few weeks of history: 2026-09-02 is a Wednesday.
+    const { values, daily } = axisTicks(
+      Date.UTC(2026, 8, 2),
+      Date.UTC(2026, 8, 29),
+      6,
+    );
+
+    expect(iso(values)).toEqual([
+      "2026-09-07",
+      "2026-09-14",
+      "2026-09-21",
+      "2026-09-28",
+    ]);
+    expect(daily).toBe(true);
+  });
+
+  it("falls back to the window ends when not even two Mondays fit", () => {
+    // "ytd" in the first days of January — the axis used to render bare here.
+    const { values, daily } = axisTicks(
+      Date.UTC(2026, 0, 2),
+      Date.UTC(2026, 0, 6),
+      6,
+    );
+
+    expect(iso(values)).toEqual(["2026-01-02", "2026-01-06"]);
+    expect(daily).toBe(true);
+  });
+
+  it("never hands back an empty tick list, which renders the axis bare", () => {
+    const windows = [
+      [Date.UTC(2026, 0, 1), Date.UTC(2026, 0, 3)],
+      [Date.UTC(2026, 8, 2), Date.UTC(2026, 8, 3)],
+      [Date.UTC(2026, 8, 2), Date.UTC(2026, 8, 2)],
+    ];
+
+    windows.forEach(([min, max]) => {
+      expect(axisTicks(min, max, 6).values.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("collapses a single-day window into one tick rather than a duplicate", () => {
+    const day = Date.UTC(2026, 8, 2);
+
+    expect(axisTicks(day, day, 6).values).toEqual([day]);
+  });
+
+  it("thins the ticks down to the limit the viewport allows", () => {
+    const min = Date.UTC(2025, 8, 14);
+    const max = Date.UTC(2026, 8, 14);
+
+    expect(axisTicks(min, max, 6).values).toHaveLength(6);
+    expect(axisTicks(min, max, 3).values.length).toBeLessThanOrEqual(3);
+  });
+});
+
 describe("renderPortfolioCharts", () => {
   it("spans the axis over the period window, not the data it happens to hold", () => {
     renderPortfolioCharts(chartPayload());
@@ -190,6 +285,19 @@ describe("renderPortfolioCharts", () => {
     expect(x.max).toBe(Date.UTC(2026, 8, 14));
     // Would be the axis if the first and last snapshot decided it.
     expect(x.min).not.toBe(Date.UTC(2026, 7, 30));
+  });
+
+  it("labels the x-axis through the ticks it places by hand", () => {
+    renderPortfolioCharts(chartPayload());
+    const { x } = lineConfig().options.scales;
+    const scale = { ticks: [] };
+
+    x.afterBuildTicks(scale);
+    const labels = scale.ticks.map(({ value }) => x.ticks.callback(value));
+
+    expect(scale.ticks.length).toBeGreaterThan(0);
+    expect(labels[0]).toBe("Oct 25");
+    expect(new Set(labels).size).toBe(labels.length);
   });
 
   it("draws the benchmark as a third line and shows its legend item", () => {
