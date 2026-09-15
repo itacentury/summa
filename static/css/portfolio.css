@@ -429,6 +429,12 @@
   border-bottom: 1px solid var(--bg-primary);
 }
 
+/* The strip is always in the DOM so the row's aria-controls target always
+   resolves; the `display: flex` above would otherwise beat the UA [hidden] rule. */
+.portfolio-detail[hidden] {
+  display: none;
+}
+
 .portfolio-detail-label {
   font-size: 10px;
   font-weight: 700;

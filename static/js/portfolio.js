@@ -17,14 +17,10 @@ import {
 import { apiFetch } from "./http.js";
 import { showErrorToast } from "./toast.js";
 import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
-import {
-  positionDetailHtml,
-  positionsListHtml,
-  summaryCardsHtml,
-} from "./portfolio-render.js";
+import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
 
-// The live depot dropdown, and the positions of the last rendered payload keyed
-// by id — what a row expansion needs to build its detail strip without a refetch.
+// The live depot dropdown, and the ids of the last rendered payload's positions —
+// what the pruning below needs to drop expansions that no longer exist.
 let depotFilter = null;
 const positionsById = new Map();
 
@@ -68,8 +64,8 @@ function showSections({ hasPositions }) {
 }
 
 /**
- * Render a payload into the cards and the list, and index its positions so an
- * expanded row can find its own numbers again.
+ * Render a payload into the cards and the list, and index its positions so a
+ * vanished one cannot keep a stale expansion alive.
  */
 function renderPortfolio(payload) {
   const { summary, list } = portfolioElements();
@@ -223,28 +219,22 @@ function toggleDepotGroup(header) {
 }
 
 /**
- * Toggle a position's detail strip.
+ * Reveal or hide a position's detail strip.
  *
- * The strip is inserted after the row and removed again, never rebuilt into it:
- * the row's own markup has to survive expanding untouched, and keeping the
- * clicked button in the DOM is also what keeps focus on it.
+ * The strip is only shown and hidden, never inserted or removed: the row's own
+ * markup has to survive expanding untouched, and an always-present strip is what
+ * keeps the row's `aria-controls` resolvable while collapsed.
  */
 function togglePositionRow(row) {
+  const detail = row.nextElementSibling;
+  if (!detail || !detail.classList.contains("portfolio-detail")) return;
+
+  detail.hidden = !detail.hidden;
+  row.setAttribute("aria-expanded", String(!detail.hidden));
+
   const id = Number(row.dataset.positionId);
-  const existing = row.nextElementSibling;
-
-  if (existing && existing.classList.contains("portfolio-detail")) {
-    existing.remove();
-    expandedPositions.delete(id);
-    row.setAttribute("aria-expanded", "false");
-    return;
-  }
-
-  const position = positionsById.get(id);
-  if (!position) return;
-  row.insertAdjacentHTML("afterend", positionDetailHtml(position));
-  expandedPositions.add(id);
-  row.setAttribute("aria-expanded", "true");
+  if (detail.hidden) expandedPositions.delete(id);
+  else expandedPositions.add(id);
 }
 
 /**

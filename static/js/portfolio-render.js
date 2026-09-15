@@ -210,15 +210,18 @@ export function positionRowHtml(
  *
  * Rendered as a sibling of the row, never inside it, so expanding cannot move
  * a single cell of the row itself (the same rule the invoice list follows).
+ *
+ * Always rendered, merely hidden while collapsed, because the row's
+ * `aria-controls` has to resolve to an element even before anything is opened.
  */
-export function positionDetailHtml(position) {
+export function positionDetailHtml(position, { hidden = false } = {}) {
   const weekDelta =
     position.week_delta === null ? "—" : formatSigned(position.week_delta);
   const weekTone =
     position.week_delta === null ? "" : toneClass(position.week_delta);
 
   return `
-    <div class="portfolio-detail" id="portfolio-detail-${position.id}">
+    <div class="portfolio-detail" id="portfolio-detail-${position.id}"${hidden ? " hidden" : ""}>
       <div class="portfolio-detail-item">
         <div class="portfolio-detail-label">Original</div>
         <div class="portfolio-detail-value">${escapeHtml(position.currency)} ${formatAmount(
@@ -254,9 +257,9 @@ export function depotGroupHtml(
   const rows = depot.positions
     .map((position) => {
       const isExpanded = open.has(position.id);
-      const detail = isExpanded ? positionDetailHtml(position) : "";
       return (
-        positionRowHtml(position, { rangeStart, expanded: isExpanded }) + detail
+        positionRowHtml(position, { rangeStart, expanded: isExpanded }) +
+        positionDetailHtml(position, { hidden: !isExpanded })
       );
     })
     .join("");

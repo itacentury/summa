@@ -589,13 +589,26 @@ describe("portfolio group collapsing and row expansion", () => {
     ).toBe(true);
   });
 
-  it("appends the detail strip without touching the row's own markup", async () => {
+  it("keeps every collapsed row's aria-controls target in the DOM", async () => {
+    const rows = [...document.querySelectorAll(".portfolio-row")];
+    expect(rows.length).toBeGreaterThan(0);
+
+    rows.forEach((row) => {
+      const strip = document.getElementById(row.getAttribute("aria-controls"));
+      expect(strip).not.toBeNull();
+      expect(strip.hidden).toBe(true);
+      expect(row.getAttribute("aria-expanded")).toBe("false");
+    });
+  });
+
+  it("reveals the detail strip without touching the row's own markup", async () => {
     const row = rowFor(11);
     const before = row.innerHTML;
     row.click();
 
     const strip = row.nextElementSibling;
     expect(strip.classList.contains("portfolio-detail")).toBe(true);
+    expect(strip.hidden).toBe(false);
     expect(strip.textContent).toContain("1.0000");
     expect(strip.textContent).toContain("27");
     expect(rowFor(11).innerHTML).toBe(before);
@@ -606,10 +619,14 @@ describe("portfolio group collapsing and row expansion", () => {
   it("keeps several rows open at once and closes them individually", async () => {
     rowFor(11).click();
     rowFor(12).click();
-    expect(document.querySelectorAll(".portfolio-detail")).toHaveLength(2);
+    expect(
+      document.querySelectorAll(".portfolio-detail:not([hidden])"),
+    ).toHaveLength(2);
 
     rowFor(11).click();
-    expect(document.querySelectorAll(".portfolio-detail")).toHaveLength(1);
+    expect(
+      document.querySelectorAll(".portfolio-detail:not([hidden])"),
+    ).toHaveLength(1);
     expect(expandedPositions.has(11)).toBe(false);
     expect(expandedPositions.has(12)).toBe(true);
   });
@@ -625,7 +642,9 @@ describe("portfolio group collapsing and row expansion", () => {
     await loadPortfolio();
 
     expect(rowFor(12).getAttribute("aria-expanded")).toBe("true");
-    expect(document.querySelectorAll(".portfolio-detail")).toHaveLength(1);
+    expect(
+      document.querySelectorAll(".portfolio-detail:not([hidden])"),
+    ).toHaveLength(1);
   });
 });
 
