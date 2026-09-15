@@ -996,7 +996,37 @@ def test_post_position_creates_it(client: FlaskClient, seed_depot: SeedDepot) ->
     assert response.get_json()["id"] is not None
     payload = client.get("/api/portfolio").get_json()
     assert _position_names(payload) == ["MSCI World SRI"]
+
+
+def test_post_position_defaults_the_currency_to_eur(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """An omitted code is EUR — the default lives at the call site, not in the validator."""
+    client.post(
+        "/api/portfolio/positions",
+        json={"depot_id": seed_depot(), "name": "FTSE", "kind": "etf"},
+    )
+
+    payload = client.get("/api/portfolio").get_json()
     assert payload["depots"][0]["positions"][0]["currency"] == "EUR"
+
+
+def test_post_position_rejects_a_null_currency(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """An explicit null is a 400 — never a silent fallback to EUR."""
+    response = client.post(
+        "/api/portfolio/positions",
+        json={
+            "depot_id": seed_depot(),
+            "name": "FTSE",
+            "kind": "etf",
+            "currency": None,
+        },
+    )
+
+    assert response.status_code == 400
+    assert client.get("/api/portfolio").get_json()["depots"][0]["positions"] == []
 
 
 def test_post_position_normalizes_the_currency(
@@ -1021,14 +1051,13 @@ def test_post_position_normalizes_the_currency(
         {"name": "   "},
         {"currency": "EURO"},
         {"currency": "\u0415UR"},  # Cyrillic homoglyph of "E"
-        {"currency": None},
         {"depot_id": 999},
     ],
 )
 def test_post_position_rejects_invalid_input(
     client: FlaskClient, seed_depot: SeedDepot, overrides: dict[str, Any]
 ) -> None:
-    """An unknown kind, an empty name, a bad or null code or a missing depot is a 400."""
+    """An unknown kind, an empty name, a bad code or a missing depot is a 400."""
     body: dict[str, Any] = {
         "depot_id": seed_depot(),
         "name": "MSCI World SRI",
