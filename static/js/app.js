@@ -23,6 +23,8 @@ import { setupBulkListeners } from "./bulk.js";
 import { setupStatsListeners } from "./stats.js";
 import { setupViewListeners } from "./views.js";
 import { restorePortfolioPrefs, setupPortfolioListeners } from "./portfolio.js";
+import { setupSnapshotListeners } from "./portfolio-snapshot.js";
+import { setupPositionListeners } from "./portfolio-position.js";
 import { setupImportListeners } from "./import.js";
 import { setupCategorizeListeners } from "./categorize.js";
 import { setupComboboxes } from "./combobox.js";
@@ -129,6 +131,8 @@ function init() {
     setupStatsListeners,
     setupViewListeners,
     setupPortfolioListeners,
+    setupSnapshotListeners,
+    setupPositionListeners,
     setupImportListeners,
     setupCategorizeListeners,
     initToastListeners,

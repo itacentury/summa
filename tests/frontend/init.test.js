@@ -35,6 +35,8 @@ const steps = vi.hoisted(() => {
     "setupViewListeners",
     "restorePortfolioPrefs",
     "setupPortfolioListeners",
+    "setupSnapshotListeners",
+    "setupPositionListeners",
     "setupImportListeners",
     "setupCategorizeListeners",
     "initToastListeners",
@@ -81,6 +83,12 @@ vi.mock("../../static/js/views.js", () => ({
 vi.mock("../../static/js/portfolio.js", () => ({
   restorePortfolioPrefs: steps.restorePortfolioPrefs,
   setupPortfolioListeners: steps.setupPortfolioListeners,
+}));
+vi.mock("../../static/js/portfolio-snapshot.js", () => ({
+  setupSnapshotListeners: steps.setupSnapshotListeners,
+}));
+vi.mock("../../static/js/portfolio-position.js", () => ({
+  setupPositionListeners: steps.setupPositionListeners,
 }));
 vi.mock("../../static/js/import.js", () => ({
   setupImportListeners: steps.setupImportListeners,
@@ -134,6 +142,8 @@ const WIRING_STEPS = [
   "setupStatsListeners",
   "setupViewListeners",
   "setupPortfolioListeners",
+  "setupSnapshotListeners",
+  "setupPositionListeners",
   "setupImportListeners",
   "setupCategorizeListeners",
   "initToastListeners",

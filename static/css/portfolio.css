@@ -730,6 +730,208 @@
   background: var(--border-subtle);
 }
 
+/* ====== SNAPSHOT MODAL ====== */
+
+/* Wider than the default dialog: a row carries three number columns next to the
+   position name. */
+.snapshot-modal {
+  max-width: 680px;
+}
+
+.snapshot-modal .modal-header {
+  gap: 12px;
+}
+
+/* The rows carry their own side padding, so the column strip and the depot
+   labels can span the full width of the dialog. */
+.snapshot-modal .modal-body {
+  padding: 0;
+}
+
+.snapshot-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.snapshot-hint {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.snapshot-hint.is-warning {
+  color: var(--danger-subtle-text);
+}
+
+.snapshot-date {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.snapshot-date:focus-within {
+  border-color: var(--accent);
+}
+
+.snapshot-date input {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+}
+
+.snapshot-date input:focus {
+  outline: none;
+}
+
+/* Column legend and position rows share one grid of widths. */
+.snapshot-columns,
+.snapshot-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 20px;
+}
+
+.snapshot-columns {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.snapshot-columns .snapshot-cell-value,
+.snapshot-columns .snapshot-cell-deposit {
+  text-align: right;
+}
+
+.snapshot-depot {
+  padding: 10px 20px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.snapshot-cell-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.snapshot-row-currency {
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.snapshot-cell-value {
+  flex: none;
+  width: 104px;
+}
+
+.snapshot-cell-deposit {
+  flex: none;
+  width: 96px;
+}
+
+.snapshot-cell-delta {
+  flex: none;
+  width: 84px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* An untouched row reports no move, only that it carries its value forward. */
+.snapshot-cell-delta.is-carried {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.snapshot-input {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  transition: border-color var(--transition);
+}
+
+.snapshot-input:focus-within {
+  background: var(--bg-card);
+  border-color: var(--accent);
+}
+
+.snapshot-input:has(.is-invalid) {
+  border-color: var(--danger);
+}
+
+.snapshot-input-prefix {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.snapshot-input input {
+  width: 100%;
+  min-width: 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  text-align: right;
+  background: none;
+  border: none;
+}
+
+.snapshot-input input:focus {
+  outline: none;
+}
+
+.snapshot-input input::placeholder {
+  color: var(--text-faint);
+}
+
+.snapshot-add {
+  margin: 6px 20px 16px;
+}
+
+.snapshot-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.snapshot-footer {
+  align-items: center;
+}
+
+.snapshot-total {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.snapshot-total b {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--text-primary);
+}
+
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
 /* Mobile (Design 18b): the toolbar stacks, with the period switcher full width
@@ -800,5 +1002,46 @@
 
   .portfolio-row-main {
     min-width: 160px;
+  }
+
+  /* Snapshot sheet: the column legend gives way to a stacked block per position,
+     with the two fields side by side under the name and inputs tall enough to
+     hit. The footer keeps its own line for the running total. */
+  .snapshot-columns {
+    display: none;
+  }
+
+  .snapshot-row {
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+  }
+
+  .snapshot-cell-name {
+    flex: 1 0 100%;
+  }
+
+  .snapshot-cell-value,
+  .snapshot-cell-deposit {
+    flex: 1;
+    width: auto;
+  }
+
+  /* min-height rather than padding alone: the field has to clear the 44px
+     touch target whatever the mono font's line box measures. */
+  .snapshot-input {
+    min-height: 44px;
+    padding: 11px 12px;
+  }
+
+  .snapshot-cell-delta {
+    width: 74px;
+  }
+
+  .snapshot-footer {
+    flex-wrap: wrap;
+  }
+
+  .snapshot-total {
+    flex: 1 0 100%;
   }
 }

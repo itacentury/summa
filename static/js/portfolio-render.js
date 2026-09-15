@@ -1,10 +1,11 @@
 /**
- * Portfolio markup: the summary cards, the depot groups and the position rows.
+ * Portfolio numbers and markup: the amount vocabulary, the summary cards, the
+ * depot groups and the position rows.
  *
- * Pure module — every export takes a slice of the `GET /api/portfolio` payload
- * and returns an HTML string. Nothing here touches the DOM, `fetch` or
- * `state`, so each rule below is provable without mounting the view. Imports
- * only from `dom.js`, which is itself a leaf.
+ * Pure module — every export either formats or parses a number, or takes a
+ * slice of the `GET /api/portfolio` payload and returns an HTML string. Nothing
+ * here touches the DOM, `fetch` or `state`, so each rule below is provable
+ * without mounting the view. Imports only from `dom.js`, which is itself a leaf.
  */
 
 import { escapeHtml } from "./dom.js";
@@ -77,6 +78,55 @@ export function formatDateDots(isoDate) {
   if (!isoDate) return "";
   const [year, month, day] = isoDate.split("-");
   return `${day}.${month}.${year}`;
+}
+
+/**
+ * Whether a number written with a single kind of separator groups perfectly into
+ * thousands (`1.234`, `12,345,678`) — the only shape that cannot be a fraction.
+ */
+function isGroupedThousands(text, separator) {
+  const pattern =
+    separator === "," ? /^-?\d{1,3}(,\d{3})+$/ : /^-?\d{1,3}(\.\d{3})+$/;
+  return pattern.test(text);
+}
+
+/**
+ * Parse an amount a user typed, in either German or English notation.
+ *
+ * The snapshot form is the one place where numbers travel the other way, and the
+ * user's own spreadsheet writes `1.234,56` while the app renders `1,234.56` — so
+ * both have to read as the same amount. With both separators present the later
+ * one is the decimal point. A single kind is ambiguous (`1.234` is thousands,
+ * `12.34` a fraction), and is read as grouping only when the digits group
+ * perfectly, which no two-decimal fraction does.
+ *
+ * Returns `null` for a blank field — the API's "carry the previous value
+ * forward" signal, which is not the same as zero — and `NaN` for anything
+ * unparseable, so a caller can tell the two apart.
+ */
+export function parseAmountInput(text) {
+  const cleaned = String(text ?? "").replace(/[\s\u00a0\u202f€$]/g, "");
+  if (cleaned === "") return null;
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+
+  let normalized = cleaned;
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0 || lastDot >= 0) {
+    const separator = lastComma >= 0 ? "," : ".";
+    normalized = isGroupedThousands(cleaned, separator)
+      ? cleaned.split(separator).join("")
+      : cleaned.replace(separator, ".");
+  }
+
+  // A full-string test rather than parseFloat(), which would read `12abc` as 12
+  // and a stray second separator as a silently truncated number.
+  return /^-?\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : NaN;
 }
 
 /** Map a signed amount onto its colour class, so the palette stays in CSS. */

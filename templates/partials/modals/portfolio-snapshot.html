@@ -1,0 +1,77 @@
+{% from "partials/_macros.html" import modal_close_button %}
+<!-- New Snapshot Modal -->
+<div class="modal-overlay" data-el="portfolio-snapshot-modal">
+  <div
+    class="modal modal-sheet snapshot-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="snapshot-title"
+  >
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <div class="modal-header">
+      <div class="snapshot-heading">
+        <h3 class="modal-title" id="snapshot-title">New snapshot</h3>
+        <p class="snapshot-hint" data-el="snapshot-hint">
+          Leave a field empty to carry the previous value forward.
+        </p>
+      </div>
+      {# Nested rather than associated by id: the field needs a label, and the
+         visible one is the calendar icon next to it. #}
+      <label class="snapshot-date">
+        <span class="visually-hidden">Snapshot date</span>
+        <input type="date" data-el="snapshot-date" data-autofocus />
+      </label>
+      {{ modal_close_button() }}
+    </div>
+    <div class="modal-body">
+      {# Decorative: each input carries its own aria-label naming the position,
+         so the strip is only a visual column legend. #}
+      <div class="snapshot-columns" aria-hidden="true">
+        <span class="snapshot-cell-name">Position</span>
+        <span class="snapshot-cell-value">Value</span>
+        <span class="snapshot-cell-deposit">Deposit</span>
+        <span class="snapshot-cell-delta">Delta</span>
+      </div>
+      <div data-el="snapshot-rows"></div>
+      <button
+        type="button"
+        class="btn btn-secondary btn-sm snapshot-add"
+        data-action="add-position"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Add position
+      </button>
+    </div>
+    <div class="modal-footer snapshot-footer">
+      <p class="snapshot-total">
+        Portfolio after save
+        <b data-el="snapshot-total">—</b>
+      </p>
+      <button
+        class="btn btn-secondary"
+        data-action="cancel"
+        title="Cancel (Esc)"
+      >
+        Cancel
+      </button>
+      <button
+        class="btn btn-primary"
+        data-el="snapshot-save"
+        data-action="save-snapshot"
+        title="Save (Ctrl+Enter)"
+      >
+        Save snapshot
+      </button>
+    </div>
+  </div>
+</div>

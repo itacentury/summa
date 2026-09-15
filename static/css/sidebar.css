@@ -346,9 +346,15 @@
     transform: scale(0.5);
   }
 
-  /* The New-Invoice FAB belongs to the invoice view only. */
-  body.portfolio-mode .fab {
+  /* Each FAB belongs to one view: New Invoice everywhere but Portfolio, New
+     snapshot only there. */
+  .fab-snapshot,
+  body.portfolio-mode .fab-invoice {
     display: none;
+  }
+
+  body.portfolio-mode .fab-snapshot {
+    display: flex;
   }
 }
 
