@@ -1333,8 +1333,11 @@
      must not draw a second line. Which element that is depends on the state:
      the detail strip when the last row is open, the row itself when the strip
      next to it is closed — every row is followed by its always-rendered strip,
-     so the row is never the group's last child. */
+     so the row is never the group's last child. The strip's own border sits two
+     levels down, on `.portfolio-detail-items`, where the inner wrapper's
+     overflow can clip it while closed — hence the descendant selector. */
   .portfolio-group-rows > :last-child,
+  .portfolio-group-rows > :last-child .portfolio-detail-items,
   .portfolio-group-rows
     > .portfolio-row:nth-last-child(2):has(+ .portfolio-detail:not(.is-open)) {
     border-bottom: 0;
