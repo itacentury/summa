@@ -126,6 +126,26 @@ describe("settings → portfolio", () => {
     expect(select().querySelector("img")).toBeNull();
   });
 
+  it("renders the depots it is handed without refetching", async () => {
+    await refreshPortfolioSettings(payload().depots);
+
+    expect(sub("depots")).toBe("Trade Republic · Deka");
+    expect(sub("positions")).toBe(
+      "1 active · 1 closed · type, currency, depot",
+    );
+    expect(select().value).toBe("10");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  // An empty array is truthy: a payload handed in without a single depot still
+  // has to render, not fall through to a refetch of state the caller just left.
+  it("renders an empty handover rather than refetching", async () => {
+    await refreshPortfolioSettings([]);
+
+    expect(sub("depots")).toBe("None yet");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("flags the position that was picked", async () => {
     setupPortfolioSettings();
     await refreshPortfolioSettings();
