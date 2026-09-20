@@ -199,6 +199,16 @@ async function reload() {
 }
 
 /**
+ * Repaint everything a write can change: the list, the caller that opened the
+ * dialog, and the portfolio view behind it.
+ */
+async function repaintAfterWrite() {
+  await reload();
+  await onChanged?.();
+  await loadPortfolio();
+}
+
+/**
  * Apply one write, then repaint everything it could have changed.
  *
  * Returns whether it went through, so a caller can leave the form open on a
@@ -225,9 +235,7 @@ async function sendPatch(url, body, notice) {
 
   showNoticeToast(notice);
   editingId = null;
-  await reload();
-  await onChanged?.();
-  await loadPortfolio();
+  await repaintAfterWrite();
   return true;
 }
 
@@ -320,8 +328,7 @@ async function addDepot(name) {
 
   showNoticeToast("Depot added");
   editingId = null;
-  await reload();
-  await onChanged?.();
+  await repaintAfterWrite();
 }
 
 /**
@@ -330,13 +337,7 @@ async function addDepot(name) {
  */
 function addEntry() {
   if (mode === "positions") {
-    openPositionModal({
-      onSaved: async () => {
-        await reload();
-        await onChanged?.();
-        await loadPortfolio();
-      },
-    });
+    openPositionModal({ onSaved: repaintAfterWrite });
     return;
   }
 
