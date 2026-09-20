@@ -3,32 +3,6 @@
   <h2 class="visually-hidden">Portfolio</h2>
   <!-- Toolbar -->
   <div class="portfolio-toolbar">
-    {# The period pills carry their own state; the invoice Week/Month/Year/All
-       switcher in filters.html is deliberately unrelated. #}
-    <div
-      class="portfolio-period"
-      data-el="portfolio-period"
-      role="group"
-      aria-label="Period"
-    >
-      <button type="button" class="portfolio-period-btn" data-range="3m">
-        3M
-      </button>
-      <button
-        type="button"
-        class="portfolio-period-btn is-active"
-        data-range="1y"
-      >
-        1Y
-      </button>
-      <button type="button" class="portfolio-period-btn" data-range="ytd">
-        YTD
-      </button>
-      <button type="button" class="portfolio-period-btn" data-range="max">
-        Max
-      </button>
-    </div>
-
     {# Own listbox rather than a combobox instance: the filter commits a depot
        id while the row shows a name, which combobox.js cannot express. #}
     <div class="portfolio-depot" data-el="portfolio-depot">
@@ -87,6 +61,32 @@
   >
     <div class="chart-header portfolio-chart-header">
       <h3 class="chart-title">Value over time</h3>
+      {# The period governs this card alone: the summary cards, the positions list
+         and the bottom row always show current, all-time figures. The invoice
+         Week/Month/Year/All switcher in filters.html is deliberately unrelated. #}
+      <div
+        class="portfolio-period"
+        data-el="portfolio-period"
+        role="group"
+        aria-label="Chart period"
+      >
+        <button type="button" class="portfolio-period-btn" data-range="3m">
+          3M
+        </button>
+        <button
+          type="button"
+          class="portfolio-period-btn is-active"
+          data-range="1y"
+        >
+          1Y
+        </button>
+        <button type="button" class="portfolio-period-btn" data-range="ytd">
+          YTD
+        </button>
+        <button type="button" class="portfolio-period-btn" data-range="max">
+          Max
+        </button>
+      </div>
       <div class="portfolio-chart-legend">
         <span class="portfolio-legend-item">
           <span class="portfolio-legend-bar is-portfolio"></span>Portfolio

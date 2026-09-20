@@ -18,41 +18,6 @@
   align-items: center;
 }
 
-/* Period pills. Deliberately its own control, not .quick-filters: the portfolio
-   period is independent of the invoice one and neither may inherit the other. */
-.portfolio-period {
-  display: flex;
-  flex: none;
-  gap: 2px;
-  padding: 4px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-}
-
-.portfolio-period-btn {
-  padding: 8px 15px;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-}
-
-.portfolio-period-btn:hover {
-  color: var(--text-primary);
-}
-
-.portfolio-period-btn.is-active {
-  font-weight: 600;
-  color: var(--accent-text-on);
-  background: var(--accent);
-}
-
 .portfolio-depot {
   position: relative;
   flex: none;
@@ -580,6 +545,44 @@
   align-items: center;
 }
 
+/* Period pills. They live in this header, not the view toolbar, because the
+   period reaches the chart alone — every other figure on the screen is
+   all-time. Deliberately its own control, not .quick-filters: the portfolio
+   period is independent of the invoice one and neither may inherit the other.
+   Sized against the header's own padding, and tracked rather than carded, so it
+   does not read as a second card inside .chart-card. */
+.portfolio-period {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-hover);
+  border-radius: 9px;
+}
+
+.portfolio-period-btn {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.portfolio-period-btn:hover {
+  color: var(--text-primary);
+}
+
+.portfolio-period-btn.is-active {
+  font-weight: 600;
+  color: var(--accent-text-on);
+  background: var(--accent);
+}
+
 .portfolio-chart-legend {
   display: flex;
   gap: 14px;
@@ -1049,15 +1052,12 @@
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
 /* Mobile (Design 18b): the same content in the same order, stacked — hero above
-   two small cards, the period switcher below them, a compact chart, and one card
+   two small cards, a compact chart carrying its own period switcher, and one card
    per depot whose rows carry their figures on two lines. */
 @media (width <= 640px) {
-  /* The toolbar keeps its DOM position for the depot select; only the summary
-     moves, which is enough to put the period pills below the cards. */
   .portfolio-summary {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    order: -1;
   }
 
   .portfolio-card-hero {
@@ -1072,25 +1072,8 @@
     font-size: 26px;
   }
 
-  /* The chip right above already says all-time. */
-  .portfolio-hero-note {
-    display: none;
-  }
-
   .portfolio-card-value {
     font-size: 21px;
-  }
-
-  .portfolio-toolbar {
-    flex-wrap: wrap;
-  }
-
-  .portfolio-period {
-    flex: 1 0 100%;
-  }
-
-  .portfolio-period-btn {
-    flex: 1;
   }
 
   /* The snapshot FAB sits over this screen already, and with the button gone
@@ -1110,6 +1093,16 @@
   .portfolio-chart-header {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  /* The header already wraps, so a full-width pill row slots between the title
+     and the legend instead of squeezing all three onto one line. */
+  .portfolio-period {
+    flex: 1 0 100%;
+  }
+
+  .portfolio-period-btn {
+    flex: 1;
   }
 
   .portfolio-chart-legend {
