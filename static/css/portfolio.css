@@ -1149,9 +1149,13 @@
     min-width: 0;
   }
 
-  /* Not :last-child on the row: every row is followed by its always-rendered
-     detail strip, so the row is never the group's last child. */
-  .portfolio-group-body > :last-child {
+  /* The card's own border closes the group, so whatever renders last inside it
+     must not draw a second line. Which element that is depends on the state:
+     the detail strip when the last row is open, the row itself when the strip
+     next to it is hidden — every row is followed by its always-rendered strip,
+     so the row is never the group's last child. */
+  .portfolio-group-body > :last-child,
+  .portfolio-group-body > .portfolio-row:nth-last-child(2):has(+ [hidden]) {
     border-bottom: 0;
   }
 
