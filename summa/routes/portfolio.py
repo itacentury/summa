@@ -15,7 +15,7 @@ from typing import Any, Final
 
 from flask import Blueprint, Response, jsonify, request
 
-from summa import portfolio
+from summa import config, portfolio
 from summa.db import chunked, db_cursor, placeholders_for
 from summa.helpers import (
     ApiResponse,
@@ -265,27 +265,51 @@ class _Benchmark:
     updated_at: str | None
 
 
-def _feed_points(
-    cursor: sqlite3.Cursor, start: str | None
-) -> tuple[list[tuple[str, float]], str | None]:
-    """Return the freshest feed symbol's closes inside the window and its last date.
+def _feed_symbol(cursor: sqlite3.Cursor) -> tuple[str, str] | None:
+    """Return the benchmark symbol on record and its newest close date.
 
-    The symbol is implicit: whichever one in benchmark_prices carries the newest
-    close, ties broken arbitrarily. That only holds while the feed job writes a
-    single symbol; a second one would need the caller to name which it wants.
-    Settings -> Portfolio does not: its "Benchmark" select governs only the
-    position that stands in when this feed has nothing to offer.
+    The configured symbol (:func:`summa.config.benchmark_symbol`, the same one
+    the feed job fetches) wins whenever it has any row at all, so an exploratory
+    fetch of another ticker writes rows the chart never reads. A database filled
+    under some other symbol keeps its line: only when the configured one is
+    absent does the freshest symbol on record stand in.
+
+    Settings -> Portfolio has no say here — its "Benchmark" select governs only
+    the position that stands in when this feed has nothing to offer.
     """
+    configured: str = config.benchmark_symbol()
+    cursor.execute(
+        "SELECT MAX(date) AS latest FROM benchmark_prices WHERE symbol = ?",
+        (configured,),
+    )
+    row: Any = cursor.fetchone()
+    if row is not None and row["latest"] is not None:
+        return configured, str(row["latest"])
+
     cursor.execute(
         "SELECT symbol, MAX(date) AS latest FROM benchmark_prices "
         "GROUP BY symbol ORDER BY latest DESC LIMIT 1"
     )
-    row: Any = cursor.fetchone()
+    row = cursor.fetchone()
     if row is None:
+        return None
+    return str(row["symbol"]), str(row["latest"])
+
+
+def _feed_points(
+    cursor: sqlite3.Cursor, start: str | None
+) -> tuple[list[tuple[str, float]], str | None]:
+    """Return the benchmark symbol's closes inside the window and its last date.
+
+    An empty list means the chart falls back to the flagged position — which is
+    also what a configured symbol whose history stops before the window yields,
+    the same way a stale feed already did.
+    """
+    found: tuple[str, str] | None = _feed_symbol(cursor)
+    if found is None:
         return [], None
 
-    symbol: str = row["symbol"]
-    updated_at: str = row["latest"]
+    symbol, updated_at = found
     if start is None:
         cursor.execute(
             "SELECT date, close FROM benchmark_prices WHERE symbol = ? ORDER BY date",

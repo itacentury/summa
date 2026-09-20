@@ -25,10 +25,9 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from scripts.portfolio_db import connect, default_database_path
+from summa import config
 
 CHART_URL: Final[str] = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-# iShares Core MSCI World UCITS ETF, Xetra -- the EUR-quoted MSCI World.
-DEFAULT_SYMBOL: Final[str] = "EUNL.DE"
 DEFAULT_RANGE: Final[str] = "2y"
 DEFAULT_INTERVAL: Final[str] = "1wk"
 DEFAULT_TIMEOUT: Final[float] = 15.0
@@ -212,10 +211,18 @@ def build_parser() -> argparse.ArgumentParser:
             "to its own fallback position in the meantime."
         ),
     )
+    # Read here rather than at import, so the default follows the environment
+    # the run is given -- the same lazy shape summa.config uses throughout.
+    configured_symbol: str = config.benchmark_symbol()
     parser.add_argument(
         "--symbol",
-        default=DEFAULT_SYMBOL,
-        help=f"ticker to fetch (default: {DEFAULT_SYMBOL}, MSCI World in EUR)",
+        default=configured_symbol,
+        help=(
+            f"ticker to fetch (default: {configured_symbol}, the EUR-quoted MSCI "
+            f"World unless ${config.BENCHMARK_SYMBOL_ENV} says otherwise). The app "
+            "charts the configured symbol only, so fetching another one writes "
+            "rows nothing reads until that variable names it too"
+        ),
     )
     parser.add_argument(
         "--range",
@@ -264,6 +271,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if currency != EXPECTED_CURRENCY:
         print(
             f"warning: {args.symbol} is quoted in {currency}, not {EXPECTED_CURRENCY}",
+            file=sys.stderr,
+        )
+    configured_symbol: str = config.benchmark_symbol()
+    if args.symbol != configured_symbol:
+        print(
+            f"note: the chart reads {configured_symbol}, so these {args.symbol} rows "
+            f"stay unread until ${config.BENCHMARK_SYMBOL_ENV} names {args.symbol}",
             file=sys.stderr,
         )
     print(

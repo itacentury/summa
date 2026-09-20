@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from flask.testing import FlaskClient
 
-from summa import db
+from summa import config, db
 from summa.routes import portfolio as portfolio_route
 from tests.conftest import SeedDepot, SeedPosition, SeedSnapshot
 
@@ -514,6 +514,49 @@ def test_get_portfolio_uses_the_feed_when_prices_exist(
     assert payload["benchmark_updated_at"] == _weeks_ago(1)
     # Rebased: 100 -> the portfolio's 1000, so the 10 % rise lands on 1100.
     assert payload["series"]["benchmark"] == [1000.0, 1100.0]
+
+
+def test_get_portfolio_prefers_the_configured_symbol_over_a_fresher_one(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """An exploratory fetch of another ticker must not take the chart over."""
+    depot_id = seed_depot()
+    position_id = seed_position(depot_id, is_benchmark_fallback=True)
+    seed_snapshot(position_id, _weeks_ago(2), 1000.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1100.0)
+    _seed_benchmark_price(config.DEFAULT_BENCHMARK_SYMBOL, _weeks_ago(2), 100.0)
+    _seed_benchmark_price(config.DEFAULT_BENCHMARK_SYMBOL, _weeks_ago(1), 110.0)
+    # Newer, and under the old freshness rule the line the chart would have drawn.
+    _seed_benchmark_price("SPY", _weeks_ago(1), 500.0)
+    _seed_benchmark_price("SPY", _weeks_ago(0), 250.0)
+
+    payload = client.get("/api/portfolio").get_json()
+
+    assert payload["benchmark_source"] == "feed"
+    assert payload["benchmark_updated_at"] == _weeks_ago(1)
+    assert payload["series"]["benchmark"] == [1000.0, 1100.0]
+
+
+def test_get_portfolio_falls_back_when_the_configured_symbol_misses_the_window(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A stray symbol does not stand in for a configured one that is stale."""
+    depot_id = seed_depot()
+    position_id = seed_position(depot_id, is_benchmark_fallback=True)
+    seed_snapshot(position_id, _weeks_ago(2), 1000.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1100.0)
+    _seed_benchmark_price(config.DEFAULT_BENCHMARK_SYMBOL, _weeks_ago(200), 100.0)
+    _seed_benchmark_price("SPY", _weeks_ago(1), 500.0)
+
+    payload = client.get("/api/portfolio?range=3m").get_json()
+
+    assert payload["benchmark_source"] == "fallback"
 
 
 def test_get_portfolio_falls_back_when_the_feed_is_older_than_the_window(

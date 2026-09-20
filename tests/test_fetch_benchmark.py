@@ -5,13 +5,16 @@ from typing import Any, Final
 
 import pytest
 
+import scripts.fetch_benchmark as fetch_benchmark
 from scripts.fetch_benchmark import (
     BenchmarkPrice,
     FeedError,
+    build_parser,
     parse_chart_payload,
     to_iso_date,
     upsert_prices,
 )
+from summa import config
 from summa.db import create_portfolio_schema
 
 SYMBOL: Final[str] = "EUNL.DE"
@@ -185,3 +188,28 @@ def test_upsert_prices_keeps_symbols_apart() -> None:
     assert (
         conn.execute("SELECT COUNT(*) AS n FROM benchmark_prices").fetchone()["n"] == 2
     )
+
+
+# --- Command line -----------------------------------------------------------
+
+
+def test_symbol_defaults_to_the_symbol_the_chart_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Job and chart resolve the symbol through the same accessor."""
+    monkeypatch.setenv(config.BENCHMARK_SYMBOL_ENV, "URTH")
+
+    assert build_parser().parse_args([]).symbol == "URTH"
+
+
+def test_a_foreign_symbol_is_written_but_reported(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Fetching another ticker is allowed — it just no longer happens silently."""
+    monkeypatch.setattr(fetch_benchmark, "fetch_chart", lambda *args: _payload())
+
+    assert fetch_benchmark.main(["--symbol", "SPY", "--dry-run"]) == 0
+
+    errors: str = capsys.readouterr().err
+    assert config.DEFAULT_BENCHMARK_SYMBOL in errors
+    assert "SPY" in errors

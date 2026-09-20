@@ -134,8 +134,13 @@ position, row 3+ one row per week), recomputes Delta instead of importing it, an
 is idempotent via `INSERT OR IGNORE` on `(position_id, date)` — a re-run never
 rewrites a week you corrected in the UI. `scripts/fetch_benchmark.py` keeps
 `benchmark_prices` fresh from a public chart feed and exits non-zero so cron can
-report; the API falls back to the `is_benchmark_fallback` position when the feed
-has nothing for the window, so a failed run costs only the chart footnote.
+report. Which symbol the chart draws is configuration, not freshness:
+`config.benchmark_symbol()` (`BENCHMARK_SYMBOL`, default `EUNL.DE`) names it for
+both the job's `--symbol` default and `_feed_points()`, so an exploratory fetch
+of another ticker writes rows nothing reads. Only when the configured symbol has
+no rows at all does the freshest symbol on record stand in, and when neither
+yields points inside the window the API falls back to the
+`is_benchmark_fallback` position — so a failed run costs only the chart footnote.
 
 **Frontend — `static/js/app.js` + `templates/index.html`.** Plain JS (no
 framework, no bundler) talking to the API. `app.js` boots behind the login gate:
