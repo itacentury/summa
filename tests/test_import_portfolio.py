@@ -31,7 +31,9 @@ from summa.portfolio import value_eur
 VALUE_COLUMN: Final[int] = 2
 STYLES_PART: Final[str] = "xl/styles.xml"
 
-# The real workbook's layout, as verified against docs/portfolio/portfolio_tracking.xlsx.
+# The layout of the private tracking workbook the importer was written for. The file is
+# personal data and is deliberately not in the repo, so these constants are the only
+# record of the shape scripts/import_portfolio_xlsx.py has to cope with.
 REAL_POSITIONS: Final[tuple[tuple[int, str], ...]] = (
     (2, "MSCI World SRI EUR"),
     (5, "MSCI Europe ESG EUR"),
