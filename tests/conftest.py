@@ -27,7 +27,7 @@ ALLOWED_ORIGIN: Final[str] = "https://app.example"
 # would otherwise pay for it again.
 TEST_PASSWORD_HASH: Final[str] = generate_password_hash(TEST_PASSWORD)
 
-_AUTH_ENV_VARS: Final[tuple[str, ...]] = (
+_CONFIG_ENV_VARS: Final[tuple[str, ...]] = (
     config.AUTH_ENABLED_ENV,
     config.PASSWORD_HASH_ENV,
     config.SESSION_SECRET_ENV,
@@ -35,17 +35,21 @@ _AUTH_ENV_VARS: Final[tuple[str, ...]] = (
     config.COOKIE_SECURE_ENV,
     config.COOKIE_SAMESITE_ENV,
     config.CORS_ORIGINS_ENV,
+    config.BENCHMARK_SYMBOL_ENV,
 )
 
 
 @pytest.fixture(autouse=True)
-def isolated_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the operator's own auth/CORS environment out of every test.
+def isolated_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the operator's own configuration out of every test.
 
     Autouse, so it is applied before the fixtures below: the suite must behave
-    identically whether or not the developer has the gate enabled locally.
+    identically whether or not the developer has the gate enabled locally, or
+    follows a different benchmark. Every variable :mod:`summa.config` reads
+    belongs in ``_CONFIG_ENV_VARS`` — one that is missing lets the developer's
+    shell decide the outcome of a test.
     """
-    for name in _AUTH_ENV_VARS:
+    for name in _CONFIG_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
 
 
