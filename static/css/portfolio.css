@@ -282,8 +282,21 @@
   transform: rotate(-90deg);
 }
 
+/* Animated collapse: the body is a one-track grid whose row shrinks to zero,
+   which needs no height measurement (same pattern as `.filters-collapsible`).
+   The inner wrapper is what clips the rows while the track closes. */
+.portfolio-group-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-normal) ease;
+}
+
 .portfolio-group.is-collapsed .portfolio-group-body {
-  display: none;
+  grid-template-rows: 0fr;
+}
+
+.portfolio-group-rows {
+  overflow: hidden;
 }
 
 .portfolio-group-label {
@@ -419,20 +432,40 @@
 /* ====== EXPANDED DETAIL STRIP ====== */
 
 /* A sibling of the row, never a child: expanding must not move a single cell
-   of the row itself (the same rule the invoice list follows). */
+   of the row itself (the same rule the invoice list follows). Always in the DOM
+   so the row's aria-controls target always resolves, and collapsed through the
+   same grid-track trick as the depot body above. Every visual property lives on
+   the inner element: its overflow is what clips the strip's own bottom border
+   away while the strip is closed. */
 .portfolio-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--transition-normal) ease,
+    opacity var(--transition-normal) ease;
+}
+
+.portfolio-detail.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Three elements, like `.filters-collapsible`: the grid track above, this
+   clipper, and the padded box below. The clipper carries no padding of its own
+   on purpose — padding is part of a grid item's minimum contribution and would
+   floor the closed track at its own height. */
+.portfolio-detail-inner {
+  overflow: hidden;
+}
+
+.portfolio-detail-items {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 28px;
   padding: 0 20px 12px;
   background: var(--bg-hover);
   border-bottom: 1px solid var(--bg-primary);
-}
-
-/* The strip is always in the DOM so the row's aria-controls target always
-   resolves; the `display: flex` above would otherwise beat the UA [hidden] rule. */
-.portfolio-detail[hidden] {
-  display: none;
 }
 
 /* Hidden wherever the row itself carries the figure; the mobile block below is
@@ -1152,10 +1185,11 @@
   /* The card's own border closes the group, so whatever renders last inside it
      must not draw a second line. Which element that is depends on the state:
      the detail strip when the last row is open, the row itself when the strip
-     next to it is hidden — every row is followed by its always-rendered strip,
+     next to it is closed — every row is followed by its always-rendered strip,
      so the row is never the group's last child. */
-  .portfolio-group-body > :last-child,
-  .portfolio-group-body > .portfolio-row:nth-last-child(2):has(+ [hidden]) {
+  .portfolio-group-rows > :last-child,
+  .portfolio-group-rows
+    > .portfolio-row:nth-last-child(2):has(+ .portfolio-detail:not(.is-open)) {
     border-bottom: 0;
   }
 
@@ -1243,7 +1277,7 @@
     margin-left: 4px;
   }
 
-  .portfolio-detail {
+  .portfolio-detail-items {
     gap: 10px 22px;
     padding: 0 16px 12px;
   }

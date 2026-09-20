@@ -261,44 +261,49 @@ export function positionRowHtml(
  * Rendered as a sibling of the row, never inside it, so expanding cannot move
  * a single cell of the row itself (the same rule the invoice list follows).
  *
- * Always rendered, merely hidden while collapsed, because the row's
+ * Always rendered, merely collapsed to zero height, because the row's
  * `aria-controls` has to resolve to an element even before anything is opened.
+ * The inner wrapper is what the open/close transition clips (see portfolio.css).
  *
  * `Invested` is the one item the desktop row already carries in a column of its
  * own; it is shown here only on mobile, where the open row gives that line up to
  * the meta text.
  */
-export function positionDetailHtml(position, { hidden = false } = {}) {
+export function positionDetailHtml(position, { open = false } = {}) {
   const weekDelta =
     position.week_delta === null ? "—" : formatSigned(position.week_delta);
   const weekTone =
     position.week_delta === null ? "" : toneClass(position.week_delta);
 
   return `
-    <div class="portfolio-detail" id="portfolio-detail-${position.id}"${hidden ? " hidden" : ""}>
-      <div class="portfolio-detail-item">
-        <div class="portfolio-detail-label">Original</div>
-        <div class="portfolio-detail-value">${escapeHtml(position.currency)} ${formatAmount(
-          position.value,
-        )}</div>
-      </div>
-      <div class="portfolio-detail-item">
-        <div class="portfolio-detail-label">FX rate</div>
-        <div class="portfolio-detail-value">${position.fx_rate.toFixed(4)}</div>
-      </div>
-      <div class="portfolio-detail-item is-mobile-only">
-        <div class="portfolio-detail-label">Invested</div>
-        <div class="portfolio-detail-value">${formatEuroSuffixed(
-          position.invested_eur,
-        )}</div>
-      </div>
-      <div class="portfolio-detail-item">
-        <div class="portfolio-detail-label">Last week</div>
-        <div class="portfolio-detail-value ${weekTone}">${weekDelta}</div>
-      </div>
-      <div class="portfolio-detail-item">
-        <div class="portfolio-detail-label">Snapshots</div>
-        <div class="portfolio-detail-value">${position.snapshot_count}</div>
+    <div class="portfolio-detail${open ? " is-open" : ""}" id="portfolio-detail-${position.id}"${open ? "" : " inert"}>
+      <div class="portfolio-detail-inner">
+        <div class="portfolio-detail-items">
+          <div class="portfolio-detail-item">
+            <div class="portfolio-detail-label">Original</div>
+            <div class="portfolio-detail-value">${escapeHtml(position.currency)} ${formatAmount(
+              position.value,
+            )}</div>
+          </div>
+          <div class="portfolio-detail-item">
+            <div class="portfolio-detail-label">FX rate</div>
+            <div class="portfolio-detail-value">${position.fx_rate.toFixed(4)}</div>
+          </div>
+          <div class="portfolio-detail-item is-mobile-only">
+            <div class="portfolio-detail-label">Invested</div>
+            <div class="portfolio-detail-value">${formatEuroSuffixed(
+              position.invested_eur,
+            )}</div>
+          </div>
+          <div class="portfolio-detail-item">
+            <div class="portfolio-detail-label">Last week</div>
+            <div class="portfolio-detail-value ${weekTone}">${weekDelta}</div>
+          </div>
+          <div class="portfolio-detail-item">
+            <div class="portfolio-detail-label">Snapshots</div>
+            <div class="portfolio-detail-value">${position.snapshot_count}</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -319,7 +324,7 @@ export function depotGroupHtml(
       const isExpanded = open.has(position.id);
       return (
         positionRowHtml(position, { rangeStart, expanded: isExpanded }) +
-        positionDetailHtml(position, { hidden: !isExpanded })
+        positionDetailHtml(position, { open: isExpanded })
       );
     })
     .join("");
@@ -340,7 +345,9 @@ export function depotGroupHtml(
         <span class="portfolio-group-gain ${tone}">${formatSigned(depot.gain)}</span>
         <span class="portfolio-group-percent ${tone}">${formatPercent(depot.gain_pct)}</span>
       </button>
-      <div class="portfolio-group-body" id="portfolio-group-body-${depot.id}">${rows}</div>
+      <div class="portfolio-group-body" id="portfolio-group-body-${depot.id}"${collapsed ? " inert" : ""}>
+        <div class="portfolio-group-rows">${rows}</div>
+      </div>
     </div>
   `;
 }

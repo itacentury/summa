@@ -217,6 +217,9 @@ function toggleDepotGroup(header) {
   const id = Number(group.dataset.depotId);
   const collapsed = group.classList.toggle("is-collapsed");
   header.setAttribute("aria-expanded", String(!collapsed));
+  // The collapsed body only shrinks to zero height, so without inert its rows
+  // would stay tabbable and readable to a screen reader.
+  group.querySelector(".portfolio-group-body").inert = collapsed;
   if (collapsed) collapsedDepots.add(id);
   else collapsedDepots.delete(id);
 }
@@ -224,7 +227,7 @@ function toggleDepotGroup(header) {
 /**
  * Reveal or hide a position's detail strip.
  *
- * The strip is only shown and hidden, never inserted or removed: the row's own
+ * The strip is only opened and closed, never inserted or removed: the row's own
  * markup has to survive expanding untouched, and an always-present strip is what
  * keeps the row's `aria-controls` resolvable while collapsed.
  */
@@ -232,12 +235,15 @@ function togglePositionRow(row) {
   const detail = row.nextElementSibling;
   if (!detail || !detail.classList.contains("portfolio-detail")) return;
 
-  detail.hidden = !detail.hidden;
-  row.setAttribute("aria-expanded", String(!detail.hidden));
+  const open = detail.classList.toggle("is-open");
+  row.setAttribute("aria-expanded", String(open));
+  // A closed strip is merely zero-height, so inert keeps it out of the tab
+  // order and the accessibility tree the way `hidden` used to.
+  detail.inert = !open;
 
   const id = Number(row.dataset.positionId);
-  if (detail.hidden) expandedPositions.delete(id);
-  else expandedPositions.add(id);
+  if (open) expandedPositions.add(id);
+  else expandedPositions.delete(id);
 }
 
 /**

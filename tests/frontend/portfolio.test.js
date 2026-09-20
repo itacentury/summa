@@ -644,7 +644,7 @@ describe("portfolio group collapsing and row expansion", () => {
     rows.forEach((row) => {
       const strip = document.getElementById(row.getAttribute("aria-controls"));
       expect(strip).not.toBeNull();
-      expect(strip.hidden).toBe(true);
+      expect(strip.classList.contains("is-open")).toBe(false);
       expect(row.getAttribute("aria-expanded")).toBe("false");
     });
   });
@@ -656,7 +656,7 @@ describe("portfolio group collapsing and row expansion", () => {
 
     const strip = row.nextElementSibling;
     expect(strip.classList.contains("portfolio-detail")).toBe(true);
-    expect(strip.hidden).toBe(false);
+    expect(strip.classList.contains("is-open")).toBe(true);
     expect(strip.textContent).toContain("1.0000");
     expect(strip.textContent).toContain("27");
     expect(rowFor(11).innerHTML).toBe(before);
@@ -667,14 +667,14 @@ describe("portfolio group collapsing and row expansion", () => {
   it("keeps several rows open at once and closes them individually", async () => {
     rowFor(11).click();
     rowFor(12).click();
-    expect(
-      document.querySelectorAll(".portfolio-detail:not([hidden])"),
-    ).toHaveLength(2);
+    expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
+      2,
+    );
 
     rowFor(11).click();
-    expect(
-      document.querySelectorAll(".portfolio-detail:not([hidden])"),
-    ).toHaveLength(1);
+    expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
+      1,
+    );
     expect(expandedPositions.has(11)).toBe(false);
     expect(expandedPositions.has(12)).toBe(true);
   });
@@ -690,9 +690,9 @@ describe("portfolio group collapsing and row expansion", () => {
     await loadPortfolio();
 
     expect(rowFor(12).getAttribute("aria-expanded")).toBe("true");
-    expect(
-      document.querySelectorAll(".portfolio-detail:not([hidden])"),
-    ).toHaveLength(1);
+    expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
+      1,
+    );
   });
 });
 
