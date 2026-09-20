@@ -585,6 +585,7 @@
 
 .portfolio-chart-legend {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   align-items: center;
   margin-left: auto;
@@ -611,8 +612,16 @@
   background: var(--accent);
 }
 
+/* Mirrors the `borderDash: [5, 5]` of the invested series in
+   portfolio-charts.js, so the swatch reads as the same stroke. Square caps:
+   rounded ones read as dots at this dash length. */
 .portfolio-legend-bar.is-invested {
-  background: var(--chart-4);
+  background: repeating-linear-gradient(
+    to right,
+    var(--chart-4) 0 5px,
+    transparent 5px 10px
+  );
+  border-radius: 0;
 }
 
 .portfolio-legend-bar.is-benchmark {
@@ -1108,12 +1117,6 @@
   .portfolio-chart-legend {
     gap: 12px;
     margin-left: 0;
-  }
-
-  /* The invested line stays drawn; only its legend entry goes, so the two series
-     the card is read for at this width keep the header to themselves. */
-  .portfolio-legend-item:has(.is-invested) {
-    display: none;
   }
 
   /* A pixel height, never a viewport unit: the card has to keep its proportions
