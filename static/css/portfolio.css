@@ -836,6 +836,14 @@
   color: var(--text-faint);
 }
 
+/* The previous reading was itself a copy, so the placeholder and the delta
+   below compare against a number nobody entered. */
+.snapshot-row-stale {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
 .snapshot-cell-value {
   flex: none;
   width: 104px;

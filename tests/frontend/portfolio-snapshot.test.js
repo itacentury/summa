@@ -133,6 +133,8 @@ const rowFor = (id) => document.querySelector(`[data-position-id="${id}"]`);
 const fieldOf = (id, field) =>
   rowFor(id).querySelector(`[data-field="${field}"]`);
 const deltaOf = (id) => rowFor(id).querySelector(".snapshot-cell-delta");
+const staleOf = (id) =>
+  rowFor(id).querySelector(".snapshot-cell-name .snapshot-row-stale");
 
 /** Type into a field the way the delegated input listener sees it. */
 function type(input, value) {
@@ -229,6 +231,31 @@ describe("snapshot form", () => {
 
     expect(deltaOf(10).textContent).toBe("carried");
     expect(deltaOf(10).classList.contains("is-carried")).toBe(true);
+  });
+
+  it("marks a row whose previous reading was itself carried", async () => {
+    // The two meanings of "carried" live in different cells: the delta speaks
+    // about this save, the name cell about the number it compares against.
+    const payload = prefill();
+    payload.depots[0].positions[0].previous_carried = true;
+    await openForm(payload);
+
+    expect(staleOf(10).textContent.trim()).toBe("· last value carried");
+    expect(staleOf(11)).toBeNull();
+  });
+
+  it("keeps the carried-previous marker once a real value is typed", async () => {
+    const payload = prefill();
+    payload.depots[0].positions[0].previous_carried = true;
+    await openForm(payload);
+
+    type(fieldOf(10, "value"), "1.100");
+
+    // The row is no longer carrying anything forward, but its delta still
+    // measures against a copied reading, so the caveat stays.
+    expect(staleOf(10)).not.toBeNull();
+    expect(deltaOf(10).textContent).toBe("+100.00");
+    expect(deltaOf(10).classList.contains("is-carried")).toBe(false);
   });
 
   it("subtracts the deposit from the live delta", async () => {

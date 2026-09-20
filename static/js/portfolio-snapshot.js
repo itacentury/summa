@@ -72,7 +72,9 @@ function currencySymbol(currency) {
  * handler rewrites.
  *
  * The previous value sits in the value field's placeholder, so leaving the row
- * alone shows what carrying forward will record.
+ * alone shows what carrying forward will record. When that previous reading was
+ * itself carried, the name cell says so: the placeholder and the delta below it
+ * then compare against a copy rather than a number anyone entered.
  */
 function rowHtml(position) {
   const symbol = escapeHtml(currencySymbol(position.currency));
@@ -81,12 +83,15 @@ function rowHtml(position) {
     position.previous_value === null
       ? ""
       : formatAmount(position.previous_value);
+  const stale = position.previous_carried
+    ? `<span class="snapshot-row-stale" title="The previous reading was carried forward, not entered — this row compares against a copied value."> · last value carried</span>`
+    : "";
 
   return `
     <div class="snapshot-row" data-position-id="${position.id}">
       <span class="snapshot-cell-name">${name}<span class="snapshot-row-currency"> · ${escapeHtml(
         position.currency,
-      )}</span></span>
+      )}</span>${stale}</span>
       <label class="snapshot-input snapshot-cell-value">
         <span class="snapshot-input-prefix" aria-hidden="true">${symbol}</span>
         <input type="text" inputmode="decimal" data-field="value"
