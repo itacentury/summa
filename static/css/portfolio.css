@@ -1210,8 +1210,9 @@
     display: none;
   }
 
-  /* Labels rather than markup: the row is a <button>, so every one of these
-     would have to be a span that means nothing on desktop. */
+  /* A label rather than markup: the row is a <button>, so this would have to be
+     a span that means nothing on desktop. It earns being read aloud — it names a
+     figure the mobile row has no column header for. */
   .portfolio-row-invested::after {
     content: " invested";
   }
@@ -1239,11 +1240,7 @@
     grid-row: 2;
     grid-column: 3;
     min-width: 0;
-  }
-
-  .portfolio-row-percent::before {
-    color: var(--text-faint);
-    content: "· ";
+    margin-left: 4px;
   }
 
   .portfolio-detail {

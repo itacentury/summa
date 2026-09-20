@@ -184,7 +184,12 @@ function renderList() {
   list.querySelector("[data-autofocus]")?.focus();
 }
 
-/** Refetch and repaint. The payload is the editor's only source of truth. */
+/**
+ * Refetch and repaint. The payload is the editor's only source of truth.
+ *
+ * Returns the depots it fetched, or `null` when the fetch failed, so a caller
+ * refreshing the same data need not request it a second time.
+ */
 async function reload() {
   const { list } = manageElements();
   try {
@@ -192,9 +197,11 @@ async function reload() {
     if (!response.ok) throw new Error(`Manage list failed: ${response.status}`);
     depots = (await response.json()).depots;
     renderList();
+    return depots;
   } catch (error) {
     console.error("Error loading the manage list:", error);
     list.innerHTML = `<div class="manage-empty">Could not load this list.</div>`;
+    return null;
   }
 }
 
@@ -203,8 +210,8 @@ async function reload() {
  * dialog, and the portfolio view behind it.
  */
 async function repaintAfterWrite() {
-  await reload();
-  await onChanged?.();
+  const fresh = await reload();
+  await onChanged?.(fresh);
   await loadPortfolio();
 }
 

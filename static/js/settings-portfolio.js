@@ -68,20 +68,34 @@ function renderBenchmarkOptions(select, depots) {
   select.value = fallbackId === null ? "" : String(fallbackId);
 }
 
-/** Refill the section. Reports its own failures; callers need not await it. */
-export async function refreshPortfolioSettings() {
+function renderSection(elements, depots) {
+  elements.depots.textContent = depotsSummary(depots);
+  elements.positions.textContent = positionsSummary(depots);
+  renderBenchmarkOptions(elements.benchmark, depots);
+}
+
+/**
+ * Refill the section. Reports its own failures; callers need not await it.
+ *
+ * A caller that has just fetched the same payload passes its depots in rather
+ * than making this refetch them; `null` means "fetch it yourself", which is
+ * also what a failed fetch upstream should fall back to.
+ */
+export async function refreshPortfolioSettings(depots = null) {
   const elements = settingsElements();
   if (!elements) return;
+
+  if (depots) {
+    renderSection(elements, depots);
+    return;
+  }
 
   try {
     const response = await apiFetch("/api/portfolio?range=max");
     if (!response.ok) {
       throw new Error(`Portfolio settings failed: ${response.status}`);
     }
-    const payload = await response.json();
-    elements.depots.textContent = depotsSummary(payload.depots);
-    elements.positions.textContent = positionsSummary(payload.depots);
-    renderBenchmarkOptions(elements.benchmark, payload.depots);
+    renderSection(elements, (await response.json()).depots);
   } catch (error) {
     console.error("Error loading portfolio settings:", error);
   }

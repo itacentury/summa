@@ -242,7 +242,13 @@ describe("manage editor", () => {
     expect(url).toBe("/api/portfolio/depots");
     expect(options.method).toBe("POST");
     expect(JSON.parse(options.body)).toEqual({ name: "Scalable" });
-    expect(onChanged).toHaveBeenCalled();
+    // The reload's own payload goes upwards, so the caller need not fetch it again.
+    expect(onChanged).toHaveBeenCalledWith(payload().depots);
+    expect(
+      global.fetch.mock.calls.filter(
+        ([url]) => url === "/api/portfolio?range=max",
+      ),
+    ).toHaveLength(2);
   });
 
   it("hands adding a position to the dialog that has the fields", async () => {
