@@ -105,7 +105,7 @@ function isGroupedThousands(text, separator) {
  * unparseable, so a caller can tell the two apart.
  */
 export function parseAmountInput(text) {
-  const cleaned = String(text ?? "").replace(/[\s\u00a0\u202f€$]/g, "");
+  const cleaned = String(text ?? "").replace(/[\s\u00a0\u202f\p{Sc}]/gu, "");
   if (cleaned === "") return null;
 
   const lastComma = cleaned.lastIndexOf(",");
