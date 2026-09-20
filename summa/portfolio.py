@@ -186,6 +186,29 @@ class Change:
     week_delta: float
 
 
+@dataclass(frozen=True)
+class HistoryRow:
+    """One week of a position's history, as it is shown rather than stored.
+
+    Carries both the raw facts (native value, signed deposit, FX rate) and the
+    EUR readings derived from them, so the caller never divides by an FX rate
+    itself.
+
+    :param change: the week's move in EUR with that week's deposit removed, or
+        None where no such move is defined — see :func:`history_rows`.
+    """
+
+    date: str
+    value: float
+    deposit: float
+    fx_rate: float
+    carried: bool
+    derived: bool
+    value_eur: float
+    deposit_eur: float
+    change: float | None
+
+
 def with_sale_recorded(
     snapshots: Sequence[Snapshot], closed_at: str | None
 ) -> Sequence[Snapshot]:
@@ -332,6 +355,47 @@ def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
         - value_eur(previous.value, previous.fx_rate)
         - value_eur(latest.deposit, latest.fx_rate)
     )
+
+
+def history_rows(snapshots: Sequence[Snapshot]) -> list[HistoryRow]:
+    """Return a position's full history, one row per snapshot, ascending by date.
+
+    ``change`` repeats the rule of :func:`week_delta` for every week rather than
+    only the latest one: the move against the previous week with that week's
+    deposit removed, because money paid in is not a gain.
+
+    Two cases leave it undefined. The first row has no previous week to move
+    against, and the derived closing row of a sold position is a withdrawal
+    rather than a market move — reading it as one would report every sale as an
+    exact wipeout. That row still appears, flagged ``derived``, since it is the
+    sale itself and the one place the proceeds are visible.
+
+    :param snapshots: ascending by date.
+    """
+    rows: list[HistoryRow] = []
+    previous: Snapshot | None = None
+    for snapshot in snapshots:
+        converted: float = value_eur(snapshot.value, snapshot.fx_rate)
+        paid_in: float = value_eur(snapshot.deposit, snapshot.fx_rate)
+        change: float | None = None
+        if not snapshot.derived and previous is not None:
+            change = converted - value_eur(previous.value, previous.fx_rate) - paid_in
+        rows.append(
+            HistoryRow(
+                date=snapshot.date,
+                value=snapshot.value,
+                deposit=snapshot.deposit,
+                fx_rate=snapshot.fx_rate,
+                carried=snapshot.carried,
+                derived=snapshot.derived,
+                value_eur=converted,
+                deposit_eur=paid_in,
+                change=change,
+            )
+        )
+        if not snapshot.derived:
+            previous = snapshot
+    return rows
 
 
 def growth_points(snapshots: Sequence[Snapshot]) -> list[tuple[str, float]]:

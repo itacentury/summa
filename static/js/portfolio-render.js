@@ -303,10 +303,87 @@ export function positionDetailHtml(position, { open = false } = {}) {
             <div class="portfolio-detail-label">Snapshots</div>
             <div class="portfolio-detail-value">${position.snapshot_count}</div>
           </div>
+          <div class="portfolio-detail-item portfolio-detail-action">
+            <button type="button" class="btn btn-secondary btn-sm" data-action="show-history"
+                    data-position-id="${position.id}" data-position-name="${escapeHtml(position.name)}">
+              History
+            </button>
+          </div>
         </div>
       </div>
     </div>
   `;
+}
+
+/**
+ * Build the rows of the history dialog, newest first.
+ *
+ * The default view keeps only the weeks money moved in or out, which is what
+ * "transactions" means here; every other week is a pure valuation. The derived
+ * closing row of a sold position always survives that filter — it is the sale.
+ *
+ * A week whose value was copied forward is marked, and a value in a foreign
+ * currency shows the native amount next to the EUR one, so a jump caused by the
+ * FX rate alone stays readable.
+ */
+export function historyRowsHtml(
+  rows,
+  { currency = "EUR", paymentsOnly = true } = {},
+) {
+  const shown = paymentsOnly
+    ? rows.filter((row) => row.deposit !== 0 || row.derived)
+    : rows;
+  if (!shown.length) {
+    return `<p class="portfolio-history-empty">${
+      rows.length ? "No payments recorded." : "No weeks recorded yet."
+    }</p>`;
+  }
+
+  // Two unlabelled money columns would be indistinguishable: one is what was
+  // paid in or taken out, the other what the market did.
+  const header = `
+    <div class="portfolio-history-row portfolio-history-header">
+      <span class="portfolio-history-date">Week</span>
+      <span class="portfolio-history-deposit">Payment</span>
+      <span class="portfolio-history-change">Change</span>
+    </div>
+  `;
+
+  const body = shown
+    .map((row) => {
+      const native =
+        currency === "EUR"
+          ? ""
+          : `<span class="portfolio-history-native">${escapeHtml(currency)} ${formatAmount(
+              row.value,
+            )}</span>`;
+      const label = row.derived
+        ? '<span class="portfolio-badge">Sale</span>'
+        : row.carried
+          ? '<span class="portfolio-badge">Carried forward</span>'
+          : "";
+      const deposit =
+        row.deposit_eur === 0 ? "—" : formatSigned(row.deposit_eur);
+      const change = row.change === null ? "—" : formatSigned(row.change);
+
+      return `
+        <div class="portfolio-history-row">
+          <span class="portfolio-history-date">${formatDateDots(row.date)}${label}</span>
+          <span class="portfolio-history-value">${formatEuroSuffixed(
+            row.value_eur,
+          )}${native}</span>
+          <span class="portfolio-history-deposit ${toneClass(
+            row.deposit_eur,
+          )}">${deposit}</span>
+          <span class="portfolio-history-change ${
+            row.change === null ? "" : toneClass(row.change)
+          }">${change}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return header + body;
 }
 
 /**

@@ -1051,6 +1051,109 @@ def test_post_snapshot_rejects_malformed_payloads(
     assert client.post("/api/portfolio/snapshot", json=body).status_code == 400
 
 
+# --- GET /api/portfolio/positions/<id>/snapshots -----------------------------
+
+
+def test_get_position_history_lists_every_week_newest_first(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The one endpoint serving the weekly rows, ordered for display."""
+    depot_id: int = seed_depot()
+    position_id: int = seed_position(depot_id, name="MSCI World")
+    seed_snapshot(position_id, "2026-01-04", 1000.0, deposit=1000.0)
+    seed_snapshot(position_id, "2026-01-11", 1080.0)
+
+    response = client.get(f"/api/portfolio/positions/{position_id}/snapshots")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["position"]["name"] == "MSCI World"
+    assert [row["date"] for row in payload["rows"]] == ["2026-01-11", "2026-01-04"]
+    # Reversing happens after the derivation, so the newest row keeps the change
+    # measured against the week below it rather than none at all.
+    assert payload["rows"][0]["change"] == pytest.approx(80.0)
+    assert payload["rows"][1]["change"] is None
+
+
+def test_get_position_history_reports_a_foreign_currency_in_both_readings(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The native amount and its EUR conversion both travel into JSON."""
+    depot_id: int = seed_depot()
+    position_id: int = seed_position(depot_id, currency="USD")
+    seed_snapshot(position_id, "2026-01-04", 1080.0, deposit=1080.0, fx_rate=1.08)
+
+    payload = client.get(f"/api/portfolio/positions/{position_id}/snapshots").get_json()
+
+    assert payload["position"]["currency"] == "USD"
+    row = payload["rows"][0]
+    assert row["value"] == pytest.approx(1080.0)
+    assert row["value_eur"] == pytest.approx(1000.0)
+    assert row["fx_rate"] == pytest.approx(1.08)
+
+
+def test_get_position_history_carries_the_derived_sale_row(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A sold position shows where the money left, not just the totals it changed."""
+    depot_id: int = seed_depot()
+    position_id: int = seed_position(depot_id, closed_at="2026-01-18")
+    seed_snapshot(position_id, "2026-01-04", 1000.0, deposit=1000.0)
+    seed_snapshot(position_id, "2026-01-11", 1200.0)
+
+    payload = client.get(f"/api/portfolio/positions/{position_id}/snapshots").get_json()
+
+    newest = payload["rows"][0]
+    assert newest["derived"] is True
+    assert newest["date"] == "2026-01-18"
+    assert newest["deposit_eur"] == pytest.approx(-1200.0)
+    assert newest["change"] is None
+
+
+def test_get_position_history_marks_a_carried_week(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A value copied forward stays distinguishable from one that was entered."""
+    depot_id: int = seed_depot()
+    position_id: int = seed_position(depot_id)
+    seed_snapshot(position_id, "2026-01-04", 1000.0, carried=True)
+
+    payload = client.get(f"/api/portfolio/positions/{position_id}/snapshots").get_json()
+
+    assert payload["rows"][0]["carried"] is True
+
+
+def test_get_position_history_of_a_position_without_snapshots(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """An empty history is an empty list, not a 404."""
+    position_id: int = seed_position(seed_depot())
+
+    response = client.get(f"/api/portfolio/positions/{position_id}/snapshots")
+
+    assert response.status_code == 200
+    assert response.get_json()["rows"] == []
+
+
+def test_get_position_history_of_an_unknown_position(client: FlaskClient) -> None:
+    """An id nothing answers to is a 404."""
+    response = client.get("/api/portfolio/positions/999/snapshots")
+
+    assert response.status_code == 404
+
+
 # --- Positions and depots ---------------------------------------------------
 
 

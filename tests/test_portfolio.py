@@ -22,6 +22,7 @@ from summa.portfolio import (
     gain,
     gain_pct,
     growth_points,
+    history_rows,
     invested_eur,
     range_start,
     rebase_to_grid,
@@ -356,6 +357,93 @@ def test_week_delta_converts_both_weeks_to_eur() -> None:
     ]
     # (1188 - 1080 - 54) / 1.08 = 50
     assert week_delta(snapshots) == pytest.approx(50.0)
+
+
+def test_history_rows_returns_one_row_per_snapshot_in_order() -> None:
+    """Every week is listed, ascending, with its EUR readings alongside."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 1080.0, deposit=1080.0, fx_rate=1.08),
+        _snapshot("2026-01-11", 1188.0, fx_rate=1.08),
+    ]
+
+    rows = history_rows(snapshots)
+
+    assert [row.date for row in rows] == ["2026-01-04", "2026-01-11"]
+    assert rows[0].value_eur == pytest.approx(1000.0)
+    assert rows[0].deposit_eur == pytest.approx(1000.0)
+    assert rows[1].deposit_eur == pytest.approx(0.0)
+
+
+def test_history_rows_leaves_the_first_week_without_a_change() -> None:
+    """There is no previous week to move against, so the number is undefined."""
+    rows = history_rows([_snapshot("2026-01-04", 1000.0, deposit=1000.0)])
+
+    assert rows[0].change is None
+
+
+def test_history_rows_does_not_read_a_deposit_as_a_change() -> None:
+    """A week that only received money moved by zero, just as week_delta reads it."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 1000.0, deposit=1000.0),
+        _snapshot("2026-01-11", 1500.0, deposit=500.0),
+    ]
+
+    assert history_rows(snapshots)[1].change == pytest.approx(0.0)
+
+
+def test_history_rows_computes_each_change_in_eur() -> None:
+    """Both weeks are converted before they are subtracted."""
+    snapshots: list[Snapshot] = [
+        _snapshot("2026-01-04", 1080.0, fx_rate=1.08),
+        _snapshot("2026-01-11", 1188.0, deposit=54.0, fx_rate=1.08),
+    ]
+
+    assert history_rows(snapshots)[1].change == pytest.approx(50.0)
+
+
+def test_history_rows_flags_the_derived_sale_without_a_change() -> None:
+    """The closing row is a withdrawal, not a market move."""
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 1000.0, deposit=1000.0),
+        _snapshot("2026-01-11", 1200.0),
+    ]
+
+    rows = history_rows(with_sale_recorded(stored, "2026-01-18"))
+
+    assert [row.derived for row in rows] == [False, False, True]
+    assert rows[-1].change is None
+    assert rows[-1].deposit_eur == pytest.approx(-1200.0)
+
+
+def test_history_rows_measures_a_week_against_the_last_recorded_one() -> None:
+    """The derived row never becomes the week a later one is compared against.
+
+    It cannot follow a recorded week in practice, but reading it as the previous
+    week would silently turn the next change into the whole position's value.
+    """
+    stored: list[Snapshot] = [
+        _snapshot("2026-01-04", 1000.0, deposit=1000.0),
+        _snapshot("2026-01-11", 1200.0),
+    ]
+    sold: Sequence[Snapshot] = with_sale_recorded(stored, "2026-01-11")
+
+    rows = history_rows([*sold, _snapshot("2026-01-18", 1300.0)])
+
+    assert rows[-1].change == pytest.approx(100.0)
+
+
+def test_history_rows_keeps_the_carried_flag() -> None:
+    """A copied-forward value stays marked as one."""
+    snapshots: list[Snapshot] = [
+        Snapshot(date="2026-01-04", value=1000.0, carried=True),
+    ]
+
+    assert history_rows(snapshots)[0].carried is True
+
+
+def test_history_rows_of_an_empty_history() -> None:
+    """A position without snapshots has nothing to list."""
+    assert history_rows([]) == []
 
 
 @pytest.mark.parametrize(

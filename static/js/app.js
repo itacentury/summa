@@ -25,6 +25,7 @@ import { setupViewListeners } from "./views.js";
 import { restorePortfolioPrefs, setupPortfolioListeners } from "./portfolio.js";
 import { setupSnapshotListeners } from "./portfolio-snapshot.js";
 import { setupPositionListeners } from "./portfolio-position.js";
+import { setupHistoryListeners } from "./portfolio-history.js";
 import { setupImportListeners } from "./import.js";
 import { setupCategorizeListeners } from "./categorize.js";
 import { setupComboboxes } from "./combobox.js";
@@ -134,6 +135,7 @@ function init() {
     setupPortfolioListeners,
     setupSnapshotListeners,
     setupPositionListeners,
+    setupHistoryListeners,
     setupManageListeners,
     setupImportListeners,
     setupCategorizeListeners,

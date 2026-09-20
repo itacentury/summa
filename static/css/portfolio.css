@@ -1058,6 +1058,157 @@
   text-align: center;
 }
 
+/* ====== HISTORY MODAL ====== */
+
+/* The button that opens it sits in the detail strip's own flex row, pushed to
+   the far end so it never reads as one more figure. */
+.portfolio-detail-action {
+  align-self: center;
+  margin-left: auto;
+}
+
+/* The list scrolls, not the body: this dialog has no footer, so a scrolling
+   body would put the scrollbar against the bottom rounded corner. One level
+   further in, it sits inside the body's own padding and touches nothing —
+   and the subtitle and filter pills stay put above it. */
+.portfolio-history-dialog .modal-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.portfolio-history-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.portfolio-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.portfolio-history-subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Deliberately not .portfolio-period: those pills switch a date range, these
+   switch which weeks are listed, and neither may inherit the other's rules. */
+.portfolio-history-filter {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-hover);
+  border-radius: 9px;
+}
+
+.portfolio-history-filter-btn {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.portfolio-history-filter-btn:hover {
+  color: var(--text-primary);
+}
+
+.portfolio-history-filter-btn.is-active {
+  font-weight: 600;
+  color: var(--accent-text-on);
+  background: var(--accent);
+}
+
+/* One grid per row rather than a table: the rows are rendered as a flat string
+   list, and a shared column template keeps them aligned without one. */
+.portfolio-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 2px 12px;
+  align-items: baseline;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-history-row:last-child {
+  border-bottom: 0;
+}
+
+/* Labels rather than figures, so the header drops the mono face and the second
+   row the money columns hang under. */
+.portfolio-history-header {
+  position: sticky;
+  top: 0;
+  padding-top: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: var(--bg-card);
+}
+
+.portfolio-history-header .portfolio-history-deposit,
+.portfolio-history-header .portfolio-history-change {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.portfolio-history-date {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.portfolio-history-value,
+.portfolio-history-deposit,
+.portfolio-history-change {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  text-align: right;
+}
+
+.portfolio-history-value {
+  grid-row: 2;
+  grid-column: 1;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+/* The native amount trails the EUR one, so an FX-driven move stays readable.
+   Never wrapped mid-amount: the code and its number are one reading. */
+.portfolio-history-native {
+  margin-left: 8px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.portfolio-history-deposit,
+.portfolio-history-change {
+  min-width: 92px;
+}
+
+.portfolio-history-empty {
+  padding: 24px 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
 /* Mobile (Design 18b): the same content in the same order, stacked — hero above
@@ -1322,5 +1473,35 @@
 
   .snapshot-total {
     flex: 1 0 100%;
+  }
+
+  /* The figures already wrap on a narrow strip; a full-width trigger below them
+     keeps it off a line of its own halfway through them. */
+  .portfolio-detail-action {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+
+  .portfolio-history-filter {
+    flex: 1 0 100%;
+  }
+
+  .portfolio-history-filter-btn {
+    flex: 1;
+  }
+
+  /* The desktop minimums add up past a phone's width, and the value line has to
+     stop sharing its row with them or it wraps mid-amount. */
+  .portfolio-history-row {
+    gap: 2px 8px;
+  }
+
+  .portfolio-history-deposit,
+  .portfolio-history-change {
+    min-width: 0;
+  }
+
+  .portfolio-history-value {
+    grid-column: 1 / -1;
   }
 }

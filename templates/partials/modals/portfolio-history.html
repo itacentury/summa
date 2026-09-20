@@ -1,0 +1,49 @@
+{% from "partials/_macros.html" import modal_close_button %}
+<!-- Position History Modal -->
+<div class="modal-overlay" data-el="portfolio-history-modal">
+  <div
+    class="modal portfolio-history-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="history-title"
+  >
+    <div class="modal-header">
+      <h3 class="modal-title" id="history-title">History</h3>
+      {# Nothing here is editable, so the close button takes the initial focus
+         the way Settings does — the filter pills stay one Tab away. #}
+      {{ modal_close_button(autofocus=true) }}
+    </div>
+    <div class="modal-body">
+      {# Read-only: correcting a week stays the snapshot form's job, so this
+         dialog never writes and has no footer at all — the X, the backdrop and
+         Esc are the only ways out, as in Settings. #}
+      <div class="portfolio-history-head">
+        <p class="portfolio-history-subtitle" data-el="history-subtitle"></p>
+        {# Its own control rather than the chart's period pills: those switch a
+           date range, this one switches which weeks are listed. #}
+        <div
+          class="portfolio-history-filter"
+          data-el="history-filter"
+          role="group"
+          aria-label="Which weeks to list"
+        >
+          <button
+            type="button"
+            class="portfolio-history-filter-btn is-active"
+            data-scope="payments"
+          >
+            Payments
+          </button>
+          <button
+            type="button"
+            class="portfolio-history-filter-btn"
+            data-scope="all"
+          >
+            All weeks
+          </button>
+        </div>
+      </div>
+      <div class="portfolio-history-list" data-el="history-list"></div>
+    </div>
+  </div>
+</div>

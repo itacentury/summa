@@ -27,6 +27,7 @@ import {
   PORTFOLIO_DEPOT_STORAGE_KEY,
   PORTFOLIO_RANGE_STORAGE_KEY,
 } from "../../static/js/state.js";
+import { openHistoryModal } from "../../static/js/portfolio-history.js";
 import { showErrorToast } from "../../static/js/toast.js";
 import { showInvoicesView, showPortfolioView } from "../../static/js/views.js";
 import { flushUi, jsonResponse } from "./helpers.js";
@@ -34,6 +35,9 @@ import { flushUi, jsonResponse } from "./helpers.js";
 vi.mock("../../static/js/stats.js", () => ({ loadStats: vi.fn() }));
 vi.mock("../../static/js/drawer.js", () => ({ closeMobileSearch: vi.fn() }));
 vi.mock("../../static/js/toast.js", () => ({ showErrorToast: vi.fn() }));
+vi.mock("../../static/js/portfolio-history.js", () => ({
+  openHistoryModal: vi.fn(),
+}));
 
 const markup = `
   <div data-el="topbar-title"></div>
@@ -683,6 +687,19 @@ describe("portfolio group collapsing and row expansion", () => {
     rowFor(13).click();
 
     expect(rowFor(13).nextElementSibling.textContent).toContain("—");
+  });
+
+  it("opens the history dialog without collapsing the row it sits in", async () => {
+    const row = rowFor(11);
+    row.click();
+
+    row.nextElementSibling
+      .querySelector('[data-action="show-history"]')
+      .click();
+
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+    expect(expandedPositions.has(11)).toBe(true);
+    expect(openHistoryModal).toHaveBeenCalledWith(11, "MSCI World SRI");
   });
 
   it("re-opens the same rows after a refetch", async () => {

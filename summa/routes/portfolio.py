@@ -467,6 +467,21 @@ def _serialize_change(change: portfolio.Change) -> dict[str, Any]:
     }
 
 
+def _serialize_history_row(row: portfolio.HistoryRow) -> dict[str, Any]:
+    """Render one week of a position's history. change stays null when undefined."""
+    return {
+        "date": row.date,
+        "value": _amount(row.value),
+        "deposit": _amount(row.deposit),
+        "fx_rate": row.fx_rate,
+        "carried": row.carried,
+        "derived": row.derived,
+        "value_eur": _amount(row.value_eur),
+        "deposit_eur": _amount(row.deposit_eur),
+        "change": _optional_amount(row.change),
+    }
+
+
 # --- Query parameters -------------------------------------------------------
 
 
@@ -870,6 +885,50 @@ def _require_existing_depot(cursor: sqlite3.Cursor, depot_id: int) -> None:
     cursor.execute("SELECT id FROM portfolio_depots WHERE id = ?", (depot_id,))
     if cursor.fetchone() is None:
         raise ValidationError("Depot not found", field="depot_id")
+
+
+@portfolio_bp.route(
+    "/api/portfolio/positions/<int:position_id>/snapshots", methods=["GET"]
+)
+def get_position_history(position_id: int) -> ApiResponse:
+    """Return one position's recorded weeks, newest first.
+
+    The weekly rows the rest of the area only ever shows as sums. A sold
+    position carries its derived closing row here too, so the sale is visible
+    where the money left rather than only in the totals it changed.
+
+    The reply is ordered descending, against the ascending order every function
+    in :mod:`summa.portfolio` requires: the reversal happens after the
+    derivation, never before it.
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT id, name, currency, closed_at FROM portfolio_positions WHERE id = ?",
+            (position_id,),
+        )
+        position: Any | None = cursor.fetchone()
+        if position is None:
+            return error_response("Position not found", 404)
+        history: dict[int, list[portfolio.Snapshot]] = _load_snapshots(
+            cursor, [position_id]
+        )
+
+    snapshots: Sequence[portfolio.Snapshot] = portfolio.with_sale_recorded(
+        history[position_id], position["closed_at"]
+    )
+    rows: list[portfolio.HistoryRow] = portfolio.history_rows(snapshots)
+
+    return jsonify(
+        {
+            "position": {
+                "id": position["id"],
+                "name": position["name"],
+                "currency": position["currency"],
+                "closed_at": position["closed_at"],
+            },
+            "rows": [_serialize_history_row(row) for row in reversed(rows)],
+        }
+    )
 
 
 @portfolio_bp.route("/api/portfolio/positions", methods=["POST"])

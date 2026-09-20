@@ -14,11 +14,17 @@
   display: flex;
 }
 
+/* The body scrolls, not the dialog: scrolling the whole card would run the
+   8px scrollbar (base.css, in a colour of its own) down the full height,
+   across the header's border and into both rounded corners. Same shell
+   .categorize-modal builds by hand and .modal-sheet gets on mobile. */
 .modal {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 500px;
   max-height: 85vh;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--bg-card);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-modal);
@@ -27,10 +33,15 @@
 
 /* Narrower variant for compact dialogs (bulk edit, confirm delete). Its
    content is short and never scrolls, so let the category combobox menu
-   overflow the dialog instead of turning it into a scroll container. */
+   overflow the dialog instead of turning it into a scroll container. The body
+   has to stay unclipped too, or the menu would be trapped one level further in. */
+.modal-sm,
+.modal-sm .modal-body {
+  overflow: visible;
+}
+
 .modal-sm {
   max-width: 360px;
-  overflow: visible;
 }
 
 /* Bottom-sheet drag handle: only rendered on mobile sheets. */
@@ -52,6 +63,7 @@
 
 .modal-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
@@ -83,11 +95,15 @@
 }
 
 .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 22px 24px;
+  overflow-y: auto;
 }
 
 .modal-footer {
   display: flex;
+  flex: none;
   gap: 0.75rem;
   justify-content: flex-end;
   padding: 14px 24px;

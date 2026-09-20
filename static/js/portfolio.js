@@ -19,6 +19,7 @@ import { showErrorToast } from "./toast.js";
 import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
 import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
 import { renderPortfolioCharts } from "./portfolio-charts.js";
+import { openHistoryModal } from "./portfolio-history.js";
 
 // The live depot dropdown, and the ids of the last rendered payload's positions —
 // what the pruning below needs to drop expansions that no longer exist.
@@ -271,6 +272,16 @@ export function setupPortfolioListeners() {
       const header = event.target.closest(".portfolio-group-header");
       if (header) {
         toggleDepotGroup(header);
+        return;
+      }
+      // Checked before the row, even though the strip is the row's sibling: the
+      // trigger must never double as a collapse.
+      const history = event.target.closest('[data-action="show-history"]');
+      if (history) {
+        openHistoryModal(
+          Number(history.dataset.positionId),
+          history.dataset.positionName,
+        );
         return;
       }
       const row = event.target.closest(".portfolio-row");
