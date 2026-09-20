@@ -94,9 +94,14 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   are done inline by
   inspecting `PRAGMA table_info` and conditionally `ALTER TABLE`-ing new columns
   (e.g. `deleted_at`, `category`). Add future column migrations the same way.
-- **Soft deletes:** rows are never physically deleted. Delete endpoints set
-  `deleted_at = CURRENT_TIMESTAMP`, and every read query filters
-  `WHERE deleted_at IS NULL`. Preserve this filter in any new query.
+- **Soft deletes (invoice side only):** invoice rows are never physically deleted.
+  Delete endpoints set `deleted_at = CURRENT_TIMESTAMP`, and every read query on
+  `invoices` filters `WHERE deleted_at IS NULL` — preserve this filter in any new
+  invoice query. The column lives on `invoices` alone; its child rows
+  (`invoice_items`, `invoice_category_suggestions`) are excluded by joining against
+  it. The portfolio tables have no `deleted_at` at all: a sold position is recorded
+  through `closed_at` (see _Portfolio_ below), so portfolio queries have no such
+  filter.
 - **Optional password gate** (`summa/config.py`, `summa/auth.py`,
   `summa/ratelimit.py`): off unless `AUTH_ENABLED` is set. A single
   `before_request` hook in `create_app()` denies by default; `is_public()` in
