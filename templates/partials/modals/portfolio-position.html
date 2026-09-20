@@ -12,7 +12,10 @@
       {{ modal_close_button() }}
     </div>
     <div class="modal-body">
-      <form data-el="position-form">
+      {# The footer buttons sit outside this form, so it never submits and the
+         native validation never runs: savePosition() does the checking, and
+         `required` stays on the fields as the accessibility hint. #}
+      <form data-el="position-form" novalidate>
         {# Fields are nested in their labels, so each control is named without
            an id the rest of the app would have to keep unique. #}
         <label class="form-group mb-1">

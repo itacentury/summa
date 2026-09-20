@@ -149,6 +149,15 @@ async function savePosition() {
     return;
   }
 
+  // Mirrors the server's own rule (_require_currency), so a typo costs no round
+  // trip.
+  const code = currency.value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) {
+    showErrorToast("Enter a three-letter currency code");
+    currency.focus();
+    return;
+  }
+
   const originalContent = save.innerHTML;
   save.innerHTML = '<div class="spinner"></div>';
   save.disabled = true;
@@ -163,7 +172,7 @@ async function savePosition() {
         depot_id: depotId,
         name: positionName,
         kind: kind.value,
-        currency: currency.value.trim().toUpperCase(),
+        currency: code,
       }),
     });
     if (!response.ok) {

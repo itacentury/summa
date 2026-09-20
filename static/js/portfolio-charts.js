@@ -133,11 +133,20 @@ function weekTicks(minMs, maxMs) {
   return mondays;
 }
 
-/** Keep at most `limit` values, evenly spaced across the list. */
+/**
+ * Keep exactly `limit` values, evenly spaced, with the first and last kept.
+ *
+ * A whole-number stride would round up and spend less than the budget — seven
+ * month starts under a limit of six would step by two and label only four.
+ */
 function thin(values, limit) {
   if (values.length <= limit) return values;
-  const step = Math.ceil(values.length / limit);
-  return values.filter((_, index) => index % step === 0);
+  if (limit < 2) return [values[0]];
+  const step = (values.length - 1) / (limit - 1);
+  return Array.from(
+    { length: limit },
+    (_, index) => values[Math.round(index * step)],
+  );
 }
 
 /**

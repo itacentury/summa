@@ -274,6 +274,19 @@ describe("axisTicks", () => {
     expect(axisTicks(min, max, 6).values).toHaveLength(6);
     expect(axisTicks(min, max, 3).values.length).toBeLessThanOrEqual(3);
   });
+
+  it("spends the whole tick budget rather than rounding the stride up", () => {
+    const min = Date.UTC(2026, 0, 1);
+    const max = Date.UTC(2026, 6, 5);
+
+    const { values } = axisTicks(min, max, 6);
+
+    // Seven month starts fit: a whole-number stride would step by two and label
+    // only four of them.
+    expect(values).toHaveLength(6);
+    expect(values[0]).toBe(Date.UTC(2026, 0, 1));
+    expect(values.at(-1)).toBe(Date.UTC(2026, 6, 1));
+  });
 });
 
 describe("renderPortfolioCharts", () => {
