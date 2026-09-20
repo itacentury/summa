@@ -596,23 +596,27 @@ def get_snapshot_prefill() -> Response:
         )
 
     # A closed position is sold: it still counts in the totals, but there is
-    # nothing left to record a weekly value for.
+    # nothing left to record a weekly value for. Its snapshot dates stay out of
+    # the reply too — the form cannot write that position, so such a date is an
+    # addition here rather than a replacement.
+    active: list[portfolio.Position] = [
+        position for position in positions if position.closed_at is None
+    ]
+
     grouped: dict[int, list[dict[str, Any]]] = {depot.id: [] for depot in depots}
-    last_snapshot_date: str | None = None
-    for position in positions:
-        if position.closed_at is not None:
-            continue
+    for position in active:
         grouped[position.depot_id].append(_prefill_position(position))
-        if position.snapshots:
-            latest: str = position.snapshots[-1].date
-            # ISO dates compare as text, so no parsing is needed to find the max.
-            if last_snapshot_date is None or latest > last_snapshot_date:
-                last_snapshot_date = latest
+
+    # The full set, not just the newest: the form warns about replacing any week
+    # the user can backdate to.
+    dates: list[str] = portfolio.snapshot_dates(active, None)
+    last_snapshot_date: str | None = dates[-1] if dates else None
 
     return jsonify(
         {
             "suggested_date": _suggested_snapshot_date(last_snapshot_date),
             "last_snapshot_date": last_snapshot_date,
+            "snapshot_dates": dates,
             "depots": [
                 {"id": depot.id, "name": depot.name, "positions": grouped[depot.id]}
                 for depot in depots

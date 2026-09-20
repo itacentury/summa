@@ -612,6 +612,7 @@ def test_snapshot_prefill_suggests_today_without_history(
     payload = client.get("/api/portfolio/snapshot/new").get_json()
 
     assert payload["last_snapshot_date"] is None
+    assert payload["snapshot_dates"] == []
     assert payload["suggested_date"] == date.today().isoformat()
     position = payload["depots"][0]["positions"][0]
     assert position["previous_value"] is None
@@ -637,16 +638,43 @@ def test_snapshot_prefill_flags_a_carried_previous_reading(
 
 
 def test_snapshot_prefill_omits_closed_positions(
-    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
 ) -> None:
     """A sold position has nothing left to record a weekly value for."""
     depot_id = seed_depot()
     seed_position(depot_id, name="Held")
-    seed_position(depot_id, name="Sold", closed_at="2026-01-31")
+    sold_id = seed_position(depot_id, name="Sold", closed_at="2026-01-31")
+    seed_snapshot(sold_id, _weeks_ago(1), 500.0)
 
     payload = client.get("/api/portfolio/snapshot/new").get_json()
 
     assert [p["name"] for p in payload["depots"][0]["positions"]] == ["Held"]
+    # The form cannot write the sold position, so its week is an addition here
+    # rather than a replacement.
+    assert payload["snapshot_dates"] == []
+
+
+def test_snapshot_prefill_reports_every_recorded_date(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Backdating to an older recorded week is a replacement, so it is reported."""
+    depot_id = seed_depot()
+    first_id = seed_position(depot_id, name="First")
+    second_id = seed_position(depot_id, name="Second")
+    seed_snapshot(first_id, _weeks_ago(2), 100.0)
+    seed_snapshot(first_id, _weeks_ago(1), 110.0)
+    seed_snapshot(second_id, _weeks_ago(1), 200.0)
+
+    payload = client.get("/api/portfolio/snapshot/new").get_json()
+
+    assert payload["snapshot_dates"] == [_weeks_ago(2), _weeks_ago(1)]
+    assert payload["last_snapshot_date"] == _weeks_ago(1)
 
 
 # --- POST /api/portfolio/snapshot -------------------------------------------

@@ -87,6 +87,7 @@ function prefill(overrides = {}) {
   return {
     suggested_date: "2020-01-06",
     last_snapshot_date: "2019-12-30",
+    snapshot_dates: ["2019-12-23", "2019-12-30"],
     depots: [
       {
         id: 1,
@@ -344,10 +345,22 @@ describe("snapshot form", () => {
     expect(hint().classList.contains("is-warning")).toBe(false);
   });
 
+  it("warns about a recorded week older than the newest one", async () => {
+    await openForm();
+
+    type(dateInput(), "2019-12-23");
+
+    expect(hint().textContent).toBe(
+      "A snapshot for 23.12.2019 already exists — saving replaces it.",
+    );
+    expect(saveButton().textContent).toBe("Replace snapshot");
+  });
+
   it("refuses a first snapshot with no value to carry forward", async () => {
     await openForm(
       prefill({
         last_snapshot_date: null,
+        snapshot_dates: [],
         depots: [
           {
             id: 1,

@@ -30,8 +30,10 @@ import { openPositionModal } from "./portfolio-position.js";
 // and the footer total need that the DOM does not carry.
 const positions = new Map();
 
-// Dates already covered by a snapshot, so re-entering one can announce that it
-// replaces rather than adds. The server upserts silently either way.
+// Every date already covered by a snapshot, so re-entering one can announce
+// that it replaces rather than adds — including a week older than the newest,
+// which is where the replacement is least expected. The server upserts
+// silently either way.
 const knownDates = new Set();
 
 let lastSnapshotDate = null;
@@ -224,13 +226,14 @@ function applyPrefill(payload) {
   positions.clear();
   knownDates.clear();
   lastSnapshotDate = payload.last_snapshot_date;
-  if (lastSnapshotDate) knownDates.add(lastSnapshotDate);
+  payload.snapshot_dates.forEach((snapshotDate) =>
+    knownDates.add(snapshotDate),
+  );
 
   const depots = payload.depots.filter((depot) => depot.positions.length > 0);
   depots.forEach((depot) => {
     depot.positions.forEach((position) => {
       positions.set(position.id, position);
-      if (position.previous_date) knownDates.add(position.previous_date);
     });
   });
 
