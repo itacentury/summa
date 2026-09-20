@@ -435,6 +435,12 @@
   display: none;
 }
 
+/* Hidden wherever the row itself carries the figure; the mobile block below is
+   the only place this item has a job. */
+.portfolio-detail-item.is-mobile-only {
+  display: none;
+}
+
 .portfolio-detail-label {
   font-size: 10px;
   font-weight: 700;
@@ -940,11 +946,108 @@
   color: var(--text-primary);
 }
 
+/* ====== MANAGE EDITOR ====== */
+
+.manage-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.manage-row:last-child {
+  border-bottom: 0;
+}
+
+/* A sold position stays in the list — reopening it is the whole reason the
+   editor shows it at all. */
+.manage-row.is-closed .manage-row-name {
+  color: var(--text-muted);
+}
+
+.manage-row-main {
+  min-width: 0;
+}
+
+.manage-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.manage-row-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* The inline editor, rendered under the row it belongs to. */
+.manage-form {
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-md);
+}
+
+.manage-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* Away from Save, so closing a position is never the button next to the one the
+   hand is already heading for. */
+.manage-close-btn {
+  margin-right: auto;
+}
+
+.manage-empty {
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
-/* Mobile (Design 18b): the toolbar stacks, with the period switcher full width
-   above the depot select and the snapshot action. */
+/* Mobile (Design 18b): the same content in the same order, stacked — hero above
+   two small cards, the period switcher below them, a compact chart, and one card
+   per depot whose rows carry their figures on two lines. */
 @media (width <= 640px) {
+  /* The toolbar keeps its DOM position for the depot select; only the summary
+     moves, which is enough to put the period pills below the cards. */
+  .portfolio-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    order: -1;
+  }
+
+  .portfolio-card-hero {
+    grid-column: 1 / -1;
+  }
+
+  .portfolio-card {
+    padding: 15px 17px;
+  }
+
+  .portfolio-hero-value {
+    font-size: 26px;
+  }
+
+  /* The chip right above already says all-time. */
+  .portfolio-hero-note {
+    display: none;
+  }
+
+  .portfolio-card-value {
+    font-size: 21px;
+  }
+
   .portfolio-toolbar {
     flex-wrap: wrap;
   }
@@ -957,18 +1060,20 @@
     flex: 1;
   }
 
+  /* The snapshot FAB sits over this screen already, and with the button gone
+     there is nothing left for the spacer to push apart. */
+  .portfolio-snapshot-btn,
+  .portfolio-toolbar-spacer {
+    display: none;
+  }
+
   .portfolio-empty .empty-state {
     padding: 32px 20px;
   }
 
-  /* Baseline only. The stacked hero + two small cards and the two-line position
-     row of design 18b land with the rest of the mobile layout; until then these
-     two rules are what keep the screen usable and the page from scrolling
-     sideways. */
-
-  /* Baseline only until Part 8: the chart header stacks so the title keeps one
-     line, the bottom row goes single column, and the donut sits above its legend
-     rather than being squeezed below its fixed 132px. */
+  /* The chart header stacks so the title keeps one line, the bottom row goes
+     single column, and the donut sits above its legend rather than being
+     squeezed below its fixed 132px. */
   .portfolio-chart-header {
     flex-wrap: wrap;
     gap: 8px;
@@ -977,6 +1082,23 @@
   .portfolio-chart-legend {
     gap: 12px;
     margin-left: 0;
+  }
+
+  /* The invested line stays drawn; only its legend entry goes, so the two series
+     the card is read for at this width keep the header to themselves. */
+  .portfolio-legend-item:has(.is-invested) {
+    display: none;
+  }
+
+  /* A pixel height, never a viewport unit: the card has to keep its proportions
+     while the sheet above it opens. */
+  .portfolio-chart-body {
+    height: 130px;
+    padding: 10px 16px 4px;
+  }
+
+  .portfolio-chart-note {
+    padding: 0 16px 10px;
   }
 
   .portfolio-bottom {
@@ -992,24 +1114,142 @@
     align-self: center;
   }
 
-  .portfolio-summary {
-    grid-template-columns: 1fr;
-  }
-
-  /* The desktop row's fixed amount columns are wider than a phone, so the
-     overflow is contained in the card rather than left on the document. */
+  /* Each depot becomes its own card and the list is only their stack, so the
+     screen scrolls vertically past groups instead of sideways past columns. */
   .portfolio-list {
-    overflow-x: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: visible;
+    background: none;
+    border: 0;
+    border-radius: 0;
   }
 
-  .portfolio-group-header,
-  .portfolio-row,
+  .portfolio-group {
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Name and subtotal only: the three fixed amount columns of the desktop
+     header leave the depot name a handful of pixels at this width, and the gain
+     it would show is repeated on every row below it anyway. */
+  .portfolio-group-header {
+    padding: 11px 16px;
+  }
+
+  .portfolio-group-gain,
+  .portfolio-group-percent {
+    display: none;
+  }
+
+  .portfolio-group-value {
+    min-width: 0;
+  }
+
+  /* Not :last-child on the row: every row is followed by its always-rendered
+     detail strip, so the row is never the group's last child. */
+  .portfolio-group-body > :last-child {
+    border-bottom: 0;
+  }
+
+  /* The legend names columns that no longer exist and the total repeats the hero
+     card; net invested survives in the Invested card and in the strip below. */
   .portfolio-list-footer {
-    min-width: max-content;
+    display: none;
+  }
+
+  /* Two lines: name over invested-or-meta on the left, value over gain and
+     percent on the right. `display: contents` dissolves the row's wrapper span
+     so the name and the meta line can take grid cells of their own. */
+  .portfolio-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 2px 8px;
+    align-items: baseline;
+    padding: 10px 16px;
   }
 
   .portfolio-row-main {
-    min-width: 160px;
+    display: contents;
+  }
+
+  .portfolio-row-name {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .portfolio-row-value {
+    grid-row: 1;
+    grid-column: 2 / 4;
+    min-width: 0;
+  }
+
+  /* One cell, two occupants: the invested figure while the row is collapsed, the
+     meta line once it is open (where the strip takes the figure over). */
+  .portfolio-row-meta,
+  .portfolio-row-invested {
+    display: block;
+    grid-row: 2;
+    grid-column: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .portfolio-row[aria-expanded="false"] .portfolio-row-meta,
+  .portfolio-row[aria-expanded="true"] .portfolio-row-invested {
+    display: none;
+  }
+
+  /* Labels rather than markup: the row is a <button>, so every one of these
+     would have to be a span that means nothing on desktop. */
+  .portfolio-row-invested::after {
+    content: " invested";
+  }
+
+  /* The open row's meta line may wrap: ellipsizing it would eat the affordance
+     that closes the row again. */
+  .portfolio-row[aria-expanded="true"] .portfolio-row-meta {
+    white-space: normal;
+  }
+
+  .portfolio-row[aria-expanded="true"] .portfolio-row-meta::after {
+    font-weight: 600;
+    color: var(--accent);
+    content: " · Show less";
+  }
+
+  .portfolio-row-gain {
+    grid-row: 2;
+    grid-column: 2;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .portfolio-row-percent {
+    grid-row: 2;
+    grid-column: 3;
+    min-width: 0;
+  }
+
+  .portfolio-row-percent::before {
+    color: var(--text-faint);
+    content: "· ";
+  }
+
+  .portfolio-detail {
+    gap: 10px 22px;
+    padding: 0 16px 12px;
+  }
+
+  /* The open row gave its invested line up to the meta text. */
+  .portfolio-detail-item.is-mobile-only {
+    display: block;
   }
 
   /* Snapshot sheet: the column legend gives way to a stacked block per position,

@@ -32,6 +32,7 @@ import { initToastListeners } from "./toast.js";
 import { setupKeyboardListeners } from "./keyboard.js";
 import { setupDrawerListeners } from "./drawer.js";
 import { setupSettingsListeners } from "./settings.js";
+import { setupManageListeners } from "./portfolio-manage.js";
 import { setupSheetGestures } from "./sheet.js";
 import { setupViewportListeners } from "./viewport.js";
 import { setupPageSizeListeners } from "./pagesize.js";
@@ -133,6 +134,7 @@ function init() {
     setupPortfolioListeners,
     setupSnapshotListeners,
     setupPositionListeners,
+    setupManageListeners,
     setupImportListeners,
     setupCategorizeListeners,
     initToastListeners,

@@ -15,10 +15,8 @@
     </div>
     <div class="modal-body">
       {# Revealed by the boot gate only when the password feature is enabled,
-         so an unauthenticated deployment shows no dead control. Every setting
-         row carries `data-setting`; that is what the empty state below is
-         derived from when the modal opens. #}
-      <button class="settings-action" data-setting data-el="logout" hidden>
+         so an unauthenticated deployment shows no dead control. #}
+      <button class="settings-action" data-el="logout" hidden>
         <svg
           width="14"
           height="14"
@@ -33,9 +31,58 @@
         </svg>
         <span>Sign out</span>
       </button>
-      <p class="settings-empty" data-el="settings-empty" hidden>
-        No settings available yet.
-      </p>
+      <!-- Portfolio -->
+      <section class="settings-section">
+        <h4 class="settings-section-title">Portfolio</h4>
+
+        <div class="settings-row">
+          <div class="settings-row-main">
+            <span class="settings-row-label">Depots</span>
+            <span class="settings-row-sub" data-el="settings-depots-sub"></span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="manage-depots"
+          >
+            Manage
+          </button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-main">
+            <span class="settings-row-label">Positions</span>
+            <span
+              class="settings-row-sub"
+              data-el="settings-positions-sub"
+            ></span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="manage-positions"
+          >
+            Manage
+          </button>
+        </div>
+
+        {# The select names the position that stands in for the index feed, not
+           a feed symbol: the feed job writes one series and the API falls back
+           silently, so this is the only benchmark choice there is to make. #}
+        <div class="settings-row">
+          <div class="settings-row-main">
+            <span class="settings-row-label">Benchmark</span>
+            <span class="settings-row-sub"
+              >Index feed, weekly · silent fallback</span
+            >
+          </div>
+          <select
+            class="form-select settings-row-control"
+            data-el="settings-benchmark"
+            aria-label="Benchmark fallback position"
+          ></select>
+        </div>
+      </section>
     </div>
   </div>
 </div>

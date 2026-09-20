@@ -12,7 +12,7 @@ import { escapeHtml } from "./dom.js";
 
 // The API sends the lowercase enum the schema's CHECK constraint holds; the row
 // meta line shows it the way the design spells it.
-const KIND_LABELS = new Map([
+export const KIND_LABELS = new Map([
   ["etf", "ETF"],
   ["fund", "Fund"],
   ["stock", "Stock"],
@@ -263,6 +263,10 @@ export function positionRowHtml(
  *
  * Always rendered, merely hidden while collapsed, because the row's
  * `aria-controls` has to resolve to an element even before anything is opened.
+ *
+ * `Invested` is the one item the desktop row already carries in a column of its
+ * own; it is shown here only on mobile, where the open row gives that line up to
+ * the meta text.
  */
 export function positionDetailHtml(position, { hidden = false } = {}) {
   const weekDelta =
@@ -281,6 +285,12 @@ export function positionDetailHtml(position, { hidden = false } = {}) {
       <div class="portfolio-detail-item">
         <div class="portfolio-detail-label">FX rate</div>
         <div class="portfolio-detail-value">${position.fx_rate.toFixed(4)}</div>
+      </div>
+      <div class="portfolio-detail-item is-mobile-only">
+        <div class="portfolio-detail-label">Invested</div>
+        <div class="portfolio-detail-value">${formatEuroSuffixed(
+          position.invested_eur,
+        )}</div>
       </div>
       <div class="portfolio-detail-item">
         <div class="portfolio-detail-label">Last week</div>

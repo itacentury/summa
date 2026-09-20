@@ -1494,3 +1494,86 @@ def test_post_depot_rejects_a_duplicate_name(
 def test_post_depot_rejects_an_empty_name(client: FlaskClient) -> None:
     """A blank name is a 400."""
     assert client.post("/api/portfolio/depots", json={"name": "  "}).status_code == 400
+
+
+def test_patch_depot_renames_it(client: FlaskClient, seed_depot: SeedDepot) -> None:
+    """A rename reaches the group header."""
+    depot_id = seed_depot(name="Trade Repbulic")
+
+    response = client.patch(
+        f"/api/portfolio/depots/{depot_id}", json={"name": "Trade Republic"}
+    )
+
+    assert response.status_code == 200
+    payload = client.get("/api/portfolio").get_json()
+    assert [depot["name"] for depot in payload["depots"]] == ["Trade Republic"]
+
+
+def test_patch_depot_keeps_its_positions(
+    client: FlaskClient, seed_depot: SeedDepot, seed_position: SeedPosition
+) -> None:
+    """Renaming is a label change: nothing below the depot moves."""
+    depot_id = seed_depot(name="Deka")
+    position_id = seed_position(depot_id, name="BGF Continental European Flex")
+
+    client.patch(f"/api/portfolio/depots/{depot_id}", json={"name": "Deka Depot"})
+
+    depot = client.get("/api/portfolio").get_json()["depots"][0]
+    assert depot["name"] == "Deka Depot"
+    assert [position["id"] for position in depot["positions"]] == [position_id]
+
+
+def test_patch_depot_updates_the_sort_order(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """The depot order is patchable on its own, without naming the depot again."""
+    first = seed_depot(name="Deka", sort_order=0)
+    seed_depot(name="Trade Republic", sort_order=1)
+
+    response = client.patch(f"/api/portfolio/depots/{first}", json={"sort_order": 2})
+
+    assert response.status_code == 200
+    payload = client.get("/api/portfolio").get_json()
+    assert [depot["name"] for depot in payload["depots"]] == [
+        "Trade Republic",
+        "Deka",
+    ]
+
+
+def test_patch_depot_rejects_a_duplicate_name(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """Depot names stay unique, and the collision is reported as such."""
+    seed_depot(name="Deka")
+    depot_id = seed_depot(name="Trade Republic")
+
+    response = client.patch(f"/api/portfolio/depots/{depot_id}", json={"name": "Deka"})
+
+    assert response.status_code == 409
+
+
+def test_patch_depot_rejects_an_unknown_depot(client: FlaskClient) -> None:
+    """Patching a depot that does not exist is a 404, not a silent no-op."""
+    response = client.patch("/api/portfolio/depots/999", json={"name": "Deka"})
+
+    assert response.status_code == 404
+
+
+def test_patch_depot_rejects_an_empty_body(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """A PATCH naming no field is a 400 rather than a pointless UPDATE."""
+    depot_id = seed_depot()
+
+    assert client.patch(f"/api/portfolio/depots/{depot_id}", json={}).status_code == 400
+
+
+def test_patch_depot_rejects_an_empty_name(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """A blank name is a 400."""
+    depot_id = seed_depot()
+
+    response = client.patch(f"/api/portfolio/depots/{depot_id}", json={"name": "  "})
+
+    assert response.status_code == 400

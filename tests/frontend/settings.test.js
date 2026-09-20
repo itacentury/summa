@@ -1,11 +1,11 @@
 /**
- * Frontend unit tests for the settings dialog. The interesting part is the
- * empty state: it is derived from the visible `[data-setting]` rows at open
- * time, so a deployment without the password gate (sign-out hidden) shows the
- * placeholder instead of a blank body.
+ * Frontend unit tests for the settings dialog. Its own job is small — open,
+ * close, wire the triggers — and the portfolio section it now carries is only
+ * reached when that section is actually mounted, which this fixture omits on
+ * purpose.
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   openSettingsModal,
@@ -20,8 +20,7 @@ function mountSettingsFixture() {
       <div class="modal modal-sm">
         <button class="modal-close"></button>
         <div class="modal-body">
-          <button class="settings-action" data-setting data-el="logout" hidden></button>
-          <p class="settings-empty" data-el="settings-empty" hidden></p>
+          <button class="settings-action" data-el="logout" hidden></button>
         </div>
       </div>
     </div>
@@ -32,13 +31,10 @@ function overlay() {
   return document.querySelector('[data-el="settings-modal"]');
 }
 
-function emptyHidden() {
-  return document.querySelector('[data-el="settings-empty"]').hidden;
-}
-
 describe("settings modal", () => {
   beforeEach(() => {
     mountSettingsFixture();
+    global.fetch = vi.fn();
   });
 
   it("opens and closes the overlay", () => {
@@ -49,25 +45,11 @@ describe("settings modal", () => {
     expect(overlay().classList.contains("active")).toBe(false);
   });
 
-  it("shows the empty state when every setting row is hidden", () => {
+  it("leaves the portfolio section alone when it is not mounted", () => {
+    setupSettingsListeners();
     openSettingsModal();
-    expect(emptyHidden()).toBe(false);
-  });
 
-  it("hides the empty state once a setting row is visible", () => {
-    document.querySelector('[data-el="logout"]').hidden = false;
-
-    openSettingsModal();
-    expect(emptyHidden()).toBe(true);
-  });
-
-  it("re-derives the empty state on every open", () => {
-    openSettingsModal();
-    closeSettingsModal();
-    document.querySelector('[data-el="logout"]').hidden = false;
-
-    openSettingsModal();
-    expect(emptyHidden()).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("wires the trigger and the close button", () => {

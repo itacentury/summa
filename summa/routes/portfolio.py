@@ -52,6 +52,7 @@ _PATCHABLE_COLUMNS: Final[tuple[str, ...]] = (
     "is_benchmark_fallback",
     "closed_at",
 )
+_PATCHABLE_DEPOT_COLUMNS: Final[tuple[str, ...]] = ("name", "sort_order")
 
 
 # --- Rounding ---------------------------------------------------------------
@@ -271,8 +272,9 @@ def _feed_points(
 
     The symbol is implicit: whichever one in benchmark_prices carries the newest
     close, ties broken arbitrarily. That only holds while the feed job writes a
-    single symbol. The planned Settings -> Portfolio "Benchmark" select (Part 8)
-    has to pass a symbol in here, leaving this query as the no-selection default.
+    single symbol; a second one would need the caller to name which it wants.
+    Settings -> Portfolio does not: its "Benchmark" select governs only the
+    position that stands in when this feed has nothing to offer.
     """
     cursor.execute(
         "SELECT symbol, MAX(date) AS latest FROM benchmark_prices "
@@ -1021,3 +1023,65 @@ def add_depot() -> ApiResponse:
 
     logger.info("Portfolio depot created: id=%s, name='%s'", depot_id, name)
     return jsonify({"success": True, "id": depot_id})
+
+
+def _parse_depot_patch(data: Any) -> dict[str, Any]:
+    """Validate a partial depot update into column/value pairs.
+
+    Only keys actually present are updated, so a PATCH never overwrites a field
+    the client did not mention.
+    """
+    payload: dict[str, Any] = _require_object(data)
+    updates: dict[str, Any] = {}
+
+    if "name" in payload:
+        updates["name"] = require_non_empty_str(payload["name"], "name")
+    if "sort_order" in payload:
+        updates["sort_order"] = _require_int(payload["sort_order"], "sort_order")
+
+    if not updates:
+        raise ValidationError("No updatable fields in request body")
+    return updates
+
+
+@portfolio_bp.route("/api/portfolio/depots/<int:depot_id>", methods=["PATCH"])
+def update_depot(depot_id: int) -> ApiResponse:
+    """Rename a depot or move it in the sort order.
+
+    Nothing below the depot is touched: its positions keep their ids, so a
+    corrected name reaches every group header and snapshot row without rewriting
+    a single number.
+    """
+    try:
+        updates: dict[str, Any] = _parse_depot_patch(request.json)
+    except ValidationError as e:
+        return error_response(e.message, 400)
+
+    # The column names come from _parse_depot_patch's own keys, never from the
+    # request body, so interpolating them carries no injection surface. Checked
+    # rather than asserted, because an assert would vanish under `python -O`.
+    unknown_columns: set[str] = set(updates) - set(_PATCHABLE_DEPOT_COLUMNS)
+    if unknown_columns:
+        raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
+    assignments: str = ", ".join(f"{column} = ?" for column in updates)
+
+    try:
+        with db_cursor() as cursor:
+            cursor.execute(
+                f"UPDATE portfolio_depots SET {assignments} WHERE id = ?",
+                [*updates.values(), depot_id],
+            )
+            if cursor.rowcount == 0:
+                return error_response("Depot not found", 404)
+    except sqlite3.IntegrityError:
+        return error_response(
+            f"A depot named '{updates.get('name')}' already exists", 409
+        )
+    except sqlite3.Error as e:
+        logger.error("Failed to update depot id=%d: %s", depot_id, e)
+        return error_response("Internal server error", 500)
+
+    logger.info(
+        "Portfolio depot updated: id=%d, fields=%s", depot_id, ",".join(updates)
+    )
+    return jsonify({"success": True})

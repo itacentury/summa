@@ -1,22 +1,22 @@
 /**
- * Settings dialog: a container for app-level preferences, currently holding
- * only the sign-out control moved out of the sidebar.
+ * Settings dialog: a container for app-level preferences — the sign-out control
+ * moved out of the sidebar, and the portfolio section whose own module fills and
+ * wires it.
  */
 
 import { lockScroll, unlockScroll } from "./modals.js";
+import {
+  refreshPortfolioSettings,
+  setupPortfolioSettings,
+} from "./settings-portfolio.js";
 
 export function openSettingsModal() {
   const modal = document.querySelector('[data-el="settings-modal"]');
-  // The empty state is derived from the rows themselves rather than tracked by
-  // whoever reveals them: sign-out is unhidden by setupSignOut() in auth.js,
-  // which knows nothing about this dialog, and a future setting only has to
-  // carry `data-setting` to be counted here.
-  const rows = [...modal.querySelectorAll("[data-setting]")];
-  modal.querySelector('[data-el="settings-empty"]').hidden = rows.some(
-    (row) => !row.hidden,
-  );
   modal.classList.add("active");
   lockScroll();
+  // Deliberately not awaited: the dialog is usable while its sub-lines fill in,
+  // and the module reports its own failures.
+  refreshPortfolioSettings();
 }
 
 export function closeSettingsModal() {
@@ -39,4 +39,5 @@ export function setupSettingsListeners() {
   document
     .querySelector('[data-el="settings-modal"] .modal-close')
     .addEventListener("click", closeSettingsModal);
+  setupPortfolioSettings();
 }
