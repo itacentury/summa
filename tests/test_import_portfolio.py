@@ -345,13 +345,27 @@ def test_build_snapshot_rows_skips_weeks_before_a_position_exists(
     assert skipped == expected_skipped
 
 
-def test_build_snapshot_rows_starts_on_a_deposit_without_a_value() -> None:
+@pytest.mark.parametrize("first_value", [0, None])
+def test_build_snapshot_rows_starts_on_a_deposit_without_a_value(
+    first_value: float | None,
+) -> None:
     """Money moving starts the position even when the value cell is blank."""
-    dates, values, deposits = _grid([0, 120.0], [500.0, None])
+    dates, values, deposits = _grid([first_value, 120.0], [500.0, None])
     rows, skipped = build_snapshot_rows([_position()], dates, values, deposits, {})
 
     assert skipped == 0
     assert (rows[0].value, rows[0].deposit, rows[0].carried) == (0.0, 500.0, False)
+
+
+def test_build_snapshot_rows_does_not_carry_before_the_first_value() -> None:
+    """A week with no value to copy yet is not carried -- there is nothing to copy."""
+    dates, values, deposits = _grid(
+        [None, None, 150.0, None], [500.0, None, None, None]
+    )
+    rows, _ = build_snapshot_rows([_position()], dates, values, deposits, {})
+
+    assert [row.value for row in rows] == [0.0, 0.0, 150.0, 150.0]
+    assert [row.carried for row in rows] == [False, False, False, True]
 
 
 def test_build_snapshot_rows_carries_a_blank_week_forward() -> None:

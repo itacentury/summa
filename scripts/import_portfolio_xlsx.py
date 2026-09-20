@@ -310,6 +310,10 @@ def build_snapshot_rows(
     recorded at its own date, because dropping it would distort ``invested_eur``
     and moving it would misdate the cash flow.
 
+    A week before the position's first real value is not carried: there is nothing
+    to carry. A deposit-only start therefore records ``carried=False``, the same as
+    the literal-zero spelling of that week.
+
     :return: the rows plus the number of pre-start rows skipped.
     """
     rows: list[SnapshotRow] = []
@@ -317,6 +321,7 @@ def build_snapshot_rows(
     for position in columns:
         fx_rate: float = fx_rates.get(position.currency, DEFAULT_FX_RATE)
         started: bool = False
+        seen_value: bool = False
         last_value: float = 0.0
         for index, snapshot_date in enumerate(dates):
             value: float | None = values[index].get(position.column)
@@ -327,9 +332,10 @@ def build_snapshot_rows(
                     continue
                 started = True
 
-            carried: bool = value is None
+            carried: bool = value is None and seen_value
             if value is not None:
                 last_value = value
+                seen_value = True
             rows.append(
                 SnapshotRow(
                     depot=position.depot,
