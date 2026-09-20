@@ -11,7 +11,9 @@
     <div class="modal-header">
       <div class="snapshot-heading">
         <h3 class="modal-title" id="snapshot-title">New snapshot</h3>
-        <p class="snapshot-hint" data-el="snapshot-hint">
+        {# Live region: the "already exists — saving replaces it" warning is
+           written in place, so without it the switch is silent. #}
+        <p class="snapshot-hint" data-el="snapshot-hint" aria-live="polite">
           Leave a field empty to carry the previous value forward.
         </p>
       </div>
