@@ -998,6 +998,33 @@ def test_rebase_to_grid_uses_a_close_between_two_grid_dates() -> None:
     assert values == pytest.approx([0.0, 210.0])
 
 
+def test_rebase_to_grid_meets_a_feed_reaching_back_before_the_grid() -> None:
+    """A feed with history of its own still starts level with the portfolio.
+
+    The index fetched for a 2y window predates the first snapshot by a year, and
+    anchoring on that oldest close would start the benchmark wherever the index
+    had got to by then.
+    """
+    points: list[tuple[str, float]] = [
+        ("2025-09-14", 100.0),
+        ("2026-01-04", 120.0),
+        ("2026-01-11", 132.0),
+    ]
+
+    values: list[float] = rebase_to_grid(points, ["2026-01-04", "2026-01-11"], 1000.0)
+
+    assert values == pytest.approx([1000.0, 1100.0])
+
+
+def test_rebase_to_grid_anchors_on_the_last_close_before_the_grid() -> None:
+    """The anchor is the close in force at the first grid date, not one on it."""
+    points: list[tuple[str, float]] = [("2025-12-28", 100.0), ("2026-01-11", 110.0)]
+
+    values: list[float] = rebase_to_grid(points, ["2026-01-04", "2026-01-11"], 500.0)
+
+    assert values == pytest.approx([500.0, 550.0])
+
+
 def test_growth_points_start_at_one() -> None:
     """The index is relative, so the first snapshot is always 1.0."""
     points = growth_points([_snapshot("2026-01-04", 1000.0)])

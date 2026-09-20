@@ -480,6 +480,26 @@ def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSe
     return ChartSeries(dates=grid, portfolio=portfolio, invested=invested)
 
 
+def _anchor_value(points: Sequence[tuple[str, float]], grid_start: str) -> float:
+    """Return the value a dated series holds at the grid's first date.
+
+    A feed reaching further back than the portfolio does must still meet it
+    where the chart begins. Anchoring on the earliest point in the window
+    instead would scale the line by whatever the index did before the first
+    snapshot ever existed, so the benchmark would start well above the
+    portfolio and the two would never share a starting point.
+
+    :param points: (date, value) pairs, ascending by date.
+    :param grid_start: the chart's first date.
+    """
+    anchor: float = points[0][1]
+    for point_date, value in points:
+        if point_date > grid_start:
+            break
+        anchor = value
+    return anchor
+
+
 def rebase_to_grid(
     points: Sequence[tuple[str, float]], grid: Sequence[str], base: float
 ) -> list[float]:
@@ -498,12 +518,16 @@ def rebase_to_grid(
 
     :param points: (date, value) pairs, ascending by date.
     :param grid: the chart's dates, ascending.
-    :param base: the value the first known point is scaled to.
+    :param base: the value the series is scaled to at the grid's first date.
     """
-    if not points or not grid or base == 0 or points[0][1] == 0:
+    if not points or not grid or base == 0:
         return []
 
-    factor: float = base / points[0][1]
+    anchor: float = _anchor_value(points, grid[0])
+    if anchor == 0:
+        return []
+
+    factor: float = base / anchor
     values: list[float] = []
     index: int = 0
     current: float = 0.0
