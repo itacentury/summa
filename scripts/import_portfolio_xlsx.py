@@ -9,6 +9,9 @@ the stored snapshots anyway.
 Re-running is safe: snapshots are written with ``INSERT OR IGNORE`` on
 ``(position_id, date)``, so a week already in the database is left exactly as it
 is -- including one corrected by hand in the UI.
+
+``--dry-run`` runs the whole import against an in-memory copy of the database, so
+it reports real counts while never creating or modifying the file behind ``--db``.
 """
 
 import argparse
@@ -27,7 +30,7 @@ from typing import Any, Final
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
-from scripts.portfolio_db import connect, default_database_path
+from scripts.portfolio_db import connect, connect_mirror, default_database_path
 
 BAND_ROW: Final[int] = 1
 HEADER_ROW: Final[int] = 2
@@ -653,13 +656,13 @@ def import_workbook(
     dates, values, deposits = read_grid(worksheet, columns)
     rows, rows_skipped = build_snapshot_rows(columns, dates, values, deposits, fx_rates)
 
-    conn: sqlite3.Connection = connect(database_path)
+    conn: sqlite3.Connection = (
+        connect_mirror(database_path) if dry_run else connect(database_path)
+    )
     try:
         summary: ImportSummary = run_import(conn.cursor(), columns, rows, rows_skipped)
-        if dry_run:
-            conn.rollback()
-        else:
-            conn.commit()
+        # A dry run commits into its in-memory mirror, which close() discards.
+        conn.commit()
         return summary
     except Exception:
         conn.rollback()

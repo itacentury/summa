@@ -32,3 +32,31 @@ def connect(database_path: Path) -> sqlite3.Connection:
     create_portfolio_schema(conn.cursor())
     conn.commit()
     return conn
+
+
+def connect_mirror(database_path: Path) -> sqlite3.Connection:
+    """Open a throwaway in-memory copy of a database, for runs that must not write.
+
+    The file itself is only read -- it is not created when missing and its
+    journal mode is left alone -- so everything written to the returned
+    connection dies with it. This is what lets a dry run report real insert
+    counts without a rollback that could never undo the committed schema.
+
+    :param database_path: the SQLite file to copy, ignored when it does not exist.
+    """
+    mirror: sqlite3.Connection = sqlite3.connect(":memory:")
+    if database_path.exists():
+        source: sqlite3.Connection = sqlite3.connect(
+            f"file:{database_path}?mode=ro", uri=True, timeout=CONNECT_TIMEOUT
+        )
+        try:
+            # backup() replaces the whole target database, so the connection
+            # settings below are applied only afterwards.
+            source.backup(mirror)
+        finally:
+            source.close()
+    mirror.row_factory = sqlite3.Row
+    mirror.execute("PRAGMA foreign_keys = ON")
+    create_portfolio_schema(mirror.cursor())
+    mirror.commit()
+    return mirror

@@ -33,7 +33,10 @@ uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refres
 ```
 
 Both take `--db` (default `$DATABASE_PATH`, else `invoices.db`), create the
-portfolio schema when it is missing and are safe to re-run. `openpyxl` is a
+portfolio schema when it is missing and are safe to re-run. Both also take
+`--dry-run`, which writes nothing at all: the importer runs against an in-memory
+copy of the database (`connect_mirror()` in `scripts/portfolio_db.py`), so a dry
+run neither creates the file nor touches an existing one. `openpyxl` is a
 **dev-only** dependency, so the runtime image never carries it — the importer is a
 workstation tool. `scripts` is in `[tool.mypy] files`, so both are strict-checked.
 

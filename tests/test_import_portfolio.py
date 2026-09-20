@@ -640,20 +640,37 @@ def test_main_applies_the_fx_rate(tmp_path: Path) -> None:
     ) == pytest.approx(210.0 / 1.08)
 
 
-def test_main_dry_run_writes_nothing(tmp_path: Path) -> None:
-    """A dry run leaves the schema behind but not a single snapshot."""
+def test_main_dry_run_does_not_create_the_database(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A dry run against a missing database leaves the path missing."""
     workbook: Path = _write_workbook(tmp_path / "book.xlsx")
     database: Path = tmp_path / "test.db"
 
     assert main([str(workbook), "--db", str(database), "--dry-run"]) == 0
 
-    with _connect(database) as conn:
-        assert (
-            conn.execute("SELECT COUNT(*) AS n FROM portfolio_snapshots").fetchone()[
-                "n"
-            ]
-            == 0
-        )
+    assert "nothing written" in capsys.readouterr().out
+    assert not database.exists()
+    assert not list(tmp_path.glob("test.db*"))
+
+
+def test_main_dry_run_leaves_an_existing_database_untouched(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A second run as a dry run reports the weeks it would skip, byte for byte."""
+    workbook: Path = _write_workbook(tmp_path / "book.xlsx")
+    database: Path = tmp_path / "test.db"
+
+    assert main([str(workbook), "--db", str(database)]) == 0
+    capsys.readouterr()
+    before: bytes = database.read_bytes()
+
+    assert main([str(workbook), "--db", str(database), "--dry-run"]) == 0
+
+    output: str = capsys.readouterr().out
+    assert "snapshots      0 written" in output
+    assert "(0 created)" in output
+    assert database.read_bytes() == before
 
 
 def test_main_rejects_a_missing_workbook(tmp_path: Path) -> None:
