@@ -601,6 +601,10 @@ describe("portfolio rendering", () => {
   });
 });
 
+// A collapsed group body and a closed detail strip are hidden by CSS only (a
+// zero-height grid row), so `inert` is the sole thing keeping their rows out of
+// the tab order and the accessibility tree. These tests pin that contract
+// alongside the visual one.
 describe("portfolio group collapsing and row expansion", () => {
   beforeEach(async () => {
     document.body.innerHTML = viewMarkup;
@@ -626,6 +630,7 @@ describe("portfolio group collapsing and row expansion", () => {
 
     const group = header.closest(".portfolio-group");
     expect(group.classList.contains("is-collapsed")).toBe(true);
+    expect(group.querySelector(".portfolio-group-body").inert).toBe(true);
     expect(header.getAttribute("aria-expanded")).toBe("false");
     expect(header.getAttribute("aria-controls")).toBe(
       group.querySelector(".portfolio-group-body").id,
@@ -634,11 +639,15 @@ describe("portfolio group collapsing and row expansion", () => {
 
     await loadPortfolio();
 
-    expect(
-      document
-        .querySelector(".portfolio-group")
-        .classList.contains("is-collapsed"),
-    ).toBe(true);
+    const reRendered = document.querySelector(".portfolio-group");
+    expect(reRendered.classList.contains("is-collapsed")).toBe(true);
+    expect(reRendered.querySelector(".portfolio-group-body").inert).toBe(true);
+
+    document.querySelector(".portfolio-group-header").click();
+
+    expect(reRendered.classList.contains("is-collapsed")).toBe(false);
+    expect(reRendered.querySelector(".portfolio-group-body").inert).toBe(false);
+    expect(collapsedDepots.has(1)).toBe(false);
   });
 
   it("keeps every collapsed row's aria-controls target in the DOM", async () => {
@@ -649,6 +658,7 @@ describe("portfolio group collapsing and row expansion", () => {
       const strip = document.getElementById(row.getAttribute("aria-controls"));
       expect(strip).not.toBeNull();
       expect(strip.classList.contains("is-open")).toBe(false);
+      expect(strip.inert).toBe(true);
       expect(row.getAttribute("aria-expanded")).toBe("false");
     });
   });
@@ -661,6 +671,7 @@ describe("portfolio group collapsing and row expansion", () => {
     const strip = row.nextElementSibling;
     expect(strip.classList.contains("portfolio-detail")).toBe(true);
     expect(strip.classList.contains("is-open")).toBe(true);
+    expect(strip.inert).toBe(false);
     expect(strip.textContent).toContain("1.0000");
     expect(strip.textContent).toContain("27");
     expect(rowFor(11).innerHTML).toBe(before);
@@ -679,6 +690,8 @@ describe("portfolio group collapsing and row expansion", () => {
     expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
       1,
     );
+    expect(rowFor(11).nextElementSibling.inert).toBe(true);
+    expect(rowFor(12).nextElementSibling.inert).toBe(false);
     expect(expandedPositions.has(11)).toBe(false);
     expect(expandedPositions.has(12)).toBe(true);
   });
@@ -707,6 +720,7 @@ describe("portfolio group collapsing and row expansion", () => {
     await loadPortfolio();
 
     expect(rowFor(12).getAttribute("aria-expanded")).toBe("true");
+    expect(rowFor(12).nextElementSibling.inert).toBe(false);
     expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
       1,
     );
