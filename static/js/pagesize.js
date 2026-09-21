@@ -61,6 +61,7 @@ export function renderPageSizeControl() {
   return `
     <div class="page-size" data-el="page-size">
       <button type="button" class="page-size-button" data-el="page-size-button"
+          role="combobox" aria-label="Invoices per page"
           aria-haspopup="listbox" aria-controls="page-size-menu"
           aria-expanded="false">
         <span class="page-size-value">${buttonLabel}</span>
