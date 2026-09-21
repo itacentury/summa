@@ -1427,7 +1427,10 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     flex: 1 0 100%;
   }
 
+  /* Stretched to the full row, the label and the chevron would otherwise sit
+     bunched at the left edge of an otherwise empty pill. */
   .portfolio-positions-trigger {
+    justify-content: space-between;
     width: 100%;
     max-width: none;
   }
