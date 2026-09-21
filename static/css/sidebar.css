@@ -384,10 +384,16 @@
 
   .sidebar-title,
   .sidebar-group-label,
-  .sidebar-divider,
   .nav-item span,
   .sidebar-action-btn span {
     display: none;
+  }
+
+  /* Without the group labels the line carries the grouping alone; it needs an
+     explicit width because the empty div would collapse in the centred rail. */
+  .sidebar-divider {
+    width: 28px;
+    margin: 9px 0 8px;
   }
 
   .sidebar-nav {
