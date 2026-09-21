@@ -36,6 +36,7 @@ import { showErrorToast } from "../../static/js/toast.js";
 import { showInvoicesView, showPortfolioView } from "../../static/js/views.js";
 import { flushUi, jsonResponse } from "./helpers.js";
 
+vi.mock("../../static/js/api.js", () => ({ loadInvoicesOnce: vi.fn() }));
 vi.mock("../../static/js/stats.js", () => ({ loadStats: vi.fn() }));
 vi.mock("../../static/js/drawer.js", () => ({ closeMobileSearch: vi.fn() }));
 vi.mock("../../static/js/toast.js", () => ({ showErrorToast: vi.fn() }));

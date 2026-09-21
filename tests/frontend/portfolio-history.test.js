@@ -196,7 +196,8 @@ describe("position history", () => {
     await open();
 
     expect(showErrorToast).toHaveBeenCalledWith("Failed to load history");
-    expect(list().innerHTML).toBe("");
+    expect(list().textContent).toContain("History could not be loaded");
+    expect(list().querySelector(".spinner")).toBeNull();
   });
 
   it("reopens on the payments view after the filter was switched", async () => {
