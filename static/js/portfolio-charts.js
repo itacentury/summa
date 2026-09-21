@@ -41,6 +41,7 @@ const TOOLTIP_STYLE = {
   borderColor: "#e2d8c2",
   borderWidth: 1,
   padding: 12,
+  boxPadding: 6,
 };
 
 const TICK_MONTHS = [
