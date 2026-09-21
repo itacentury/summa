@@ -440,7 +440,7 @@ const viewMarkup = `
     </div>
     <div class="portfolio-positions" data-el="portfolio-positions">
       <button class="portfolio-positions-trigger" aria-expanded="false">
-        <span class="portfolio-positions-label">All positions</span>
+        <span class="portfolio-positions-label">Total portfolio</span>
       </button>
       <ul class="portfolio-positions-menu" role="listbox"></ul>
     </div>
@@ -852,7 +852,7 @@ describe("portfolio position filter", () => {
       ...document.querySelectorAll(".portfolio-positions-option"),
     ].map((option) => option.textContent.trim());
     expect(labels).toEqual([
-      "All positions",
+      "Total portfolio",
       "MSCI World SRI",
       "FTSE All-World",
       "AMD",
@@ -929,7 +929,7 @@ describe("portfolio position filter", () => {
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[98,99]",
     );
-    expect(positionsLabel()).toBe("All positions");
+    expect(positionsLabel()).toBe("Total portfolio");
   });
 
   it("restores the selection when the depot filter comes back", async () => {
@@ -948,7 +948,7 @@ describe("portfolio position filter", () => {
 
     // Neither of the two is in this depot, so the chart falls back to the
     // aggregate — but nothing about that is persisted.
-    expect(positionsLabel()).toBe("All positions");
+    expect(positionsLabel()).toBe("Total portfolio");
     expect(state.portfolioPositions).toEqual([11, 12]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[11,12]",

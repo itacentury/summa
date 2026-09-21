@@ -18,7 +18,7 @@ import { createFloatingMenu } from "./floating-menu.js";
 // The value the filter carries while nothing is picked out. Kept here so the
 // markup, the storage and the chart agree on one token.
 export const POSITIONS_ALL = "all";
-const ALL_LABEL = "All positions";
+const ALL_LABEL = "Total portfolio";
 
 // Index of the leading "all" row, which is not one of the positions.
 const ALL_INDEX = 0;

@@ -33,7 +33,7 @@ function mount() {
   document.body.innerHTML = `
     <div class="portfolio-positions" data-el="portfolio-positions">
       <button type="button" class="portfolio-positions-trigger" aria-expanded="false">
-        <span class="portfolio-positions-label">All positions</span>
+        <span class="portfolio-positions-label">Total portfolio</span>
       </button>
       <ul class="portfolio-positions-menu" role="listbox" aria-multiselectable="true"></ul>
     </div>
@@ -74,14 +74,14 @@ beforeEach(() => {
 describe("createPositionsFilter", () => {
   it("starts on every position, which is a cleared selection", () => {
     expect(filter.getValue()).toBe(POSITIONS_ALL);
-    expect(labelText()).toBe("All positions");
+    expect(labelText()).toBe("Total portfolio");
   });
 
   it("lists the all row ahead of the positions, in payload order", () => {
     press(trigger(), "mousedown");
 
     expect(options().map((row) => row.textContent.trim())).toEqual([
-      "All positions",
+      "Total portfolio",
       "Deka Industrie 0",
       "FTSE All-World",
       "Bitcoin",
@@ -109,7 +109,7 @@ describe("createPositionsFilter", () => {
     clickRow(1);
 
     expect(filter.getValue()).toBe(POSITIONS_ALL);
-    expect(labelText()).toBe("All positions");
+    expect(labelText()).toBe("Total portfolio");
   });
 
   it("clears the selection through the all row rather than adding to it", () => {
@@ -212,7 +212,7 @@ describe("createPositionsFilter", () => {
     filter.setOptions([{ id: 9, name: "Gold" }]);
 
     expect(options().map((row) => row.textContent.trim())).toEqual([
-      "All positions",
+      "Total portfolio",
       "Gold",
     ]);
   });
