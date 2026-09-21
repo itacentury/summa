@@ -8,7 +8,8 @@
  * recreated, because a period or depot switch re-enters this path.
  */
 
-import { state, chartColors } from "./state.js";
+import { state, chartColors, positionLineColors } from "./state.js";
+import { lineColor } from "./portfolio-line-colors.js";
 import { mobileViewport } from "./dom.js";
 import {
   allocationLegendHtml,
@@ -184,28 +185,29 @@ function seriesPoints(dates, values) {
 /**
  * The lines a per-position selection draws, or `[]` while nothing is picked out.
  *
- * A position keeps the color of its place in `series.positions`, not of its
- * place in the selection: unchecking one line must not repaint the others.
+ * A position keeps the color its slot in `colors` gives it, not one derived from
+ * where it sits: unchecking one line must not repaint the others, and no two
+ * lines may share a color (`portfolio-line-colors.js` owns both rules). A
+ * position without a slot is skipped rather than drawn in a repeated color.
  *
  * Value lines only. The invested line belongs to the aggregate view: tying it
  * to the number of checked boxes would let the chart change meaning without
  * saying so.
  *
+ * @param {Map<number, number>} colors the palette slot per position id
  * @returns {{label: string, values: number[], color: string}[]}
  */
-export function positionLines(series, selection) {
+export function positionLines(series, selection, colors) {
   if (selection === POSITIONS_ALL || !Array.isArray(selection)) return [];
 
   const chosen = new Set(selection);
   const entries = series.positions ?? [];
   const lines = [];
-  entries.forEach((entry, index) => {
+  entries.forEach((entry) => {
     if (!chosen.has(entry.id)) return;
-    lines.push({
-      label: entry.name,
-      values: entry.values,
-      color: chartColors[index % chartColors.length],
-    });
+    const color = lineColor(colors, entry.id);
+    if (!color) return;
+    lines.push({ label: entry.name, values: entry.values, color });
   });
 
   return lines;
@@ -325,7 +327,11 @@ function renderValueChart(payload) {
   state.portfolioChart = null;
 
   const { series } = payload;
-  const lines = positionLines(series, state.portfolioPositions);
+  const lines = positionLines(
+    series,
+    state.portfolioPositions,
+    positionLineColors,
+  );
   // A selection drops the benchmark, so the note about it goes with it.
   const hasBenchmark = series.benchmark.length > 0 && lines.length === 0;
   if (note)

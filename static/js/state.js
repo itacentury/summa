@@ -71,3 +71,13 @@ export const chartColors = [
   "#a3c2c2",
   "#e0cdb0",
 ];
+
+// How many positions the chart draws at once. The palette is the limit, not the
+// other way round: a ninth line could only repeat a colour the legend already
+// spends on another holding.
+export const PORTFOLIO_MAX_LINES = chartColors.length;
+
+// Which palette slot each selected position draws in (position id -> index into
+// chartColors). Session-only and rebuilt from the restored selection, like the
+// two sets above: mutated, never reassigned.
+export const positionLineColors = new Map();

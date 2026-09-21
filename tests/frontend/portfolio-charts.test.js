@@ -19,7 +19,12 @@ import {
   positionLines,
   renderPortfolioCharts,
 } from "../../static/js/portfolio-charts.js";
-import { state, chartColors } from "../../static/js/state.js";
+import {
+  state,
+  chartColors,
+  positionLineColors,
+} from "../../static/js/state.js";
+import { assignLineColors } from "../../static/js/portfolio-line-colors.js";
 
 const markup = `
   <div data-el="portfolio-chart-card">
@@ -92,11 +97,25 @@ const noteText = () =>
 const barFills = () =>
   Array.from(document.querySelectorAll(".portfolio-bar-fill"));
 
+/**
+ * Select `ids` the way the view does: the state, plus the palette slots the
+ * selection hands out. Chained calls carry the previous assignment, which is
+ * what makes a deselection observable.
+ */
+const select = (ids) => {
+  state.portfolioPositions = ids;
+  const next = assignLineColors(positionLineColors, ids);
+  positionLineColors.clear();
+  next.forEach((slot, id) => positionLineColors.set(id, slot));
+  return positionLineColors;
+};
+
 beforeEach(() => {
   document.body.innerHTML = markup;
   state.portfolioChart = null;
   state.allocationChart = null;
   state.portfolioPositions = "all";
+  positionLineColors.clear();
   instances = [];
   vi.clearAllMocks();
   // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
@@ -405,13 +424,15 @@ describe("renderPortfolioCharts", () => {
 
 describe("positionLines", () => {
   it("draws nothing of its own while every position is shown", () => {
-    expect(positionLines(chartPayload().series, "all")).toEqual([]);
+    expect(positionLines(chartPayload().series, "all", select("all"))).toEqual(
+      [],
+    );
   });
 
-  it("colours a position by its place in the payload, not in the selection", () => {
+  it("keeps a line's colour when another line is unchecked", () => {
     const { series } = chartPayload();
-    const both = positionLines(series, [21, 12]);
-    const second = positionLines(series, [12]);
+    const both = positionLines(series, [21, 12], select([21, 12]));
+    const second = positionLines(series, [12], select([12]));
 
     expect(both.map((line) => line.color)).toEqual([
       chartColors[0],
@@ -421,8 +442,40 @@ describe("positionLines", () => {
     expect(second[0].color).toBe(chartColors[1]);
   });
 
+  it("never draws two lines in the same colour", () => {
+    const series = {
+      dates: ["2026-09-06"],
+      positions: Array.from({ length: chartColors.length }, (_, index) => ({
+        id: index + 1,
+        name: `Position ${index + 1}`,
+        values: [100],
+      })),
+    };
+    const ids = series.positions.map((entry) => entry.id);
+
+    const lines = positionLines(series, ids, select(ids));
+    const colors = lines.map((line) => line.color);
+
+    expect(colors).toHaveLength(chartColors.length);
+    expect(new Set(colors).size).toBe(chartColors.length);
+  });
+
+  it("skips a position the palette has no colour left for", () => {
+    const { series } = chartPayload();
+    // A selection that never went through the filter's cap: 12 gets no slot.
+    const colors = new Map([[21, 0]]);
+
+    const lines = positionLines(series, [21, 12], colors);
+
+    expect(lines.map((line) => line.label)).toEqual(["Deka Industrie 0"]);
+  });
+
   it("keeps the payload's order however the selection was built", () => {
-    const lines = positionLines(chartPayload().series, [12, 21]);
+    const lines = positionLines(
+      chartPayload().series,
+      [12, 21],
+      select([12, 21]),
+    );
 
     expect(lines.map((line) => line.label)).toEqual([
       "Deka Industrie 0",
@@ -431,20 +484,22 @@ describe("positionLines", () => {
   });
 
   it("draws the value line alone, never a second invested one", () => {
-    const lines = positionLines(chartPayload().series, [12]);
+    const lines = positionLines(chartPayload().series, [12], select([12]));
 
     expect(lines.map((line) => line.label)).toEqual(["FTSE All-World"]);
     expect(lines[0].values).toEqual([1803.0, 1801.69]);
   });
 
   it("ignores an id the payload no longer carries", () => {
-    expect(positionLines(chartPayload().series, [999])).toEqual([]);
+    expect(positionLines(chartPayload().series, [999], select([999]))).toEqual(
+      [],
+    );
   });
 });
 
 describe("renderPortfolioCharts with a position selection", () => {
   it("draws one line per selected position instead of the aggregate", () => {
-    state.portfolioPositions = [21, 12];
+    select([21, 12]);
     renderPortfolioCharts(chartPayload());
 
     const labels = lineConfig().data.datasets.map((set) => set.label);
@@ -452,7 +507,7 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("drops the benchmark, which is rebased onto the whole portfolio", () => {
-    state.portfolioPositions = [21, 12];
+    select([21, 12]);
     renderPortfolioCharts(chartPayload());
     const benchmark = document.querySelector(
       '[data-el="portfolio-legend-benchmark"]',
@@ -465,7 +520,7 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("swaps the fixed legend for one swatch per drawn line", () => {
-    state.portfolioPositions = [21, 12];
+    select([21, 12]);
     renderPortfolioCharts(chartPayload());
     const fixed = document.querySelector('[data-el="portfolio-legend-static"]');
     const dynamic = document.querySelector(
@@ -478,7 +533,7 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("paints the legend swatches through the CSSOM, in the drawn order", () => {
-    state.portfolioPositions = [21, 12];
+    select([21, 12]);
     renderPortfolioCharts(chartPayload());
     const bars = document.querySelectorAll(
       '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
@@ -489,20 +544,20 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("legends a single position with its own color and nothing else", () => {
-    state.portfolioPositions = [12];
+    select([12]);
     renderPortfolioCharts(chartPayload());
     const bars = document.querySelectorAll(
       '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
     );
 
     expect(bars).toHaveLength(1);
-    expect(bars[0].style.background).toBe(chartColors[1]);
+    expect(bars[0].style.background).toBe(chartColors[0]);
   });
 
   it("escapes a position name in the legend rather than trusting it", () => {
     const payload = chartPayload();
     payload.series.positions[0].name = "<img src=x>";
-    state.portfolioPositions = [21];
+    select([21]);
 
     renderPortfolioCharts(payload);
     const dynamic = document.querySelector(
@@ -514,9 +569,9 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("returns to the aggregate lines when the selection is cleared", () => {
-    state.portfolioPositions = [21];
+    select([21]);
     renderPortfolioCharts(chartPayload());
-    state.portfolioPositions = "all";
+    select("all");
     renderPortfolioCharts(chartPayload());
 
     // Two charts per render, so the last line chart is the second from the end.
@@ -532,7 +587,7 @@ describe("renderPortfolioCharts with a position selection", () => {
   });
 
   it("keeps the axis on the period window, not on the selected position", () => {
-    state.portfolioPositions = [12];
+    select([12]);
     renderPortfolioCharts(chartPayload());
     const { x } = lineConfig().options.scales;
 

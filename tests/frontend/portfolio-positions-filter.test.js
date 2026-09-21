@@ -13,6 +13,14 @@ import {
   createPositionsFilter,
   POSITIONS_ALL,
 } from "../../static/js/portfolio-positions-filter.js";
+import { PORTFOLIO_MAX_LINES } from "../../static/js/state.js";
+
+// One more position than the chart has colours for, so the cap has something to
+// refuse.
+const MANY = Array.from({ length: PORTFOLIO_MAX_LINES + 1 }, (_, index) => ({
+  id: 100 + index,
+  name: `Position ${index}`,
+}));
 
 const POSITIONS = [
   { id: 21, name: "Deka Industrie 0" },
@@ -207,5 +215,55 @@ describe("createPositionsFilter", () => {
       "All positions",
       "Gold",
     ]);
+  });
+});
+
+describe("the palette cap", () => {
+  /** Check the first `count` positions of MANY, in order. */
+  const fill = (count) => {
+    filter.setOptions(MANY);
+    for (let index = 1; index <= count; index += 1) clickRow(index);
+  };
+
+  it("stops at one line per palette colour", () => {
+    fill(PORTFOLIO_MAX_LINES + 1);
+
+    expect(filter.getValue()).toHaveLength(PORTFOLIO_MAX_LINES);
+    expect(onChange).toHaveBeenCalledTimes(PORTFOLIO_MAX_LINES);
+  });
+
+  it("greys out what it will not take, and says why", () => {
+    fill(PORTFOLIO_MAX_LINES);
+    const last = options().at(-1);
+
+    expect(last.getAttribute("aria-disabled")).toBe("true");
+    expect(last.classList.contains("is-disabled")).toBe(true);
+    expect(
+      document.querySelector(".portfolio-positions-hint").textContent,
+    ).toContain(String(PORTFOLIO_MAX_LINES));
+  });
+
+  it("leaves the checked rows and the all row usable at the cap", () => {
+    fill(PORTFOLIO_MAX_LINES);
+    const rows = options();
+
+    expect(rows[0].getAttribute("aria-disabled")).toBe("false");
+    expect(rows[1].getAttribute("aria-disabled")).toBe("false");
+  });
+
+  it("takes a new position again once one is unchecked", () => {
+    fill(PORTFOLIO_MAX_LINES);
+    clickRow(1);
+    clickRow(PORTFOLIO_MAX_LINES + 1);
+
+    expect(filter.getValue()).toHaveLength(PORTFOLIO_MAX_LINES);
+    expect(filter.getValue()).toContain(MANY[PORTFOLIO_MAX_LINES].id);
+  });
+
+  it("caps a restored selection the same way a live one is capped", () => {
+    filter.setOptions(MANY);
+    filter.setValue(MANY.map((position) => position.id));
+
+    expect(filter.getValue()).toHaveLength(PORTFOLIO_MAX_LINES);
   });
 });

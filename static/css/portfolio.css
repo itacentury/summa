@@ -636,6 +636,33 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: var(--bg-hover);
 }
 
+/* The palette is spent: the row stays readable (it may be checked again once
+   another line is unchecked) but stops offering itself. */
+.portfolio-positions-option.is-disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.portfolio-positions-option.is-disabled.is-highlighted {
+  background: none;
+}
+
+/* Why those rows are greyed out. Sticky, because the menu scrolls once the
+   depot holds more positions than it can show — a footer below the fold would
+   explain nothing. */
+.portfolio-positions-hint {
+  position: sticky;
+  bottom: -4px;
+  padding: 6px 9px 7px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+}
+
 .portfolio-positions-option.is-selected {
   font-weight: 600;
   color: var(--text-primary);

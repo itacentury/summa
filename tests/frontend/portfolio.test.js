@@ -27,6 +27,8 @@ import {
   PORTFOLIO_DEPOT_STORAGE_KEY,
   PORTFOLIO_POSITIONS_STORAGE_KEY,
   PORTFOLIO_RANGE_STORAGE_KEY,
+  PORTFOLIO_MAX_LINES,
+  positionLineColors,
 } from "../../static/js/state.js";
 import { openHistoryModal } from "../../static/js/portfolio-history.js";
 import { showErrorToast } from "../../static/js/toast.js";
@@ -73,6 +75,7 @@ describe("restorePortfolioPrefs", () => {
     state.portfolioRange = "1y";
     state.depotFilter = "all";
     state.portfolioPositions = "all";
+    positionLineColors.clear();
   });
 
   it("keeps the defaults when nothing is stored", () => {
@@ -88,6 +91,28 @@ describe("restorePortfolioPrefs", () => {
     restorePortfolioPrefs();
 
     expect(state.portfolioPositions).toEqual([12, 21]);
+  });
+
+  it("restores a palette slot per selected position", () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[12,21]");
+    restorePortfolioPrefs();
+
+    expect([...positionLineColors]).toEqual([
+      [12, 0],
+      [21, 1],
+    ]);
+  });
+
+  it("caps a hand-edited selection at the palette's size", () => {
+    const ids = Array.from(
+      { length: PORTFOLIO_MAX_LINES + 3 },
+      (_, i) => i + 1,
+    );
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, JSON.stringify(ids));
+    restorePortfolioPrefs();
+
+    expect(state.portfolioPositions).toHaveLength(PORTFOLIO_MAX_LINES);
+    expect(positionLineColors.size).toBe(PORTFOLIO_MAX_LINES);
   });
 
   it("ignores a chart selection that is not a list of ids", () => {

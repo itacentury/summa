@@ -14,6 +14,8 @@ import {
   PORTFOLIO_RANGE_STORAGE_KEY,
   PORTFOLIO_DEPOT_STORAGE_KEY,
   PORTFOLIO_POSITIONS_STORAGE_KEY,
+  PORTFOLIO_MAX_LINES,
+  positionLineColors,
 } from "./state.js";
 import { apiFetch } from "./http.js";
 import { showErrorToast } from "./toast.js";
@@ -22,6 +24,7 @@ import {
   createPositionsFilter,
   POSITIONS_ALL,
 } from "./portfolio-positions-filter.js";
+import { assignLineColors } from "./portfolio-line-colors.js";
 import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
 import { renderPortfolioCharts } from "./portfolio-charts.js";
 import { openHistoryModal } from "./portfolio-history.js";
@@ -57,6 +60,20 @@ export function restorePortfolioPrefs() {
     state.depotFilter = depot;
 
   state.portfolioPositions = storedPositionSelection();
+  syncLineColors();
+}
+
+/**
+ * Re-derive the palette slots from the current selection.
+ *
+ * The map is mutated rather than replaced, because every other module holds the
+ * same instance. A slot survives as long as its position stays selected, so
+ * this is safe to call on every selection change.
+ */
+function syncLineColors() {
+  const next = assignLineColors(positionLineColors, state.portfolioPositions);
+  positionLineColors.clear();
+  next.forEach((slot, id) => positionLineColors.set(id, slot));
 }
 
 /**
@@ -74,7 +91,9 @@ function storedPositionSelection() {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return POSITIONS_ALL;
     if (!parsed.every((id) => Number.isInteger(id))) return POSITIONS_ALL;
-    return parsed;
+    // Capped like a live toggle is: nothing stops a hand-edited value from
+    // naming more positions than the palette has colors.
+    return parsed.slice(0, PORTFOLIO_MAX_LINES);
   } catch {
     return POSITIONS_ALL;
   }
@@ -107,6 +126,7 @@ function visiblePositionSelection(payload) {
  */
 function storePositionSelection(selection) {
   state.portfolioPositions = selection;
+  syncLineColors();
   localStorage.setItem(
     PORTFOLIO_POSITIONS_STORAGE_KEY,
     selection === POSITIONS_ALL ? POSITIONS_ALL : JSON.stringify(selection),

@@ -12,6 +12,7 @@
  */
 
 import { escapeHtml } from "./dom.js";
+import { PORTFOLIO_MAX_LINES } from "./state.js";
 import { createFloatingMenu } from "./floating-menu.js";
 
 // The value the filter carries while nothing is picked out. Kept here so the
@@ -21,6 +22,10 @@ const ALL_LABEL = "All positions";
 
 // Index of the leading "all" row, which is not one of the positions.
 const ALL_INDEX = 0;
+
+// Shown under the rows once the palette is spent, so the greyed-out rows say
+// why rather than just failing to respond.
+const LIMIT_HINT = `Max. ${PORTFOLIO_MAX_LINES} lines`;
 
 /**
  * Create the position filter bound to `root` (the `.portfolio-positions`
@@ -50,6 +55,10 @@ export function createPositionsFilter(root, { onChange } = {}) {
 
   const value = () => (selected.size === 0 ? POSITIONS_ALL : [...selected]);
 
+  // The chart draws one palette color per line, so the palette is the ceiling:
+  // a further line could only repeat a color another holding already owns.
+  const atLimit = () => selected.size >= PORTFOLIO_MAX_LINES;
+
   const applyLabel = () => {
     if (selected.size === 0) {
       label.textContent = ALL_LABEL;
@@ -67,23 +76,33 @@ export function createPositionsFilter(root, { onChange } = {}) {
   /** The row at a menu index: 0 is the "all" row, the rest are positions. */
   const positionAt = (index) => positions[index - 1];
 
-  const rowHtml = (index, isSelected, name) => `
+  const rowHtml = (index, isSelected, name) => {
+    // The "all" row clears rather than adds, so the ceiling never applies to it.
+    const isDisabled = !isSelected && index !== ALL_INDEX && atLimit();
+    return `
     <li class="portfolio-positions-option${isSelected ? " is-selected" : ""}${
       index === highlighted ? " is-highlighted" : ""
-    }"
-        role="option" aria-selected="${isSelected}"
+    }${isDisabled ? " is-disabled" : ""}"
+        role="option" aria-selected="${isSelected}" aria-disabled="${isDisabled}"
         id="${menu.id}-option-${index}" data-index="${index}">
       <span class="portfolio-positions-check" aria-hidden="true"></span>
       <span class="portfolio-positions-option-label">${escapeHtml(name)}</span>
     </li>
   `;
+  };
 
   const renderMenu = () => {
+    // role="presentation" on the hint: it is a label for the list, not a row a
+    // listbox may offer as one more option.
+    const hint = atLimit()
+      ? `<li class="portfolio-positions-hint" role="presentation">${LIMIT_HINT}</li>`
+      : "";
     menu.innerHTML = [
       rowHtml(ALL_INDEX, selected.size === 0, ALL_LABEL),
       ...positions.map((position, index) =>
         rowHtml(index + 1, selected.has(position.id), position.name),
       ),
+      hint,
     ].join("");
 
     const active = menu.querySelector(`#${menu.id}-option-${highlighted}`);
@@ -115,7 +134,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
   /**
    * Flip one row. The "all" row clears the selection rather than adding to it,
    * and clearing the last checked position lands on the same state — so the
-   * chart always has something to draw.
+   * chart always has something to draw. Checking one past the palette's last
+   * color does nothing at all: the row is already greyed out, so a silent
+   * no-op is what it promised.
    */
   const toggle = (index) => {
     if (index === ALL_INDEX) selected = new Set();
@@ -123,6 +144,7 @@ export function createPositionsFilter(root, { onChange } = {}) {
       const position = positionAt(index);
       if (!position) return;
       if (selected.has(position.id)) selected.delete(position.id);
+      else if (atLimit()) return;
       else selected.add(position.id);
     }
     applyLabel();
@@ -212,7 +234,12 @@ export function createPositionsFilter(root, { onChange } = {}) {
       floating.place();
     },
     setValue(next) {
-      selected = next === POSITIONS_ALL ? new Set() : new Set(next);
+      // Capped here as well, so a restored selection cannot seat more lines
+      // than a live one is allowed to.
+      selected =
+        next === POSITIONS_ALL
+          ? new Set()
+          : new Set([...next].slice(0, PORTFOLIO_MAX_LINES));
       applyLabel();
       if (open) renderMenu();
     },
