@@ -155,8 +155,15 @@ export function createPositionsFilter(root, { onChange } = {}) {
     if (onChange) onChange(value());
   };
 
+  // Shared with setOptions(): the highlight is a bare index, so replacing the
+  // rows is as able to strand it past the last one as moving it is.
+  const clampHighlight = () => {
+    highlighted = Math.max(ALL_INDEX, Math.min(positions.length, highlighted));
+  };
+
   const moveHighlight = (delta) => {
-    highlighted = Math.max(0, Math.min(positions.length, highlighted + delta));
+    highlighted += delta;
+    clampHighlight();
     renderMenu();
   };
 
@@ -228,6 +235,7 @@ export function createPositionsFilter(root, { onChange } = {}) {
         id: entry.id,
         name: entry.name,
       }));
+      clampHighlight();
       applyLabel();
       if (!open) return;
       renderMenu();

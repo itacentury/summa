@@ -94,11 +94,15 @@ export function createDepotFilter(root, { onChange } = {}) {
     if (onChange) onChange(value);
   };
 
+  // Shared with setOptions(): the highlight is a bare index, so replacing the
+  // rows is as able to strand it past the last one as moving it is.
+  const clampHighlight = () => {
+    highlighted = Math.max(0, Math.min(entries.length - 1, highlighted));
+  };
+
   const moveHighlight = (delta) => {
-    highlighted = Math.max(
-      0,
-      Math.min(entries.length - 1, highlighted + delta),
-    );
+    highlighted += delta;
+    clampHighlight();
     applyHighlight();
   };
 
@@ -166,6 +170,7 @@ export function createDepotFilter(root, { onChange } = {}) {
           name: depot.name,
         })),
       ];
+      clampHighlight();
       applyLabel();
       if (open) renderMenu();
     },
