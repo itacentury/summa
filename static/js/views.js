@@ -17,6 +17,7 @@
 
 import { state } from "./state.js";
 import { closeMobileSearch } from "./drawer.js";
+import { loadInvoicesOnce } from "./api.js";
 import { loadStats } from "./stats.js";
 import { loadPortfolio } from "./portfolio.js";
 
@@ -56,10 +57,13 @@ function setView(name, title) {
 }
 
 /**
- * Switch to the invoices list view.
+ * Switch to the invoices list view and load its data.
  */
 export function showInvoicesView() {
   setView("invoices", "Invoices");
+  // Only on first entry, unlike the two loaders below: this view keeps its page
+  // and selection, and a reload would reset both on every return to it.
+  loadInvoicesOnce();
 }
 
 /**

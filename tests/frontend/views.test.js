@@ -21,7 +21,11 @@ import {
   showStatsView,
 } from "../../static/js/views.js";
 import { state } from "../../static/js/state.js";
+import { loadInvoicesOnce } from "../../static/js/api.js";
+import { loadStats } from "../../static/js/stats.js";
+import { loadPortfolio } from "../../static/js/portfolio.js";
 
+vi.mock("../../static/js/api.js", () => ({ loadInvoicesOnce: vi.fn() }));
 vi.mock("../../static/js/stats.js", () => ({ loadStats: vi.fn() }));
 vi.mock("../../static/js/portfolio.js", () => ({ loadPortfolio: vi.fn() }));
 vi.mock("../../static/js/drawer.js", () => ({ closeMobileSearch: vi.fn() }));
@@ -73,6 +77,7 @@ describe("view switching", () => {
     document.body.className = "";
     state.currentView = "invoices";
     clearHash();
+    vi.clearAllMocks();
   });
 
   it("shows only the portfolio view", () => {
@@ -176,5 +181,24 @@ describe("view switching", () => {
 
     expect(state.currentView).toBe("invoices");
     expect(visibleViews()).toEqual(["invoices-view"]);
+  });
+
+  // Each view loads its own data here and nowhere else, so booting into one
+  // never fetches another's.
+  it("loads only the entered view's data", () => {
+    location.hash = "#portfolio";
+
+    applyViewFromHash();
+
+    expect(loadPortfolio).toHaveBeenCalledOnce();
+    expect(loadInvoicesOnce).not.toHaveBeenCalled();
+    expect(loadStats).not.toHaveBeenCalled();
+  });
+
+  it("loads the invoice list when its view is entered", () => {
+    showStatsView();
+    showInvoicesView();
+
+    expect(loadInvoicesOnce).toHaveBeenCalledOnce();
   });
 });

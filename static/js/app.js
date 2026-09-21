@@ -14,6 +14,7 @@ import {
 } from "./filters.js";
 import {
   loadInvoices,
+  loadLookups,
   refreshAllData,
   setupPaginationListeners,
 } from "./api.js";
@@ -114,7 +115,7 @@ function init() {
   );
 
   runStep("applyFilter", () => applyFilter("month"));
-  runStep("refreshAllData", refreshAllData);
+  runStep("loadLookups", loadLookups);
 
   // Listed rather than called in sequence so a new step cannot be added without
   // the isolation guard. `step.name` labels the failure; there is no build step
@@ -149,7 +150,9 @@ function init() {
 
   // Last, because entering a view loads its data: stats reads the filter inputs
   // applyFilter() just populated, and the portfolio feeds options into the
-  // comboboxes setupPortfolioListeners() created above.
+  // comboboxes setupPortfolioListeners() created above. The invoice list is
+  // part of what the router loads too, which is why booting into another view
+  // no longer fetches a list it would not show.
   runStep("applyViewFromHash", applyViewFromHash);
 }
 

@@ -298,3 +298,45 @@ describe("buildFilterParams", () => {
     expect(params.get("sort_order")).toBe("desc");
   });
 });
+
+describe("loadInvoicesOnce", () => {
+  // The "already loaded" flag is module state that the tests above tripped, so
+  // every case here starts from a fresh instance of api.js.
+  const freshApi = () => {
+    vi.resetModules();
+    return import("../../static/js/api.js");
+  };
+
+  const listResponse = () =>
+    jsonResponse({
+      invoices: [],
+      page: 1,
+      page_size: 25,
+      total_count: 0,
+      total_sum: 0,
+      uncategorized_count: 0,
+    });
+
+  it("loads once and skips every later call", async () => {
+    global.fetch = vi.fn(async () => listResponse());
+    const api = await freshApi();
+
+    await api.loadInvoicesOnce();
+    await api.loadInvoicesOnce();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries when the first load failed", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValue(listResponse());
+    const api = await freshApi();
+
+    await api.loadInvoicesOnce();
+    await api.loadInvoicesOnce();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+});
