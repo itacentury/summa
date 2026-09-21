@@ -975,7 +975,7 @@ describe("portfolio position filter", () => {
     expect(state.portfolioPositions).toEqual([11, 12]);
   });
 
-  it("replaces the stored list once a pick is made in another depot", async () => {
+  it("keeps the hidden picks when a pick is made in another depot", async () => {
     localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[11,12]");
     restorePortfolioPrefs();
     global.fetch = vi.fn(async (url) =>
@@ -991,10 +991,94 @@ describe("portfolio position filter", () => {
     clickOption(1);
     await flushUi();
 
-    // A deliberate pick is the one thing that does write, and it writes what
-    // the control shows — the invisible ids do not survive it.
-    expect(state.portfolioPositions).toEqual([21]);
-    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[21]");
+    // A toggle edits what is on screen; the two ids this depot hides ride
+    // along, so the switch stays as reversible as it was before the pick.
+    expect(state.portfolioPositions).toEqual([21, 11, 12]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
+      "[21,11,12]",
+    );
+    expect(positionsLabel()).toBe("Deka Industrie 0");
+
+    await pickDepot(0);
+
+    expect(positionsLabel()).toBe("3 positions");
+  });
+
+  it("clears the hidden picks as well when the total portfolio row is used", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[11,12]");
+    restorePortfolioPrefs();
+    global.fetch = vi.fn(async (url) =>
+      jsonResponse(
+        url.includes("depot=2") ? narrowedToDepot(2) : portfolioPayload(),
+      ),
+    );
+    setupPortfolioListeners();
+    await loadPortfolio();
+    await pickDepot(2);
+
+    openMenu();
+    clickOption(0);
+    await flushUi();
+
+    // The one row that is not a position is a reset, not a toggle.
+    expect(state.portfolioPositions).toBe("all");
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
+
+    await pickDepot(0);
+
+    expect(positionsLabel()).toBe("Total portfolio");
+  });
+
+  it("keeps the hidden picks when the last visible one is unchecked", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[11,21]");
+    restorePortfolioPrefs();
+    global.fetch = vi.fn(async (url) =>
+      jsonResponse(
+        url.includes("depot=2") ? narrowedToDepot(2) : portfolioPayload(),
+      ),
+    );
+    setupPortfolioListeners();
+    await loadPortfolio();
+    await pickDepot(2);
+
+    openMenu();
+    clickOption(1);
+    await flushUi();
+
+    // Unchecking the only visible row reads as "all" on the control, but it
+    // says nothing about the row this depot does not show.
+    expect(positionsLabel()).toBe("Total portfolio");
+    expect(state.portfolioPositions).toEqual([11]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[11]");
+  });
+
+  it("caps the merged selection at the palette, visible ids first", async () => {
+    const hidden = Array.from(
+      { length: PORTFOLIO_MAX_LINES },
+      (unused, index) => 900 + index,
+    );
+    localStorage.setItem(
+      PORTFOLIO_POSITIONS_STORAGE_KEY,
+      JSON.stringify(hidden),
+    );
+    restorePortfolioPrefs();
+    global.fetch = vi.fn(async (url) =>
+      jsonResponse(
+        url.includes("depot=2") ? narrowedToDepot(2) : portfolioPayload(),
+      ),
+    );
+    setupPortfolioListeners();
+    await loadPortfolio();
+    await pickDepot(2);
+
+    openMenu();
+    clickOption(1);
+    await flushUi();
+
+    // The pick must not be the one that loses its palette slot.
+    expect(state.portfolioPositions).toHaveLength(PORTFOLIO_MAX_LINES);
+    expect(state.portfolioPositions[0]).toBe(21);
+    expect(positionLineColors.has(21)).toBe(true);
   });
 });
 

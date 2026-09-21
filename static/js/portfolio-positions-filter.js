@@ -29,9 +29,16 @@ const LIMIT_HINT = `Max. ${PORTFOLIO_MAX_LINES} lines`;
 
 /**
  * Create the position filter bound to `root` (the `.portfolio-positions`
- * element). `onChange(value)` fires only on a user-driven toggle, never on
- * setValue() or setOptions(), and carries either `POSITIONS_ALL` or an array of
- * position ids.
+ * element). `onChange(value, toggled)` fires only on a user-driven toggle,
+ * never on setValue() or setOptions(); `value` is either `POSITIONS_ALL` or an
+ * array of position ids, and `toggled` is the id of the flipped row, or `null`
+ * for the "all" row.
+ *
+ * The second argument exists because `value` alone collapses two different
+ * intents: clearing via the "all" row and unchecking the last position both
+ * read `POSITIONS_ALL`. The caller owns the selection — which may be wider than
+ * the rows shown here — so only it can decide what either one means for the
+ * part it is not showing.
  */
 export function createPositionsFilter(root, { onChange } = {}) {
   const trigger = root.querySelector(".portfolio-positions-trigger");
@@ -134,11 +141,14 @@ export function createPositionsFilter(root, { onChange } = {}) {
   /**
    * Flip one row. The "all" row clears the selection rather than adding to it,
    * and clearing the last checked position lands on the same state — so the
-   * chart always has something to draw. Checking one past the palette's last
-   * color does nothing at all: the row is already greyed out, so a silent
-   * no-op is what it promised.
+   * chart always has something to draw. The two are reported apart through
+   * `onChange`'s second argument, because only the caller knows whether it is
+   * holding a wider selection than these rows show. Checking one past the
+   * palette's last color does nothing at all: the row is already greyed out, so
+   * a silent no-op is what it promised.
    */
   const toggle = (index) => {
+    let toggled = null;
     if (index === ALL_INDEX) selected = new Set();
     else {
       const position = positionAt(index);
@@ -146,13 +156,14 @@ export function createPositionsFilter(root, { onChange } = {}) {
       if (selected.has(position.id)) selected.delete(position.id);
       else if (atLimit()) return;
       else selected.add(position.id);
+      toggled = position.id;
     }
     applyLabel();
     renderMenu();
     // A toggle changes the row count and so the height: without this the panel
     // would keep the box it was measured into and drift off its trigger.
     floating.place();
-    if (onChange) onChange(value());
+    if (onChange) onChange(value(), toggled);
   };
 
   // Shared with setOptions(): the highlight is a bare index, so replacing the

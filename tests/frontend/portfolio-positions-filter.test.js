@@ -125,8 +125,17 @@ describe("createPositionsFilter", () => {
     clickRow(1);
 
     expect(onChange).toHaveBeenCalledTimes(2);
-    expect(onChange).toHaveBeenNthCalledWith(1, [21]);
-    expect(onChange).toHaveBeenNthCalledWith(2, POSITIONS_ALL);
+    expect(onChange).toHaveBeenNthCalledWith(1, [21], 21);
+    expect(onChange).toHaveBeenNthCalledWith(2, POSITIONS_ALL, 21);
+  });
+
+  it("reports the all row as a reset, not as a flipped position", () => {
+    clickRow(1);
+    clickRow(0);
+
+    // Both calls carry POSITIONS_ALL-shaped intent at some point, so the id is
+    // the only thing telling "clear everything" from "uncheck this one".
+    expect(onChange).toHaveBeenNthCalledWith(2, POSITIONS_ALL, null);
   });
 
   it("marks the checked rows for the assistive tree, not only for CSS", () => {

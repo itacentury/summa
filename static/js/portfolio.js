@@ -119,11 +119,23 @@ function visiblePositionSelection(payload) {
   return kept.length > 0 ? kept : POSITIONS_ALL;
 }
 
+/** The other half of the split: the stored ids this payload cannot show. */
+function hiddenPositionSelection(payload) {
+  if (state.portfolioPositions === POSITIONS_ALL) return [];
+
+  const available = new Set(
+    (payload.series?.positions ?? []).map((entry) => entry.id),
+  );
+  return state.portfolioPositions.filter((id) => !available.has(id));
+}
+
 /**
- * Persist a selection and mirror it into the control.
+ * Persist a selection and mirror the part of it this payload can show.
  *
  * Only a deliberate toggle gets here: what a payload happens to carry never
- * rewrites the stored list.
+ * rewrites the stored list. The control is fed the visible slice rather than
+ * `selection` itself, because an id it has no row for would still count
+ * towards its line limit and its "N positions" label.
  */
 function storePositionSelection(selection) {
   state.portfolioPositions = selection;
@@ -132,7 +144,8 @@ function storePositionSelection(selection) {
     PORTFOLIO_POSITIONS_STORAGE_KEY,
     selection === POSITIONS_ALL ? POSITIONS_ALL : JSON.stringify(selection),
   );
-  if (positionsFilter) positionsFilter.setValue(selection);
+  if (positionsFilter && lastPayload)
+    positionsFilter.setValue(visiblePositionSelection(lastPayload));
 }
 
 /** The containers the view toggles between its loading, empty and data states. */
@@ -318,9 +331,28 @@ function setDepotFilter(depot) {
  * No refetch: the payload already carries a line per position, so the selection
  * is answered entirely from what is on screen.
  */
-function setPortfolioPositions(selection) {
-  storePositionSelection(selection);
+function setPortfolioPositions(selection, toggled) {
+  storePositionSelection(mergedPositionSelection(selection, toggled));
   if (lastPayload) renderPortfolioCharts(lastPayload);
+}
+
+/**
+ * What a toggle of the visible rows makes of the whole stored selection.
+ *
+ * A toggle edits only what was on screen: the ids the active depot filter hides
+ * are carried across it, so switching back shows the lines again. The "all" row
+ * is the exception — it is not a position but a reset, so it clears the hidden
+ * ids too. The cap is the palette's, and the visible ids come first: an
+ * oversized selection would spend slots on lines this payload cannot draw and
+ * leave a checked row colourless.
+ */
+function mergedPositionSelection(selection, toggled) {
+  if (toggled === null || !lastPayload) return selection;
+
+  const visible = selection === POSITIONS_ALL ? [] : selection;
+  const merged = [...visible, ...hiddenPositionSelection(lastPayload)];
+  if (merged.length === 0) return POSITIONS_ALL;
+  return merged.slice(0, PORTFOLIO_MAX_LINES);
 }
 
 /** Collapse or expand a depot group in place, without refetching. */
