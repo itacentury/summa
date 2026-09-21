@@ -1,0 +1,861 @@
+"""Fill the portfolio tables with a plausible depot history, for UI checks.
+
+A workstation tool, not part of the served app: the Portfolio screen has a lot
+of states -- the depot switcher, allocation pooling, weekly movers, four range
+filters, foreign currencies, a sold position and the benchmark line -- and none
+of them can be looked at against an empty database.
+
+The generator is pure and deterministic: :func:`build_seed_data` takes a seed
+and a date and returns plain dataclasses, no SQL and no clock of its own, which
+is what lets :mod:`tests.test_seed_portfolio` prove the schema's invariants
+without a database. Only the writer below it touches SQLite.
+
+Values follow a geometric random walk whose weekly return mixes a per-position
+drift with a *shared* market factor. The shared part is what makes the result
+read as a market rather than as noise: positions move together in a bad week,
+which is the whole point of a movers list.
+
+Re-running is safe: depots, positions and snapshots go in with
+``INSERT OR IGNORE``, so a week corrected in the UI survives. ``--reset`` clears
+the portfolio tables first and touches nothing on the invoice side; ``--dry-run``
+works against an in-memory copy and writes nothing at all.
+"""
+
+import argparse
+import sqlite3
+import sys
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+from pathlib import Path
+from random import Random
+from typing import Final
+
+from scripts.portfolio_db import connect, connect_mirror, default_database_path
+from summa import config
+
+DEFAULT_WEEKS: Final[int] = 156
+DEFAULT_SEED: Final[int] = 20260921
+MIN_WEEKS: Final[int] = 8
+
+# Weeks of benchmark history generated before the first snapshot. The chart
+# anchors the benchmark on the last close at or before its first date
+# (``_anchor_value``), so without a pre-roll the line would be anchored on a
+# point inside the window and start off the portfolio's value.
+BENCHMARK_PREROLL: Final[int] = 12
+
+MONEY_DIGITS: Final[int] = 2
+CLOSE_DIGITS: Final[int] = 4
+MONTHLY: Final[int] = 4
+QUARTERLY: Final[int] = 13
+
+# The weekly market return every position shares, and the level the benchmark
+# starts from. The benchmark tracks that factor almost exactly -- a broad index
+# is what it stands for -- with just enough noise of its own that the portfolio
+# does not shadow it week for week.
+MARKET_DRIFT: Final[float] = 0.0022
+MARKET_VOLATILITY: Final[float] = 0.0112
+BENCHMARK_START_CLOSE: Final[float] = 78.5
+BENCHMARK_VOLATILITY: Final[float] = 0.0022
+
+# How often a week is recorded as carried forward rather than entered, and the
+# band a drifting FX rate is kept inside (as a factor on its starting rate).
+CARRY_PROBABILITY: Final[float] = 0.02
+FX_VOLATILITY: Final[float] = 0.006
+FX_BAND: Final[tuple[float, float]] = (0.92, 1.09)
+
+# A value can only fall so far: the schema allows 0, but a zero grid point makes
+# :func:`summa.portfolio.rebase_to_grid` drop the benchmark line without a word.
+MIN_VALUE: Final[float] = 0.01
+
+EXIT_OK: Final[int] = 0
+EXIT_SEED_ERROR: Final[int] = 1
+EXIT_USAGE_ERROR: Final[int] = 2
+
+
+@dataclass(frozen=True)
+class SeedDepot:
+    """A depot to create."""
+
+    name: str
+    sort_order: int
+
+
+@dataclass(frozen=True)
+class SeedSnapshot:
+    """One generated week, in the position's own currency."""
+
+    date: str
+    value: float
+    deposit: float
+    fx_rate: float
+    carried: bool
+
+
+@dataclass(frozen=True)
+class SeedPosition:
+    """A generated position together with its full history.
+
+    :param closed_at: the date the position was sold, or None while it is held.
+        The zeroing row that follows a sale is deliberately absent from
+        `snapshots`: :func:`summa.portfolio.with_sale_recorded` derives it on
+        every read, and storing it as well would withdraw the proceeds twice.
+    """
+
+    depot: str
+    name: str
+    kind: str
+    currency: str
+    sort_order: int
+    snapshots: list[SeedSnapshot]
+    is_benchmark_fallback: bool = False
+    closed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class SeedBenchmarkPrice:
+    """One dated close of the generated benchmark series."""
+
+    date: str
+    close: float
+
+
+@dataclass(frozen=True)
+class SeedData:
+    """Everything one run generates, before any of it is written."""
+
+    depots: list[SeedDepot]
+    positions: list[SeedPosition]
+    benchmark_symbol: str
+    benchmark_prices: list[SeedBenchmarkPrice]
+
+
+@dataclass(frozen=True)
+class SeedSummary:
+    """What a run did, for the printed report."""
+
+    depots: int
+    depots_created: int
+    positions: int
+    positions_created: int
+    snapshots_written: int
+    snapshots_existing: int
+    rows_carried: int
+    benchmark_written: int
+    rows_deleted: int
+
+
+@dataclass(frozen=True)
+class PositionSpec:
+    """The recipe one position's random walk is grown from.
+
+    :param start_offset: weeks after the first snapshot date that the position
+        is bought in. Its history starts there -- never earlier with a value of
+        0, which would hand the chart a zero first grid point.
+    :param close_offset: weeks after the first snapshot date that the position
+        is sold in, counted back from the end when negative, or None while it is
+        still held. No snapshot is generated past that week.
+    :param drift: expected weekly return on top of the position's share of the
+        market, net of the variance drag -- see :func:`_variance_drag`.
+    :param beta: how much of the shared market return this position takes.
+    :param deposit_every: weeks between recurring deposits, or None for a
+        position that was bought and then only added to on the dates in
+        `extra_deposits`.
+    """
+
+    depot: str
+    name: str
+    kind: str
+    currency: str
+    fx_rate: float
+    start_offset: int
+    initial_deposit: float
+    deposit_every: int | None
+    deposit_amount: float
+    drift: float
+    beta: float
+    volatility: float
+    close_offset: int | None = None
+    is_benchmark_fallback: bool = False
+    extra_deposits: tuple[tuple[int, float], ...] = field(default_factory=tuple)
+
+
+DEPOTS: Final[tuple[SeedDepot, ...]] = (
+    SeedDepot(name="Trade Republic", sort_order=0),
+    SeedDepot(name="Scalable Capital", sort_order=1),
+    SeedDepot(name="DKB", sort_order=2),
+)
+
+# Ten positions are still held and one is sold, so the donut shows its five
+# largest slices plus a pooled "5 more" -- the state worth looking at. Offsets
+# are written against DEFAULT_WEEKS and scaled in :func:`_resolve_offset`, so a
+# shorter --weeks run still staggers the entries instead of collapsing them all
+# onto week 0.
+POSITION_SPECS: Final[tuple[PositionSpec, ...]] = (
+    PositionSpec(
+        depot="Trade Republic",
+        name="MSCI World UCITS ETF",
+        kind="etf",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=0,
+        initial_deposit=3000.0,
+        deposit_every=MONTHLY,
+        deposit_amount=250.0,
+        drift=0.0002,
+        beta=0.95,
+        volatility=0.004,
+        is_benchmark_fallback=True,
+    ),
+    PositionSpec(
+        depot="Trade Republic",
+        name="FTSE All-World High Dividend",
+        kind="etf",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=20,
+        initial_deposit=1200.0,
+        deposit_every=MONTHLY,
+        deposit_amount=100.0,
+        drift=-0.0004,
+        beta=0.82,
+        volatility=0.006,
+    ),
+    PositionSpec(
+        depot="Trade Republic",
+        name="Apple",
+        kind="stock",
+        currency="USD",
+        fx_rate=1.0850,
+        start_offset=14,
+        initial_deposit=1800.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=0.0016,
+        beta=0.70,
+        volatility=0.028,
+        extra_deposits=((48, 900.0), (96, 750.0)),
+    ),
+    PositionSpec(
+        depot="Trade Republic",
+        name="Nvidia",
+        kind="stock",
+        currency="USD",
+        fx_rate=1.0850,
+        start_offset=40,
+        initial_deposit=1400.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=0.0075,
+        beta=1.35,
+        volatility=0.046,
+        extra_deposits=((78, 600.0),),
+    ),
+    PositionSpec(
+        depot="Trade Republic",
+        name="Rheinmetall",
+        kind="stock",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=55,
+        initial_deposit=1100.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=0.0060,
+        beta=0.45,
+        volatility=0.038,
+    ),
+    PositionSpec(
+        depot="Scalable Capital",
+        name="STOXX Europe 600 UCITS ETF",
+        kind="etf",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=2,
+        initial_deposit=2200.0,
+        deposit_every=MONTHLY,
+        deposit_amount=150.0,
+        drift=-0.0003,
+        beta=0.88,
+        volatility=0.005,
+    ),
+    PositionSpec(
+        depot="Scalable Capital",
+        name="MSCI Emerging Markets IMI",
+        kind="etf",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=28,
+        initial_deposit=800.0,
+        deposit_every=MONTHLY,
+        deposit_amount=75.0,
+        drift=-0.0018,
+        beta=0.75,
+        volatility=0.009,
+    ),
+    PositionSpec(
+        depot="Scalable Capital",
+        name="Novo Nordisk",
+        kind="stock",
+        currency="DKK",
+        fx_rate=7.4580,
+        start_offset=33,
+        initial_deposit=9500.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=0.0018,
+        beta=0.55,
+        volatility=0.031,
+        extra_deposits=((88, 4200.0),),
+    ),
+    PositionSpec(
+        depot="Scalable Capital",
+        name="Bayer",
+        kind="stock",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=8,
+        initial_deposit=2400.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=-0.0062,
+        beta=0.60,
+        volatility=0.030,
+        extra_deposits=((70, 800.0),),
+    ),
+    PositionSpec(
+        depot="DKB",
+        name="Deka Global Champions",
+        kind="fund",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=5,
+        initial_deposit=1600.0,
+        deposit_every=QUARTERLY,
+        deposit_amount=500.0,
+        drift=-0.0006,
+        beta=0.80,
+        volatility=0.007,
+    ),
+    PositionSpec(
+        depot="DKB",
+        name="Zalando",
+        kind="stock",
+        currency="EUR",
+        fx_rate=1.0,
+        start_offset=6,
+        initial_deposit=1900.0,
+        deposit_every=None,
+        deposit_amount=0.0,
+        drift=0.0005,
+        beta=0.65,
+        volatility=0.024,
+        close_offset=-20,
+    ),
+)
+
+
+# --- Pure generation --------------------------------------------------------
+
+
+def weekly_grid(weeks: int, today: date) -> list[str]:
+    """Return `weeks` consecutive Mondays ending on the most recent one.
+
+    The grid ends at or before `today` because the API rejects a snapshot dated
+    in the future, and a script writing straight to SQLite bypasses that check.
+
+    :param weeks: how many dates the grid holds, the last one included.
+    """
+    last_monday: date = today - timedelta(days=today.weekday())
+    first: date = last_monday - timedelta(weeks=weeks - 1)
+    return [(first + timedelta(weeks=step)).isoformat() for step in range(weeks)]
+
+
+def _resolve_offset(offset: int, weeks: int) -> int:
+    """Map a spec offset onto a grid of `weeks` weeks.
+
+    Offsets are written against DEFAULT_WEEKS so the profile reads as a calendar
+    rather than as fractions. A shorter run scales them down instead of dropping
+    every late entry off the end, and a negative offset counts back from the
+    final week -- which is how the sale keeps a fixed distance from today.
+    """
+    scaled: int = round(offset * weeks / DEFAULT_WEEKS)
+    if offset < 0:
+        return max(1, weeks - 1 + scaled)
+    return min(scaled, weeks - 2)
+
+
+def _market_returns(rng: Random, length: int) -> list[float]:
+    """Draw the weekly market return every position shares."""
+    return [rng.gauss(MARKET_DRIFT, MARKET_VOLATILITY) for _ in range(length)]
+
+
+def _variance_drag(spec: PositionSpec) -> float:
+    """Return the weekly return a position's own volatility costs it.
+
+    A multiplicative walk compounds ``1 + r``, so its expected *growth* is the
+    drift minus half the variance -- the more volatile the position, the more a
+    given drift overstates where it actually ends up. Subtracting the drag makes
+    ``drift`` mean the same thing for a 0.4 % ETF and a 4.6 % single stock,
+    which is what keeps a profile readable as expected returns.
+    """
+    variance: float = (spec.beta * MARKET_VOLATILITY) ** 2 + spec.volatility**2
+    return variance / 2
+
+
+def _fx_series(rng: Random, base_rate: float, length: int) -> list[float]:
+    """Draw a slowly drifting FX rate, one per week, kept inside a plausible band.
+
+    A constant rate would make a foreign-currency position's history read as a
+    conversion table rather than as a record. The band is what keeps the drift
+    from wandering somewhere no EUR cross has ever been.
+    """
+    if base_rate == 1.0:
+        return [1.0] * length
+
+    low: float = base_rate * FX_BAND[0]
+    high: float = base_rate * FX_BAND[1]
+    rates: list[float] = []
+    rate: float = base_rate
+    for _ in range(length):
+        rate = min(max(rate * (1 + rng.gauss(0.0, FX_VOLATILITY)), low), high)
+        rates.append(round(rate, 4))
+    return rates
+
+
+def _deposit_for(
+    spec: PositionSpec, week: int, start: int, extras: dict[int, float]
+) -> float:
+    """Return the money paid into a position in one week, 0 when none was.
+
+    :param week: index into the grid.
+    :param start: the grid index the position was bought in.
+    """
+    if week == start:
+        return spec.initial_deposit
+    extra: float = extras.get(week, 0.0)
+    if spec.deposit_every is not None and (week - start) % spec.deposit_every == 0:
+        return spec.deposit_amount + extra
+    return extra
+
+
+def _build_snapshots(
+    spec: PositionSpec,
+    grid: Sequence[str],
+    market: Sequence[float],
+    weeks: int,
+    rng: Random,
+) -> tuple[list[SeedSnapshot], str | None]:
+    """Grow one position's weekly history, and the date it was sold on.
+
+    A carried week is only ever a week without a deposit: the flag says the
+    value was copied forward, and money that moved is a week somebody recorded.
+
+    :return: the snapshots, ascending by date, and ``closed_at`` or None.
+    """
+    start: int = _resolve_offset(spec.start_offset, weeks)
+    last: int = weeks - 1
+    closed_at: str | None = None
+    if spec.close_offset is not None:
+        last = max(_resolve_offset(spec.close_offset, weeks), start + 1)
+        closed_at = grid[last]
+
+    extras: dict[int, float] = {
+        _resolve_offset(offset, weeks): amount for offset, amount in spec.extra_deposits
+    }
+    rates: list[float] = _fx_series(rng, spec.fx_rate, weeks)
+    drag: float = _variance_drag(spec)
+
+    snapshots: list[SeedSnapshot] = []
+    value: float = 0.0
+    for week in range(start, last + 1):
+        deposit: float = _deposit_for(spec, week, start, extras)
+        carried: bool = False
+        if week == start:
+            value = spec.initial_deposit
+        elif deposit == 0 and rng.random() < CARRY_PROBABILITY:
+            carried = True
+        else:
+            weekly_return: float = (
+                spec.drift
+                + spec.beta * market[week]
+                + rng.gauss(0.0, spec.volatility)
+                - drag
+            )
+            value = max(value * (1 + weekly_return) + deposit, MIN_VALUE)
+        snapshots.append(
+            SeedSnapshot(
+                date=grid[week],
+                value=round(value, MONEY_DIGITS),
+                deposit=round(deposit, MONEY_DIGITS),
+                fx_rate=rates[week],
+                carried=carried,
+            )
+        )
+    return snapshots, closed_at
+
+
+def _build_benchmark(
+    rng: Random,
+    dates: Sequence[str],
+    preroll: Sequence[float],
+    market: Sequence[float],
+) -> list[SeedBenchmarkPrice]:
+    """Grow the benchmark series over the pre-roll and the snapshot grid.
+
+    :param dates: the pre-roll dates followed by the snapshot grid, ascending.
+    """
+    returns: list[float] = list(preroll) + list(market)
+    # The same correction the positions apply, so a drift means the same thing
+    # on both lines and the chart does not compare a corrected series to a raw one.
+    drag: float = (MARKET_VOLATILITY**2 + BENCHMARK_VOLATILITY**2) / 2
+    prices: list[SeedBenchmarkPrice] = []
+    close: float = BENCHMARK_START_CLOSE
+    for index, point_date in enumerate(dates):
+        if index > 0:
+            close *= 1 + returns[index] + rng.gauss(0.0, BENCHMARK_VOLATILITY) - drag
+        prices.append(
+            SeedBenchmarkPrice(date=point_date, close=round(close, CLOSE_DIGITS))
+        )
+    return prices
+
+
+def build_seed_data(
+    weeks: int, seed: int, today: date, benchmark_symbol: str
+) -> SeedData:
+    """Generate the whole fake portfolio, deterministically for a given seed.
+
+    Nothing here reads a clock, an environment or a database: the same arguments
+    always produce the same data, which is what makes a screenshot reproducible
+    and the schema's invariants testable without SQLite.
+
+    :param weeks: how many weekly snapshot dates the history spans.
+    """
+    rng: Random = Random(seed)
+    grid: list[str] = weekly_grid(weeks, today)
+    preroll_dates: list[str] = weekly_grid(BENCHMARK_PREROLL + weeks, today)[
+        :BENCHMARK_PREROLL
+    ]
+    preroll_returns: list[float] = _market_returns(rng, BENCHMARK_PREROLL)
+    market: list[float] = _market_returns(rng, weeks)
+
+    positions: list[SeedPosition] = []
+    order_per_depot: dict[str, int] = {}
+    for spec in POSITION_SPECS:
+        snapshots, closed_at = _build_snapshots(spec, grid, market, weeks, rng)
+        sort_order: int = order_per_depot.get(spec.depot, 0)
+        order_per_depot[spec.depot] = sort_order + 1
+        positions.append(
+            SeedPosition(
+                depot=spec.depot,
+                name=spec.name,
+                kind=spec.kind,
+                currency=spec.currency,
+                sort_order=sort_order,
+                snapshots=snapshots,
+                is_benchmark_fallback=spec.is_benchmark_fallback,
+                closed_at=closed_at,
+            )
+        )
+
+    return SeedData(
+        depots=list(DEPOTS),
+        positions=positions,
+        benchmark_symbol=benchmark_symbol,
+        benchmark_prices=_build_benchmark(
+            rng, preroll_dates + grid, preroll_returns, market
+        ),
+    )
+
+
+def format_summary(summary: SeedSummary) -> str:
+    """Render the seed summary as an indented block."""
+    lines: list[str] = [
+        f"  depots     {summary.depots:5d}  ({summary.depots_created} created)",
+        f"  positions  {summary.positions:5d}  ({summary.positions_created} created)",
+        f"  snapshots  {summary.snapshots_written:5d} written, {summary.snapshots_existing} already present",
+        f"  carried    {summary.rows_carried:5d}  rows copied forward",
+        f"  benchmark  {summary.benchmark_written:5d}  closes upserted",
+    ]
+    if summary.rows_deleted:
+        lines.insert(0, f"  cleared    {summary.rows_deleted:5d}  portfolio rows")
+    return "\n".join(lines)
+
+
+# --- Writing ----------------------------------------------------------------
+
+PORTFOLIO_TABLES: Final[tuple[str, ...]] = (
+    "portfolio_snapshots",
+    "portfolio_positions",
+    "portfolio_depots",
+    "benchmark_prices",
+)
+
+
+def clear_portfolio(cursor: sqlite3.Cursor) -> int:
+    """Delete every portfolio row, leaving the invoice tables alone.
+
+    Positions and snapshots go with their depot through ``ON DELETE CASCADE``,
+    which the connection enables -- so the two statements below cover the whole
+    portfolio area and reach nothing outside it.
+
+    :return: how many rows were deleted, across all four tables.
+    """
+    deleted: int = 0
+    for table in PORTFOLIO_TABLES:
+        row: sqlite3.Row = cursor.execute(
+            f"SELECT COUNT(*) AS n FROM {table}"
+        ).fetchone()
+        deleted += int(row["n"])
+    cursor.execute("DELETE FROM portfolio_depots")
+    cursor.execute("DELETE FROM benchmark_prices")
+    return deleted
+
+
+def resolve_depot(cursor: sqlite3.Cursor, depot: SeedDepot) -> tuple[int, bool]:
+    """Return a depot's id, creating it when missing.
+
+    ``INSERT OR IGNORE ... RETURNING`` yields no row when it ignores, hence the
+    separate lookup.
+
+    :return: the id and whether this call created it.
+    """
+    cursor.execute(
+        "INSERT OR IGNORE INTO portfolio_depots (name, sort_order) VALUES (?, ?)",
+        (depot.name, depot.sort_order),
+    )
+    created: bool = cursor.rowcount == 1
+    row: sqlite3.Row = cursor.execute(
+        "SELECT id FROM portfolio_depots WHERE name = ?", (depot.name,)
+    ).fetchone()
+    return int(row["id"]), created
+
+
+def resolve_position(
+    cursor: sqlite3.Cursor, depot_id: int, position: SeedPosition
+) -> tuple[int, bool]:
+    """Return a position's id, creating it when missing.
+
+    An existing position is never updated: a re-run without ``--reset`` leaves a
+    database that was adjusted by hand exactly as it stands.
+    """
+    cursor.execute(
+        "INSERT OR IGNORE INTO portfolio_positions "
+        "(depot_id, name, kind, currency, is_benchmark_fallback, closed_at, sort_order) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            depot_id,
+            position.name,
+            position.kind,
+            position.currency,
+            int(position.is_benchmark_fallback),
+            position.closed_at,
+            position.sort_order,
+        ),
+    )
+    created: bool = cursor.rowcount == 1
+    row: sqlite3.Row = cursor.execute(
+        "SELECT id FROM portfolio_positions WHERE depot_id = ? AND name = ?",
+        (depot_id, position.name),
+    ).fetchone()
+    return int(row["id"]), created
+
+
+def insert_snapshots(
+    cursor: sqlite3.Cursor, position_id: int, snapshots: Sequence[SeedSnapshot]
+) -> tuple[int, int]:
+    """Write a position's weeks, leaving any already recorded untouched.
+
+    Rows go in one at a time so ``rowcount`` can tell a write from a conflict;
+    ``executemany`` would collapse the two.
+
+    :return: how many rows were written and how many were already present.
+    """
+    written: int = 0
+    for snapshot in snapshots:
+        cursor.execute(
+            "INSERT OR IGNORE INTO portfolio_snapshots "
+            "(position_id, date, value, deposit, fx_rate, carried) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                position_id,
+                snapshot.date,
+                snapshot.value,
+                snapshot.deposit,
+                snapshot.fx_rate,
+                int(snapshot.carried),
+            ),
+        )
+        written += cursor.rowcount
+    return written, len(snapshots) - written
+
+
+def upsert_benchmark(
+    cursor: sqlite3.Cursor, symbol: str, prices: Sequence[SeedBenchmarkPrice]
+) -> int:
+    """Write the generated closes, refreshing any already on record.
+
+    An upsert rather than an ``INSERT OR IGNORE``, matching
+    ``scripts/fetch_benchmark.py``: re-seeding with another seed should move the
+    line rather than leave the previous run's closes standing beside it.
+
+    :return: how many closes were written.
+    """
+    cursor.executemany(
+        "INSERT INTO benchmark_prices (symbol, date, close) VALUES (?, ?, ?) "
+        "ON CONFLICT (symbol, date) DO UPDATE SET close = excluded.close",
+        [(symbol, price.date, price.close) for price in prices],
+    )
+    return len(prices)
+
+
+def write_seed_data(cursor: sqlite3.Cursor, data: SeedData, reset: bool) -> SeedSummary:
+    """Write depots, positions, snapshots and the benchmark, and report what happened."""
+    deleted: int = clear_portfolio(cursor) if reset else 0
+
+    depot_ids: dict[str, int] = {}
+    depots_created: int = 0
+    for depot in data.depots:
+        depot_id, depot_is_new = resolve_depot(cursor, depot)
+        depot_ids[depot.name] = depot_id
+        depots_created += int(depot_is_new)
+
+    positions_created: int = 0
+    written: int = 0
+    existing: int = 0
+    carried: int = 0
+    for position in data.positions:
+        position_id, position_is_new = resolve_position(
+            cursor, depot_ids[position.depot], position
+        )
+        positions_created += int(position_is_new)
+        rows_written, rows_existing = insert_snapshots(
+            cursor, position_id, position.snapshots
+        )
+        written += rows_written
+        existing += rows_existing
+        carried += sum(1 for snapshot in position.snapshots if snapshot.carried)
+
+    return SeedSummary(
+        depots=len(data.depots),
+        depots_created=depots_created,
+        positions=len(data.positions),
+        positions_created=positions_created,
+        snapshots_written=written,
+        snapshots_existing=existing,
+        rows_carried=carried,
+        benchmark_written=upsert_benchmark(
+            cursor, data.benchmark_symbol, data.benchmark_prices
+        ),
+        rows_deleted=deleted,
+    )
+
+
+def seed_database(
+    data: SeedData, database_path: Path, reset: bool, dry_run: bool
+) -> SeedSummary:
+    """Open the database and write the generated data to it."""
+    conn: sqlite3.Connection = (
+        connect_mirror(database_path) if dry_run else connect(database_path)
+    )
+    try:
+        summary: SeedSummary = write_seed_data(conn.cursor(), data, reset)
+        # A dry run commits into its in-memory mirror, which close() discards.
+        conn.commit()
+        return summary
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# --- Command line -----------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line parser."""
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        prog="seed_portfolio",
+        description="Fill the portfolio tables with a plausible depot history.",
+        epilog=(
+            "A workstation tool for looking at the Portfolio screen, not part of "
+            "the served app. Without --reset a week already recorded is kept as "
+            "it is, so a value corrected in the UI survives a re-run."
+        ),
+    )
+    # Read here rather than at import, so the default follows the environment
+    # the run is given -- the same lazy shape summa.config uses throughout.
+    configured_symbol: str = config.benchmark_symbol()
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_database_path(),
+        help="database to write to (default: $DATABASE_PATH, else invoices.db)",
+    )
+    parser.add_argument(
+        "--weeks",
+        type=int,
+        default=DEFAULT_WEEKS,
+        help=f"weeks of history to generate (default: {DEFAULT_WEEKS}, about three years)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=(
+            f"random seed (default: {DEFAULT_SEED}); the same seed and --weeks "
+            "always yield the same history"
+        ),
+    )
+    parser.add_argument(
+        "--symbol",
+        default=configured_symbol,
+        help=(
+            f"symbol to write the benchmark closes under (default: {configured_symbol}). "
+            f"The chart draws the symbol ${config.BENCHMARK_SYMBOL_ENV} names, so another "
+            "one writes rows nothing reads"
+        ),
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="clear the portfolio tables first; the invoice tables are never touched",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be written without writing it",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Generate the data, write it and return a process exit code."""
+    args: argparse.Namespace = build_parser().parse_args(argv)
+    if args.weeks < MIN_WEEKS:
+        print(f"error: --weeks needs at least {MIN_WEEKS}", file=sys.stderr)
+        return EXIT_USAGE_ERROR
+
+    data: SeedData = build_seed_data(args.weeks, args.seed, date.today(), args.symbol)
+    try:
+        summary: SeedSummary = seed_database(
+            data, args.db, reset=args.reset, dry_run=args.dry_run
+        )
+    except (OSError, sqlite3.Error) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return EXIT_SEED_ERROR
+
+    headline: str = "Dry run — nothing written" if args.dry_run else "Seeded"
+    first_date: str = data.positions[0].snapshots[0].date
+    last_date: str = data.positions[0].snapshots[-1].date
+    print(
+        f"{headline}: {first_date}..{last_date} ({args.weeks} weeks, seed {args.seed}) "
+        f"-> {args.db}"
+    )
+    print(format_summary(summary))
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -25,20 +25,31 @@ uv run mypy                             # strict type check (files set in pyproj
 uv run pytest                           # backend test suite (tests/)
 ```
 
-Two operational CLIs live under `scripts/` and are not part of the served app:
+Three operational CLIs live under `scripts/` and are not part of the served app:
 
 ```bash
 uv run python -m scripts.import_portfolio_xlsx book.xlsx --fx USD=1.08  # load depot history
 uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (cron)
+uv run python -m scripts.seed_portfolio --reset                         # fake depot history for UI checks
 ```
 
-Both take `--db` (default `$DATABASE_PATH`, else `invoices.db`), create the
-portfolio schema when it is missing and are safe to re-run. Both also take
-`--dry-run`, which writes nothing at all: the importer runs against an in-memory
-copy of the database (`connect_mirror()` in `scripts/portfolio_db.py`), so a dry
-run neither creates the file nor touches an existing one. `openpyxl` is a
-**dev-only** dependency, so the runtime image never carries it — the importer is a
-workstation tool. `scripts` is in `[tool.mypy] files`, so both are strict-checked.
+All three take `--db` (default `$DATABASE_PATH`, else `invoices.db`), create the
+portfolio schema when it is missing and are safe to re-run. All three also take
+`--dry-run`, which writes nothing at all: the importer and the seeder run against
+an in-memory copy of the database (`connect_mirror()` in
+`scripts/portfolio_db.py`), so a dry run neither creates the file nor touches an
+existing one. `openpyxl` is a **dev-only** dependency, so the runtime image never
+carries it — the importer is a workstation tool. `scripts` is in
+`[tool.mypy] files`, so all three are strict-checked.
+
+`seed_portfolio.py` is a workstation tool too, for looking at the Portfolio
+screen against something: it generates three depots and eleven positions (one
+of them sold, two in a foreign currency) over `--weeks` of weekly snapshots plus
+a matching benchmark series, so the depot switcher, allocation pooling, both
+mover lists and all four range filters have data. Generation is pure and keyed
+on `--seed`, so a screenshot is reproducible; `--reset` clears the four
+portfolio tables first and never touches the invoice side, while a re-run
+without it keeps every week already recorded.
 
 `.env` — copied from `.env.example` — is what decides whether a local run is behind
 the login gate (`AUTH_ENABLED`), and `uv` fails outright when that file is missing. The
