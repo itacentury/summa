@@ -72,6 +72,15 @@ function payload() {
   };
 }
 
+/** A response the test resolves by hand, to keep a request in flight. */
+function deferredResponse(data) {
+  let resolve;
+  const promise = new Promise((settle) => {
+    resolve = () => settle(jsonResponse(data));
+  });
+  return { promise, resolve };
+}
+
 function list() {
   return document.querySelector('[data-el="history-list"]');
 }
@@ -107,7 +116,7 @@ describe("position history", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/portfolio/positions/10/snapshots",
-      {},
+      { signal: expect.any(AbortSignal) },
     );
     expect(
       document.querySelector('[data-el="history-subtitle"]').textContent,
@@ -203,6 +212,56 @@ describe("position history", () => {
         .querySelector('[data-scope="payments"]')
         .classList.contains("is-active"),
     ).toBe(true);
+  });
+
+  // The fetch double ignores `signal`, so an aborted request still resolves
+  // here: what these two pin is the identity guard behind the abort.
+  it("drops a slow reply once another position was opened", async () => {
+    const slow = deferredResponse({
+      position: { id: 10, name: "Apple", currency: "USD", closed_at: null },
+      rows: [row("2026-02-01", { deposit: 900 })],
+    });
+    global.fetch = vi.fn(async (url) =>
+      url.includes("/10/") ? slow.promise : jsonResponse(payload()),
+    );
+
+    setupHistoryListeners();
+    openHistoryModal(10, "Apple");
+    openHistoryModal(11, "MSCI World SRI");
+    await flushUi();
+    slow.resolve();
+    await flushUi();
+
+    expect(dates()).toEqual(["11.01.2026", "04.01.2026"]);
+    expect(list().querySelector(".portfolio-history-native")).toBeNull();
+  });
+
+  it("keeps the spinner when the filter is switched mid-load", async () => {
+    const pending = deferredResponse(payload());
+    global.fetch = vi.fn(async () => pending.promise);
+
+    setupHistoryListeners();
+    openHistoryModal(10, "MSCI World SRI");
+    await flushUi();
+    clickScope("all");
+
+    expect(list().querySelector(".spinner")).not.toBeNull();
+    expect(list().textContent).not.toContain("No weeks recorded yet");
+    expect(list().textContent).not.toContain("No payments recorded");
+  });
+
+  it("stays quiet about a request the user closed the dialog on", async () => {
+    const pending = deferredResponse({});
+    global.fetch = vi.fn(async () => pending.promise);
+
+    setupHistoryListeners();
+    openHistoryModal(10, "MSCI World SRI");
+    await flushUi();
+    document.querySelector(".modal-close").click();
+    pending.resolve();
+    await flushUi();
+
+    expect(showErrorToast).not.toHaveBeenCalled();
   });
 
   it("closes on the one button it has", async () => {
