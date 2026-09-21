@@ -30,6 +30,7 @@ import {
   PORTFOLIO_MAX_LINES,
   positionLineColors,
 } from "../../static/js/state.js";
+import { mobileViewport } from "../../static/js/dom.js";
 import { openHistoryModal } from "../../static/js/portfolio-history.js";
 import { showErrorToast } from "../../static/js/toast.js";
 import { showInvoicesView, showPortfolioView } from "../../static/js/views.js";
@@ -494,6 +495,19 @@ describe("portfolio rendering", () => {
     await loadPortfolio();
 
     expect(lastRequest()).toBe("/api/portfolio?range=1y");
+  });
+
+  it("redraws the chart when the viewport crosses the breakpoint", async () => {
+    await loadPortfolio();
+    const requests = global.fetch.mock.calls.length;
+    globalThis.Chart.mockClear();
+
+    mobileViewport.dispatchEvent(new Event("change"));
+
+    // Drawn again from the cached payload, so the tick budget and the y-label
+    // format follow the new width without another round trip.
+    expect(globalThis.Chart).toHaveBeenCalled();
+    expect(global.fetch.mock.calls).toHaveLength(requests);
   });
 
   it("renders the summary cards, naming the net amount only when it differs", async () => {

@@ -26,6 +26,14 @@ const axisFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+// The same value where the axis has a phone's width to spend: "€20k" instead of
+// "€20,000" keeps the labels off the plot without dropping the scale entirely.
+const compactAxisFormat = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  compactDisplay: "short",
+  maximumFractionDigits: 1,
+});
+
 // Canvas cannot resolve CSS custom properties, so the series carry the literal
 // hex behind --accent, --chart-4 and --chart-7. The header legend does use the
 // tokens: its three bars are fixed markup, not data.
@@ -81,6 +89,17 @@ const WEEK_MS = 7 * DAY_MS;
 function isoToMs(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
   return Date.UTC(year, month - 1, day);
+}
+
+/**
+ * Label a y-axis value as `€20,000`, or `€20k` where `compact` is set.
+ *
+ * `Intl` renders an uppercase `K`/`M`; the axis type is deliberately quiet, so
+ * the suffix is lowered to sit closer to the digits.
+ */
+export function axisLabel(value, compact) {
+  if (!compact) return `€${axisFormat.format(value)}`;
+  return `€${compactAxisFormat.format(value).toLowerCase()}`;
 }
 
 /** Format an axis tick as `Oct 25` — month name plus two-digit year. */
@@ -402,13 +421,10 @@ function renderValueChart(payload) {
           grid: { color: GRID_COLOR },
           border: { display: false },
           ticks: {
-            // Dropped on a phone, as in the design's mock: the labels would take
-            // a third of the plot and squeeze the month labels into each other.
-            display: !mobile,
             color: TICK_COLOR,
             font: MONO_FONT,
             maxTicksLimit: 5,
-            callback: (value) => `€${axisFormat.format(value)}`,
+            callback: (value) => axisLabel(value, mobile),
           },
         },
       },

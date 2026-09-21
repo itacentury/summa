@@ -333,8 +333,10 @@
     gap: 14px;
   }
 
-  /* Donut centered at 150px; the legend renders below it full width. */
-  .chart-container {
+  /* Donut centered at 150px; the legend renders below it full width. The cap is
+     on the modifier, not on `.chart-container`: the portfolio value chart reuses
+     the base class and must keep the card's full width. */
+  .chart-container-donut {
     max-width: 190px;
     height: 150px;
     padding: 20px 18px 0;
@@ -346,9 +348,7 @@
   }
 
   .chart-container-bar {
-    max-width: none;
     height: 250px;
     padding: 18px;
-    margin: 0;
   }
 }

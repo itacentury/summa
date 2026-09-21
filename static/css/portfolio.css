@@ -1444,7 +1444,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   /* A pixel height, never a viewport unit: the card has to keep its proportions
      while the sheet above it opens. */
   .portfolio-chart-body {
-    height: 130px;
+    height: 180px;
     padding: 10px 16px 4px;
   }
 

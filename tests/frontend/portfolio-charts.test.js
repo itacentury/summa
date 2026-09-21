@@ -14,7 +14,19 @@ import {
   benchmarkNoteText,
   biggestChangesHtml,
 } from "../../static/js/portfolio-render.js";
+// dom.js evaluates mobileViewport (a MediaQueryList) at import time; swap in a
+// plain object so a test can flip the breakpoint without touching matchMedia.
+const { mobileViewport } = vi.hoisted(() => ({
+  mobileViewport: { matches: false },
+}));
+
+vi.mock("../../static/js/dom.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  mobileViewport,
+}));
+
 import {
+  axisLabel,
   axisTicks,
   positionLines,
   renderPortfolioCharts,
@@ -112,6 +124,7 @@ const select = (ids) => {
 
 beforeEach(() => {
   document.body.innerHTML = markup;
+  mobileViewport.matches = false;
   state.portfolioChart = null;
   state.allocationChart = null;
   state.portfolioPositions = "all";
@@ -325,6 +338,21 @@ describe("axisTicks", () => {
   });
 });
 
+describe("axisLabel", () => {
+  it("spells a euro amount out where the axis has the width for it", () => {
+    expect(axisLabel(20000, false)).toBe("€20,000");
+    expect(axisLabel(6743.42, false)).toBe("€6,743");
+  });
+
+  it("compacts the amount on a phone, with a lowercase suffix", () => {
+    expect(axisLabel(20000, true)).toBe("€20k");
+    expect(axisLabel(6500, true)).toBe("€6.5k");
+    expect(axisLabel(1200000, true)).toBe("€1.2m");
+    // Below a thousand there is nothing to compact.
+    expect(axisLabel(500, true)).toBe("€500");
+  });
+});
+
 describe("renderPortfolioCharts", () => {
   it("spans the axis over the period window, not the data it happens to hold", () => {
     renderPortfolioCharts(chartPayload());
@@ -347,6 +375,26 @@ describe("renderPortfolioCharts", () => {
     expect(scale.ticks.length).toBeGreaterThan(0);
     expect(labels[0]).toBe("Oct 25");
     expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("keeps the y labels on a phone, compacted rather than dropped", () => {
+    mobileViewport.matches = true;
+    renderPortfolioCharts(chartPayload());
+    const { y } = lineConfig().options.scales;
+
+    expect(y.ticks.display).not.toBe(false);
+    expect(y.ticks.callback(20000)).toBe("€20k");
+  });
+
+  it("thins the date labels on a phone, where the compact y labels cost width", () => {
+    mobileViewport.matches = true;
+    renderPortfolioCharts(chartPayload());
+    const { x } = lineConfig().options.scales;
+    const scale = { ticks: [] };
+
+    x.afterBuildTicks(scale);
+
+    expect(scale.ticks.length).toBeLessThanOrEqual(3);
   });
 
   it("draws the benchmark as a third line and shows its legend item", () => {

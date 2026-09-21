@@ -18,6 +18,7 @@ import {
   positionLineColors,
 } from "./state.js";
 import { apiFetch } from "./http.js";
+import { mobileViewport } from "./dom.js";
 import { showErrorToast } from "./toast.js";
 import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
 import {
@@ -368,6 +369,13 @@ export function setupPortfolioListeners() {
   period.addEventListener("click", (event) => {
     const button = event.target.closest(".portfolio-period-btn");
     if (button) setPortfolioRange(button.dataset.range);
+  });
+
+  // The chart samples the breakpoint once per render for its tick budget and
+  // label format, so crossing 640px has to redraw: Chart.js resizes the canvas
+  // by itself but re-derives neither.
+  mobileViewport.addEventListener("change", () => {
+    if (lastPayload) renderPortfolioCharts(lastPayload);
   });
 
   const depotRoot = document.querySelector('[data-el="portfolio-depot"]');
