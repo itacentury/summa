@@ -657,6 +657,99 @@ def test_build_series_consumes_two_snapshots_sharing_one_date() -> None:
     assert series.invested == pytest.approx([400.0, -50.0])
 
 
+def test_build_series_keeps_one_line_per_position_in_order() -> None:
+    """Every position handed in gets its own line, under its own id and name."""
+    positions: list[Position] = [
+        _position(
+            7,
+            name="FTSE All-World",
+            snapshots=[_snapshot("2026-01-04", 100.0, deposit=100.0)],
+        ),
+        _position(
+            3,
+            name="Bitcoin",
+            snapshots=[_snapshot("2026-01-04", 50.0, deposit=40.0)],
+        ),
+    ]
+
+    series = build_series(positions, ["2026-01-04"])
+
+    assert [entry.position_id for entry in series.positions] == [7, 3]
+    assert [entry.name for entry in series.positions] == ["FTSE All-World", "Bitcoin"]
+    assert series.positions[0].values == pytest.approx([100.0])
+    assert series.positions[1].invested == pytest.approx([40.0])
+
+
+def test_build_series_lists_a_position_without_a_reading_in_the_window() -> None:
+    """A position with nothing to show still gets a line, flat at zero.
+
+    The chart's position filter offers whatever this list holds, so dropping the
+    quiet ones would make the menu change shape with the period.
+    """
+    positions: list[Position] = [
+        _position(1, snapshots=[_snapshot("2026-01-04", 100.0, deposit=100.0)]),
+        _position(2, name="Gold", snapshots=[]),
+    ]
+
+    series = build_series(positions, ["2026-01-04", "2026-01-11"])
+
+    assert len(series.positions) == 2
+    assert series.positions[1].values == pytest.approx([0.0, 0.0])
+    assert series.positions[1].invested == pytest.approx([0.0, 0.0])
+
+
+def test_build_series_lines_add_up_to_the_portfolio_line() -> None:
+    """The aggregate is exactly the sum of the per-position lines.
+
+    Both come out of the same loop, so this is what keeps a selection of every
+    position readable against the unfiltered chart.
+    """
+    positions: list[Position] = [
+        _position(
+            1,
+            snapshots=[
+                _snapshot("2026-01-04", 100.0, deposit=100.0),
+                _snapshot("2026-01-11", 120.0, deposit=10.0),
+            ],
+        ),
+        _position(
+            2,
+            currency="USD",
+            snapshots=[
+                _snapshot("2026-01-04", 216.0, deposit=216.0, fx_rate=1.08),
+                _snapshot("2026-01-11", 237.6, fx_rate=1.08),
+            ],
+        ),
+    ]
+
+    series = build_series(positions, ["2026-01-04", "2026-01-11"])
+
+    for slot in range(len(series.dates)):
+        summed: float = sum(entry.values[slot] for entry in series.positions)
+        assert series.portfolio[slot] == pytest.approx(summed)
+        summed = sum(entry.invested[slot] for entry in series.positions)
+        assert series.invested[slot] == pytest.approx(summed)
+
+
+def test_build_series_drops_a_sold_position_to_zero_on_its_own_line() -> None:
+    """A sale ends the position's line at zero, not at its last value."""
+    positions: list[Position] = [
+        _position(
+            1,
+            closed_at="2026-01-11",
+            snapshots=[
+                _snapshot("2026-01-04", 400.0, deposit=400.0),
+                _snapshot("2026-01-11", 0.0, deposit=-500.0),
+            ],
+        )
+    ]
+
+    series = build_series(positions, ["2026-01-04", "2026-01-11", "2026-01-18"])
+
+    assert series.positions[0].values == pytest.approx([400.0, 0.0, 0.0])
+    assert series.positions[0].invested == pytest.approx([400.0, -100.0, -100.0])
+
+
 def test_build_position_view_derives_every_number() -> None:
     """A USD position's view converts value, invested and delta to EUR."""
     position: Position = _position(

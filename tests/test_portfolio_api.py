@@ -105,6 +105,7 @@ def test_get_portfolio_is_empty_without_any_data(client: FlaskClient) -> None:
         "portfolio": [],
         "invested": [],
         "benchmark": [],
+        "positions": [],
     }
     assert payload["benchmark_source"] is None
     assert payload["totals"]["value_eur"] == 0
@@ -291,6 +292,74 @@ def test_get_portfolio_depot_filter_narrows_everything(
     # The other depot's snapshot date is gone from the grid entirely.
     assert payload["series"]["dates"] == [_weeks_ago(2)]
     assert payload["series"]["portfolio"] == [1000.0]
+
+
+def test_get_portfolio_carries_a_line_per_position(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """The series carry each position's own line, so the chart can draw a subset."""
+    depot_id = seed_depot()
+    first = seed_position(depot_id, name="Kept")
+    second = seed_position(depot_id, name="Gold")
+    seed_snapshot(first, _weeks_ago(2), 1000.0, deposit=1000.0)
+    seed_snapshot(second, _weeks_ago(2), 400.0, deposit=400.0)
+    seed_snapshot(first, _weeks_ago(1), 1100.0)
+    seed_snapshot(second, _weeks_ago(1), 380.0)
+
+    payload = client.get("/api/portfolio").get_json()
+    lines = payload["series"]["positions"]
+
+    # The list's own order, which is what keeps a position's chart color stable
+    # while its neighbours are checked and unchecked.
+    assert [line["name"] for line in lines] == ["Gold", "Kept"]
+    assert [line["id"] for line in lines] == [second, first]
+    assert lines[1]["values"] == [1000.0, 1100.0]
+    assert lines[0]["invested"] == [400.0, 400.0]
+    # Every line spans the same grid as the aggregate it was summed into.
+    for line in lines:
+        assert len(line["values"]) == len(payload["series"]["dates"])
+        assert len(line["invested"]) == len(payload["series"]["dates"])
+
+
+def test_get_portfolio_depot_filter_narrows_the_position_lines(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A depot filter leaves only its own positions selectable in the chart."""
+    kept = seed_depot(name="Trade Republic")
+    other = seed_depot(name="Deka")
+    kept_position = seed_position(kept, name="Kept")
+    seed_snapshot(kept_position, _weeks_ago(1), 1000.0, deposit=1000.0)
+    seed_snapshot(seed_position(other, name="Other"), _weeks_ago(1), 500.0)
+
+    payload = client.get(f"/api/portfolio?depot={kept}").get_json()
+
+    assert [line["name"] for line in payload["series"]["positions"]] == ["Kept"]
+
+
+def test_get_portfolio_range_narrows_the_position_lines_too(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """A shorter period shortens every line, and drops none of them."""
+    depot_id = seed_depot()
+    position_id = seed_position(depot_id, name="Kept")
+    seed_snapshot(position_id, _weeks_ago(30), 900.0, deposit=900.0)
+    seed_snapshot(position_id, _weeks_ago(1), 1000.0)
+
+    full = client.get("/api/portfolio?range=1y").get_json()
+    short = client.get("/api/portfolio?range=3m").get_json()
+
+    assert len(full["series"]["positions"][0]["values"]) == 2
+    assert len(short["series"]["positions"][0]["values"]) == 1
+    assert [line["name"] for line in short["series"]["positions"]] == ["Kept"]
 
 
 def test_get_portfolio_converts_a_foreign_currency_position(

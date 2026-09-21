@@ -482,6 +482,16 @@ def _serialize_history_row(row: portfolio.HistoryRow) -> dict[str, Any]:
     }
 
 
+def _serialize_position_series(entry: portfolio.PositionSeries) -> dict[str, Any]:
+    """Render one position's chart lines."""
+    return {
+        "id": entry.position_id,
+        "name": entry.name,
+        "values": [_amount(value) for value in entry.values],
+        "invested": [_amount(value) for value in entry.invested],
+    }
+
+
 # --- Query parameters -------------------------------------------------------
 
 
@@ -589,6 +599,13 @@ def get_portfolio() -> ApiResponse:
                 "portfolio": [_amount(value) for value in series.portfolio],
                 "invested": [_amount(value) for value in series.invested],
                 "benchmark": [_amount(value) for value in benchmark.values],
+                # The per-position lines the chart's position filter draws. Sent
+                # unconditionally rather than behind a query parameter: they cost
+                # nothing extra to compute, and the client can then switch the
+                # selection without a round trip.
+                "positions": [
+                    _serialize_position_series(entry) for entry in series.positions
+                ],
             },
             "benchmark_source": benchmark.source,
             "benchmark_updated_at": benchmark.updated_at,

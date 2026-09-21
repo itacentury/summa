@@ -547,8 +547,128 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-chart-header {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   align-items: center;
+}
+
+/* Position filter. Shares the depot dropdown's mechanics but not its size: it
+   sits inside the chart card next to the period pills, so it is scaled to them
+   rather than to the view toolbar. */
+.portfolio-positions {
+  position: relative;
+  flex: none;
+}
+
+.portfolio-positions-trigger {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 190px;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: 9px;
+  transition: color var(--transition);
+}
+
+.portfolio-positions-trigger:hover {
+  color: var(--text-primary);
+}
+
+.portfolio-positions-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-positions-trigger svg {
+  flex: none;
+  color: var(--text-faint);
+  transition: transform var(--transition);
+}
+
+.portfolio-positions.is-open .portfolio-positions-trigger svg {
+  transform: rotate(180deg);
+}
+
+.portfolio-positions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 190px;
+  max-height: 260px;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* Closed is the default; the control adds .is-open only while the menu shows. */
+.portfolio-positions:not(.is-open) .portfolio-positions-menu {
+  display: none;
+}
+
+.portfolio-positions-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.portfolio-positions-option.is-highlighted {
+  background: var(--bg-hover);
+}
+
+.portfolio-positions-option.is-selected {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* The box is drawn rather than being a real input: the rows are listbox
+   options, and a focusable input inside them would fight the trigger for
+   focus. The look follows .checkbox-mark in invoices.css. */
+.portfolio-positions-check {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-dashed);
+  border-radius: 4px;
+  transition: all var(--transition);
+}
+
+.portfolio-positions-option.is-selected .portfolio-positions-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.portfolio-positions-option.is-selected .portfolio-positions-check::after {
+  width: 4px;
+  height: 8px;
+  margin-bottom: 2px;
+  content: "";
+  border: solid var(--accent-text-on);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 /* Period pills. They live in this header, not the view toolbar, because the
@@ -632,6 +752,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-legend-bar.is-benchmark {
   background: var(--chart-7);
+}
+
+/* Painted by portfolio-charts.js from the payload's position order; the token
+   here only keeps the swatch visible if that write ever fails. */
+.portfolio-legend-bar.is-series {
+  background: var(--text-faint);
 }
 
 /* A fixed pixel height, never a viewport unit: the card sits below the summary
@@ -1265,6 +1391,22 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
      and the legend instead of squeezing all three onto one line. */
   .portfolio-period {
     flex: 1 0 100%;
+  }
+
+  /* Full width too, and above the pills: the menu it drops is the widest thing
+     in the header, so it needs the row to itself. */
+  .portfolio-positions {
+    flex: 1 0 100%;
+  }
+
+  .portfolio-positions-trigger {
+    width: 100%;
+    max-width: none;
+  }
+
+  .portfolio-positions-menu {
+    right: 0;
+    min-width: 0;
   }
 
   .portfolio-period-btn {

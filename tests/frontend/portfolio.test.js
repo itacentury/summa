@@ -25,6 +25,7 @@ import {
   expandedPositions,
   PAGE_SIZE_STORAGE_KEY,
   PORTFOLIO_DEPOT_STORAGE_KEY,
+  PORTFOLIO_POSITIONS_STORAGE_KEY,
   PORTFOLIO_RANGE_STORAGE_KEY,
 } from "../../static/js/state.js";
 import { openHistoryModal } from "../../static/js/portfolio-history.js";
@@ -71,6 +72,7 @@ describe("restorePortfolioPrefs", () => {
     localStorage.clear();
     state.portfolioRange = "1y";
     state.depotFilter = "all";
+    state.portfolioPositions = "all";
   });
 
   it("keeps the defaults when nothing is stored", () => {
@@ -78,6 +80,23 @@ describe("restorePortfolioPrefs", () => {
 
     expect(state.portfolioRange).toBe("1y");
     expect(state.depotFilter).toBe("all");
+    expect(state.portfolioPositions).toBe("all");
+  });
+
+  it("restores a stored chart selection", () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[12,21]");
+    restorePortfolioPrefs();
+
+    expect(state.portfolioPositions).toEqual([12, 21]);
+  });
+
+  it("ignores a chart selection that is not a list of ids", () => {
+    for (const stored of ["{", "{}", "[]", '["12"]', "null", "3"]) {
+      state.portfolioPositions = [1];
+      localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, stored);
+      restorePortfolioPrefs();
+      expect(state.portfolioPositions).toBe("all");
+    }
   });
 
   it("restores every allowed period token", () => {
@@ -319,6 +338,22 @@ const portfolioPayload = () => ({
     portfolio: [6743.0, 6727.42],
     invested: [6350.0, 6350.0],
     benchmark: [6743.0, 6751.4],
+    positions: [
+      { id: 11, name: "MSCI World SRI", values: [0, 0], invested: [0, 0] },
+      {
+        id: 12,
+        name: "FTSE All-World",
+        values: [1796.57, 1801.69],
+        invested: [1650.0, 1650.0],
+      },
+      { id: 13, name: "AMD", values: [0, 0], invested: [-150.0, -150.0] },
+      {
+        id: 21,
+        name: "Deka Industrie 0",
+        values: [4958.93, 4925.73],
+        invested: [4700.0, 4700.0],
+      },
+    ],
   },
   benchmark_source: "feed",
   benchmark_updated_at: "2026-09-06",
@@ -388,9 +423,18 @@ const viewMarkup = `
       </button>
       <ul class="portfolio-depot-menu" role="listbox"></ul>
     </div>
+    <div class="portfolio-positions" data-el="portfolio-positions">
+      <button class="portfolio-positions-trigger" aria-expanded="false">
+        <span class="portfolio-positions-label">All positions</span>
+      </button>
+      <ul class="portfolio-positions-menu" role="listbox"></ul>
+    </div>
     <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
     <div class="is-hidden" data-el="portfolio-chart-card">
-      <span class="is-hidden" data-el="portfolio-legend-benchmark"></span>
+      <div data-el="portfolio-legend-static">
+        <span class="is-hidden" data-el="portfolio-legend-benchmark"></span>
+      </div>
+      <div class="is-hidden" data-el="portfolio-legend-series"></div>
       <div class="portfolio-chart-body"><canvas data-el="portfolio-chart"></canvas></div>
       <div class="is-hidden" data-el="portfolio-chart-empty"></div>
       <div data-el="portfolio-chart-note"></div>
@@ -733,6 +777,113 @@ describe("portfolio group collapsing and row expansion", () => {
     expect(document.querySelectorAll(".portfolio-detail.is-open")).toHaveLength(
       1,
     );
+  });
+});
+
+describe("portfolio position filter", () => {
+  beforeEach(() => {
+    document.body.innerHTML = viewMarkup;
+    localStorage.clear();
+    collapsedDepots.clear();
+    expandedPositions.clear();
+    state.portfolioRange = "1y";
+    state.depotFilter = "all";
+    state.portfolioPositions = "all";
+    vi.clearAllMocks();
+    global.fetch = vi.fn(async () => jsonResponse(portfolioPayload()));
+  });
+
+  const openMenu = () =>
+    document
+      .querySelector(".portfolio-positions-trigger")
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+  const clickOption = (index) => {
+    const rows = document.querySelectorAll(".portfolio-positions-option");
+    rows[index].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  };
+
+  it("offers every position the series carries, in the payload's order", async () => {
+    setupPortfolioListeners();
+    await loadPortfolio();
+    openMenu();
+
+    const labels = [
+      ...document.querySelectorAll(".portfolio-positions-option"),
+    ].map((option) => option.textContent.trim());
+    expect(labels).toEqual([
+      "All positions",
+      "MSCI World SRI",
+      "FTSE All-World",
+      "AMD",
+      "Deka Industrie 0",
+    ]);
+  });
+
+  it("persists a pick and redraws without asking the server again", async () => {
+    setupPortfolioListeners();
+    await loadPortfolio();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    openMenu();
+    clickOption(2);
+    await flushUi();
+
+    expect(state.portfolioPositions).toEqual([12]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[12]");
+    // The lines were already in the payload, so nothing was refetched.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores the sentinel, not an empty list, once the last pick is cleared", async () => {
+    setupPortfolioListeners();
+    await loadPortfolio();
+
+    openMenu();
+    clickOption(2);
+    clickOption(2);
+    await flushUi();
+
+    expect(state.portfolioPositions).toBe("all");
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
+  });
+
+  it("shows a restored selection on the trigger before any click", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[21]");
+    restorePortfolioPrefs();
+    setupPortfolioListeners();
+    await loadPortfolio();
+
+    expect(
+      document.querySelector(".portfolio-positions-label").textContent,
+    ).toBe("Deka Industrie 0");
+  });
+
+  it("drops a stored position the payload no longer carries", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[12,99]");
+    restorePortfolioPrefs();
+    setupPortfolioListeners();
+
+    await loadPortfolio();
+
+    expect(state.portfolioPositions).toEqual([12]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[12]");
+    // A selection is not part of the request, so nothing is retried.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("falls back to every position when none of the stored ones survive", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[98,99]");
+    restorePortfolioPrefs();
+    setupPortfolioListeners();
+
+    await loadPortfolio();
+
+    expect(state.portfolioPositions).toBe("all");
+    expect(
+      document.querySelector(".portfolio-positions-label").textContent,
+    ).toBe("All positions");
   });
 });
 

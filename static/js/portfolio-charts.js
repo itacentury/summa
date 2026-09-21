@@ -15,7 +15,9 @@ import {
   benchmarkNoteText,
   biggestChangesHtml,
   formatAmount,
+  seriesLegendHtml,
 } from "./portfolio-render.js";
+import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
 
 // Whole euros on the axis: the two decimals the cards and rows carry are noise
 // at tick size, and the design leaves the y labels deliberately quiet.
@@ -180,13 +182,81 @@ function seriesPoints(dates, values) {
 }
 
 /**
- * Build the line datasets.
+ * The lines a per-position selection draws, or `[]` while nothing is picked out.
+ *
+ * A position keeps the color of its place in `series.positions`, not of its
+ * place in the selection: unchecking one line must not repaint the others.
+ *
+ * A single drawn position gets its invested line as well — the one case where
+ * the comparison it offers is worth a second line. From two positions upwards
+ * it would double the ink and read as twice as many holdings.
+ *
+ * @returns {{label: string, values: number[], color: string, dashed?: boolean}[]}
+ */
+export function positionLines(series, selection) {
+  if (selection === POSITIONS_ALL || !Array.isArray(selection)) return [];
+
+  const chosen = new Set(selection);
+  const entries = series.positions ?? [];
+  const lines = [];
+  entries.forEach((entry, index) => {
+    if (!chosen.has(entry.id)) return;
+    lines.push({
+      label: entry.name,
+      values: entry.values,
+      color: chartColors[index % chartColors.length],
+    });
+  });
+
+  if (lines.length === 1) {
+    const only = entries.find((entry) => chosen.has(entry.id));
+    lines.push({
+      label: "Invested",
+      values: only.invested,
+      color: INVESTED_COLOR,
+      dashed: true,
+    });
+  }
+  return lines;
+}
+
+/**
+ * Build the line datasets: the aggregate three, or one per selected position.
  *
  * The benchmark is appended only when it has values: the server rebases it onto
  * the same grid or returns nothing at all, so the third line is either fully
- * aligned or absent — never partially.
+ * aligned or absent — never partially. A selection drops it entirely, because
+ * it is rebased onto the whole portfolio's opening value and would sit at the
+ * wrong scale against a subset of it.
  */
-function valueDatasets(series) {
+function valueDatasets(series, lines) {
+  const datasets =
+    lines.length > 0
+      ? selectionDatasets(series, lines)
+      : aggregateDatasets(series);
+
+  return datasets.map((dataset) => ({
+    ...dataset,
+    tension: 0,
+    fill: false,
+    pointRadius: 0,
+    pointHitRadius: 12,
+  }));
+}
+
+/** The datasets for a per-position selection. */
+function selectionDatasets(series, lines) {
+  return lines.map((line) => ({
+    label: line.label,
+    data: seriesPoints(series.dates, line.values),
+    borderColor: line.color,
+    borderWidth: line.dashed ? 2 : 2.5,
+    ...(line.dashed ? { borderDash: [5, 5] } : {}),
+  }));
+}
+
+/** The datasets for the whole portfolio: value, invested and the benchmark. */
+function aggregateDatasets(series) {
   const datasets = [
     {
       label: "Portfolio",
@@ -211,14 +281,46 @@ function valueDatasets(series) {
       borderWidth: 2,
     });
   }
+  return datasets;
+}
 
-  return datasets.map((dataset) => ({
-    ...dataset,
-    tension: 0,
-    fill: false,
-    pointRadius: 0,
-    pointHitRadius: 12,
-  }));
+/**
+ * The background a legend swatch takes for one line.
+ *
+ * A dashed line gets a dashed swatch, mirroring `borderDash: [5, 5]` the way the
+ * fixed legend's invested bar does in CSS — a solid bar would claim the chart
+ * draws a line it does not.
+ */
+function swatchFill(line) {
+  if (!line.dashed) return line.color;
+  return `repeating-linear-gradient(to right, ${line.color} 0 5px, transparent 5px 10px)`;
+}
+
+/**
+ * Show the legend matching what is drawn: the fixed aggregate one, or a swatch
+ * per selected line.
+ *
+ * The dynamic swatches are painted through the CSSOM rather than a style
+ * attribute, for the same CSP reason as the allocation ones.
+ */
+function syncChartLegend(lines, hasBenchmark) {
+  const fixed = document.querySelector('[data-el="portfolio-legend-static"]');
+  const dynamic = document.querySelector('[data-el="portfolio-legend-series"]');
+  const perPosition = lines.length > 0;
+
+  if (fixed) fixed.classList.toggle("is-hidden", perPosition);
+  if (dynamic) {
+    dynamic.classList.toggle("is-hidden", !perPosition);
+    dynamic.innerHTML = perPosition ? seriesLegendHtml(lines) : "";
+    dynamic.querySelectorAll(".portfolio-legend-bar").forEach((bar, index) => {
+      bar.style.background = swatchFill(lines[index]);
+    });
+  }
+
+  const benchmarkItem = document.querySelector(
+    '[data-el="portfolio-legend-benchmark"]',
+  );
+  if (benchmarkItem) benchmarkItem.classList.toggle("is-hidden", !hasBenchmark);
 }
 
 /** Show either a chart body or its empty block, never both. */
@@ -232,7 +334,9 @@ function toggleEmpty(bodyEl, emptyEl, isEmpty) {
  *
  * The axis spans `range_start … range_end` from the payload, never the first and
  * last entry of `series.dates`: a position that only started mid-period must not
- * shrink the axis, and the period arithmetic stays on the backend.
+ * shrink the axis, and the period arithmetic stays on the backend. It is also
+ * why a position selection never narrows the axis: it changes the lines, not
+ * the window they are read against.
  */
 function renderValueChart(payload) {
   const canvas = document.querySelector('[data-el="portfolio-chart"]');
@@ -243,17 +347,18 @@ function renderValueChart(payload) {
   state.portfolioChart = null;
 
   const { series } = payload;
-  const hasBenchmark = series.benchmark.length > 0;
+  const lines = positionLines(series, state.portfolioPositions);
+  // A selection drops the benchmark, so the note about it goes with it.
+  const hasBenchmark = series.benchmark.length > 0 && lines.length === 0;
   if (note)
-    note.textContent = benchmarkNoteText(
-      payload.benchmark_source,
-      payload.benchmark_updated_at,
-    );
+    note.textContent = hasBenchmark
+      ? benchmarkNoteText(
+          payload.benchmark_source,
+          payload.benchmark_updated_at,
+        )
+      : "";
 
-  const legendItem = document.querySelector(
-    '[data-el="portfolio-legend-benchmark"]',
-  );
-  if (legendItem) legendItem.classList.toggle("is-hidden", !hasBenchmark);
+  syncChartLegend(lines, hasBenchmark);
 
   const isEmpty = series.dates.length === 0;
   toggleEmpty(
@@ -273,7 +378,7 @@ function renderValueChart(payload) {
 
   state.portfolioChart = new Chart(canvas, {
     type: "line",
-    data: { datasets: valueDatasets(series) },
+    data: { datasets: valueDatasets(series, lines) },
     options: {
       responsive: true,
       maintainAspectRatio: false,

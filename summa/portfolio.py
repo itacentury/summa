@@ -155,12 +155,33 @@ class PortfolioTotals:
 
 
 @dataclass(frozen=True)
+class PositionSeries:
+    """One position's own lines over the shared chart grid.
+
+    The aggregated `portfolio` and `invested` lines are these summed up. They are
+    carried alongside rather than derived by the caller so the chart can draw a
+    subset of positions without asking the server a second question.
+    """
+
+    position_id: int
+    name: str
+    values: list[float]
+    invested: list[float]
+
+
+@dataclass(frozen=True)
 class ChartSeries:
-    """The value-over-time lines, one entry per date in a shared grid."""
+    """The value-over-time lines, one entry per date in a shared grid.
+
+    :param positions: one entry per position handed to :func:`build_series`, in
+        that same order — including a position with no reading inside the window,
+        whose line is then flat at zero.
+    """
 
     dates: list[str]
     portfolio: list[float]
     invested: list[float]
+    positions: list[PositionSeries]
 
 
 @dataclass(frozen=True)
@@ -532,16 +553,35 @@ def _position_series(
 
 
 def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSeries:
-    """Sum every position into the portfolio and invested lines over one date grid."""
+    """Sum every position into the portfolio and invested lines over one date grid.
+
+    Each position's own pair of lines is kept as well: they are computed here
+    anyway, and handing them out lets the chart draw a subset of positions
+    without a second request.
+    """
     grid: list[str] = list(dates)
     portfolio: list[float] = [0.0] * len(grid)
     invested: list[float] = [0.0] * len(grid)
+    per_position: list[PositionSeries] = []
     for position in positions:
         values, deposits = _position_series(position, grid)
         for slot in range(len(grid)):
             portfolio[slot] += values[slot]
             invested[slot] += deposits[slot]
-    return ChartSeries(dates=grid, portfolio=portfolio, invested=invested)
+        per_position.append(
+            PositionSeries(
+                position_id=position.id,
+                name=position.name,
+                values=values,
+                invested=deposits,
+            )
+        )
+    return ChartSeries(
+        dates=grid,
+        portfolio=portfolio,
+        invested=invested,
+        positions=per_position,
+    )
 
 
 def _anchor_value(points: Sequence[tuple[str, float]], grid_start: str) -> float:

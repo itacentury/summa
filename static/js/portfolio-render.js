@@ -498,6 +498,27 @@ export function allocationLegendHtml(allocation) {
 }
 
 /**
+ * Build the chart legend for a per-position selection.
+ *
+ * The swatches stay empty here: their colors come from the payload's position
+ * order, which only the chart module knows, and are painted through the CSSOM
+ * for the same CSP reason as the allocation swatches.
+ *
+ * @param {{label: string}[]} lines the drawn lines, in chart order.
+ */
+export function seriesLegendHtml(lines) {
+  return lines
+    .map(
+      (line) => `
+        <span class="portfolio-legend-item">
+          <span class="portfolio-legend-bar is-series"></span>${escapeHtml(line.label)}
+        </span>
+      `,
+    )
+    .join("");
+}
+
+/**
  * Build one biggest-changes row.
  *
  * The bar's length rides on `data-share` rather than a style attribute, for the

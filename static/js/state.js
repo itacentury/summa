@@ -24,6 +24,7 @@ export const state = {
   importErrors: [], // Invalid entries from the last import (index/field/message/value)
   portfolioRange: "1y", // Portfolio period: '3m', '1y', 'ytd', 'max'
   depotFilter: "all", // 'all' or a depot id as a string
+  portfolioPositions: "all", // 'all', or an array of position ids the chart draws
   portfolioChart: null, // Chart.js instance for the value-over-time line
   allocationChart: null, // Chart.js instance for the allocation doughnut
 };
@@ -54,6 +55,10 @@ export const PORTFOLIO_RANGES = ["3m", "1y", "ytd", "max"];
 // separate from the invoice filters so neither view inherits the other's period.
 export const PORTFOLIO_RANGE_STORAGE_KEY = "summa.portfolio.range";
 export const PORTFOLIO_DEPOT_STORAGE_KEY = "summa.portfolio.depot";
+
+// localStorage key persisting the chart's position selection. Unlike the two
+// above it holds JSON, because the value is either a sentinel or a list of ids.
+export const PORTFOLIO_POSITIONS_STORAGE_KEY = "summa.portfolio.positions";
 
 // Chart.js color palette: warm-sand chart tones (--chart-1…8), donut/bar order.
 export const chartColors = [

@@ -16,13 +16,17 @@ import {
 } from "../../static/js/portfolio-render.js";
 import {
   axisTicks,
+  positionLines,
   renderPortfolioCharts,
 } from "../../static/js/portfolio-charts.js";
 import { state, chartColors } from "../../static/js/state.js";
 
 const markup = `
   <div data-el="portfolio-chart-card">
-    <span data-el="portfolio-legend-benchmark"></span>
+    <div data-el="portfolio-legend-static">
+      <span data-el="portfolio-legend-benchmark"></span>
+    </div>
+    <div class="is-hidden" data-el="portfolio-legend-series"></div>
     <div class="portfolio-chart-body"><canvas data-el="portfolio-chart"></canvas></div>
     <div class="is-hidden" data-el="portfolio-chart-empty"></div>
     <div data-el="portfolio-chart-note"></div>
@@ -61,6 +65,20 @@ const chartPayload = () => ({
     portfolio: [6743.0, 6727.42],
     invested: [6350.0, 6350.0],
     benchmark: [6743.0, 6751.4],
+    positions: [
+      {
+        id: 21,
+        name: "Deka Industrie 0",
+        values: [4940.0, 4925.73],
+        invested: [4700.0, 4700.0],
+      },
+      {
+        id: 12,
+        name: "FTSE All-World",
+        values: [1803.0, 1801.69],
+        invested: [1650.0, 1650.0],
+      },
+    ],
   },
   benchmark_source: "feed",
   benchmark_updated_at: "2026-09-06",
@@ -80,6 +98,7 @@ beforeEach(() => {
   document.body.innerHTML = markup;
   state.portfolioChart = null;
   state.allocationChart = null;
+  state.portfolioPositions = "all";
   instances = [];
   vi.clearAllMocks();
   // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
@@ -383,5 +402,154 @@ describe("renderPortfolioCharts", () => {
     renderPortfolioCharts(chartPayload());
 
     expect(barFills().map((fill) => fill.style.width)).toEqual(["50%", "100%"]);
+  });
+});
+
+describe("positionLines", () => {
+  it("draws nothing of its own while every position is shown", () => {
+    expect(positionLines(chartPayload().series, "all")).toEqual([]);
+  });
+
+  it("colours a position by its place in the payload, not in the selection", () => {
+    const { series } = chartPayload();
+    const both = positionLines(series, [21, 12]);
+    const second = positionLines(series, [12]);
+
+    expect(both.map((line) => line.color)).toEqual([
+      chartColors[0],
+      chartColors[1],
+    ]);
+    // Unchecking the first line must not repaint the one left behind.
+    expect(second[0].color).toBe(chartColors[1]);
+  });
+
+  it("keeps the payload's order however the selection was built", () => {
+    const lines = positionLines(chartPayload().series, [12, 21]);
+
+    expect(lines.map((line) => line.label)).toEqual([
+      "Deka Industrie 0",
+      "FTSE All-World",
+    ]);
+  });
+
+  it("adds the invested line for a single position, where it still reads", () => {
+    const lines = positionLines(chartPayload().series, [12]);
+
+    expect(lines.map((line) => line.label)).toEqual([
+      "FTSE All-World",
+      "Invested",
+    ]);
+    expect(lines[1].values).toEqual([1650.0, 1650.0]);
+    expect(lines[1].dashed).toBe(true);
+  });
+
+  it("drops the invested line once a second position competes with it", () => {
+    const lines = positionLines(chartPayload().series, [21, 12]);
+
+    expect(lines).toHaveLength(2);
+    expect(lines.some((line) => line.dashed)).toBe(false);
+  });
+
+  it("ignores an id the payload no longer carries", () => {
+    expect(positionLines(chartPayload().series, [999])).toEqual([]);
+  });
+});
+
+describe("renderPortfolioCharts with a position selection", () => {
+  it("draws one line per selected position instead of the aggregate", () => {
+    state.portfolioPositions = [21, 12];
+    renderPortfolioCharts(chartPayload());
+
+    const labels = lineConfig().data.datasets.map((set) => set.label);
+    expect(labels).toEqual(["Deka Industrie 0", "FTSE All-World"]);
+  });
+
+  it("drops the benchmark, which is rebased onto the whole portfolio", () => {
+    state.portfolioPositions = [21, 12];
+    renderPortfolioCharts(chartPayload());
+    const benchmark = document.querySelector(
+      '[data-el="portfolio-legend-benchmark"]',
+    );
+
+    expect(lineConfig().data.datasets).toHaveLength(2);
+    expect(benchmark.classList.contains("is-hidden")).toBe(true);
+    // The note explains a line that is no longer drawn.
+    expect(noteText()).toBe("");
+  });
+
+  it("swaps the fixed legend for one swatch per drawn line", () => {
+    state.portfolioPositions = [21, 12];
+    renderPortfolioCharts(chartPayload());
+    const fixed = document.querySelector('[data-el="portfolio-legend-static"]');
+    const dynamic = document.querySelector(
+      '[data-el="portfolio-legend-series"]',
+    );
+
+    expect(fixed.classList.contains("is-hidden")).toBe(true);
+    expect(dynamic.classList.contains("is-hidden")).toBe(false);
+    expect(dynamic.textContent).toContain("FTSE All-World");
+  });
+
+  it("paints the legend swatches through the CSSOM, in the drawn order", () => {
+    state.portfolioPositions = [21, 12];
+    renderPortfolioCharts(chartPayload());
+    const bars = document.querySelectorAll(
+      '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
+    );
+
+    expect(bars[0].style.background).toBe(chartColors[0]);
+    expect(bars[1].style.background).toBe(chartColors[1]);
+  });
+
+  it("dashes the invested swatch, so it does not claim a solid line", () => {
+    state.portfolioPositions = [12];
+    renderPortfolioCharts(chartPayload());
+    const bars = document.querySelectorAll(
+      '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
+    );
+
+    expect(bars[0].style.background).toBe(chartColors[1]);
+    expect(bars[1].style.background).toContain("repeating-linear-gradient");
+  });
+
+  it("escapes a position name in the legend rather than trusting it", () => {
+    const payload = chartPayload();
+    payload.series.positions[0].name = "<img src=x>";
+    state.portfolioPositions = [21];
+
+    renderPortfolioCharts(payload);
+    const dynamic = document.querySelector(
+      '[data-el="portfolio-legend-series"]',
+    );
+
+    expect(dynamic.innerHTML).not.toContain("<img");
+    expect(dynamic.textContent).toContain("<img src=x>");
+  });
+
+  it("returns to the aggregate lines when the selection is cleared", () => {
+    state.portfolioPositions = [21];
+    renderPortfolioCharts(chartPayload());
+    state.portfolioPositions = "all";
+    renderPortfolioCharts(chartPayload());
+
+    // Two charts per render, so the last line chart is the second from the end.
+    const config = globalThis.Chart.mock.calls.at(-2)[1];
+    const fixed = document.querySelector('[data-el="portfolio-legend-static"]');
+
+    expect(config.data.datasets.map((set) => set.label)).toEqual([
+      "Portfolio",
+      "Invested",
+      "MSCI World",
+    ]);
+    expect(fixed.classList.contains("is-hidden")).toBe(false);
+  });
+
+  it("keeps the axis on the period window, not on the selected position", () => {
+    state.portfolioPositions = [12];
+    renderPortfolioCharts(chartPayload());
+    const { x } = lineConfig().options.scales;
+
+    expect(x.min).toBe(Date.UTC(2025, 8, 14));
+    expect(x.max).toBe(Date.UTC(2026, 8, 14));
   });
 });

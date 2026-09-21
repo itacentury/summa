@@ -66,6 +66,37 @@
          the window changes below is the `since` date in a position's meta line.
          The invoice Week/Month/Year/All switcher in filters.html is deliberately
          unrelated. #}
+      {# Multi-select rather than the depot filter's single-choice listbox: the
+         chart draws one line per checked position, and picking a second one is
+         the normal next step — so a toggle here never closes the menu. #}
+      <div class="portfolio-positions" data-el="portfolio-positions">
+        <button
+          type="button"
+          class="portfolio-positions-trigger"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+        >
+          <span class="portfolio-positions-label">All positions</span>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <ul
+          class="portfolio-positions-menu"
+          role="listbox"
+          aria-multiselectable="true"
+          aria-label="Chart positions"
+        ></ul>
+      </div>
+
       <div
         class="portfolio-period"
         data-el="portfolio-period"
@@ -105,7 +136,10 @@
           Max
         </button>
       </div>
-      <div class="portfolio-chart-legend">
+      {# Two legends, one visible at a time: the aggregate lines are fixed markup
+         whose colors are CSS tokens, while a per-position selection names lines
+         only the payload knows, so those swatches have to be painted at runtime. #}
+      <div class="portfolio-chart-legend" data-el="portfolio-legend-static">
         <span class="portfolio-legend-item">
           <span class="portfolio-legend-bar is-portfolio"></span>Portfolio
         </span>
@@ -119,6 +153,10 @@
           <span class="portfolio-legend-bar is-benchmark"></span>MSCI World
         </span>
       </div>
+      <div
+        class="portfolio-chart-legend is-hidden"
+        data-el="portfolio-legend-series"
+      ></div>
     </div>
     <div class="chart-container portfolio-chart-body">
       <canvas data-el="portfolio-chart"></canvas>

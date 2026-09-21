@@ -13,10 +13,15 @@ import {
   PORTFOLIO_RANGES,
   PORTFOLIO_RANGE_STORAGE_KEY,
   PORTFOLIO_DEPOT_STORAGE_KEY,
+  PORTFOLIO_POSITIONS_STORAGE_KEY,
 } from "./state.js";
 import { apiFetch } from "./http.js";
 import { showErrorToast } from "./toast.js";
 import { createDepotFilter, DEPOT_ALL } from "./portfolio-depot.js";
+import {
+  createPositionsFilter,
+  POSITIONS_ALL,
+} from "./portfolio-positions-filter.js";
 import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
 import { renderPortfolioCharts } from "./portfolio-charts.js";
 import { openHistoryModal } from "./portfolio-history.js";
@@ -25,6 +30,12 @@ import { openHistoryModal } from "./portfolio-history.js";
 // what the pruning below needs to drop expansions that no longer exist.
 let depotFilter = null;
 const positionIds = new Set();
+
+// The chart's position filter, and the payload it was last drawn from. The
+// selection changes no server answer, so a toggle redraws from this rather than
+// refetching — which is also what keeps it instant.
+let positionsFilter = null;
+let lastPayload = null;
 
 // A refetch keeps the current list on screen; only the very first load has
 // nothing to show and gets the spinner.
@@ -44,6 +55,59 @@ export function restorePortfolioPrefs() {
   const depot = localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY);
   if (depot === DEPOT_ALL || /^\d+$/.test(depot ?? ""))
     state.depotFilter = depot;
+
+  state.portfolioPositions = storedPositionSelection();
+}
+
+/**
+ * Read the persisted chart selection, or "all" when it is absent or unusable.
+ *
+ * The ids cannot be checked against the real positions this early — that is
+ * `prunePositionSelection()`'s job once a payload arrives. Stored JSON is
+ * parsed defensively because nothing stops a user from editing it.
+ */
+function storedPositionSelection() {
+  const raw = localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY);
+  if (!raw || raw === POSITIONS_ALL) return POSITIONS_ALL;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return POSITIONS_ALL;
+    if (!parsed.every((id) => Number.isInteger(id))) return POSITIONS_ALL;
+    return parsed;
+  } catch {
+    return POSITIONS_ALL;
+  }
+}
+
+/**
+ * Drop selected positions the payload no longer carries — sold, deleted, or
+ * outside the active depot filter — and fall back to "all" when none survive.
+ *
+ * The depot filter's counterpart (`depotFilterIsStale`) has to refetch, because
+ * a depot id is part of the request. A position selection is not, so this
+ * simply narrows what the next draw reads.
+ */
+function prunePositionSelection(payload) {
+  if (state.portfolioPositions === POSITIONS_ALL) return;
+
+  const available = new Set(
+    (payload.series?.positions ?? []).map((entry) => entry.id),
+  );
+  const kept = state.portfolioPositions.filter((id) => available.has(id));
+  if (kept.length === state.portfolioPositions.length) return;
+
+  storePositionSelection(kept.length > 0 ? kept : POSITIONS_ALL);
+}
+
+/** Persist a selection and mirror it into the control. */
+function storePositionSelection(selection) {
+  state.portfolioPositions = selection;
+  localStorage.setItem(
+    PORTFOLIO_POSITIONS_STORAGE_KEY,
+    selection === POSITIONS_ALL ? POSITIONS_ALL : JSON.stringify(selection),
+  );
+  if (positionsFilter) positionsFilter.setValue(selection);
 }
 
 /** The containers the view toggles between its loading, empty and data states. */
@@ -105,6 +169,14 @@ function renderPortfolio(payload) {
     collapsed: collapsedDepots,
     expanded: expandedPositions,
   });
+
+  lastPayload = payload;
+  // Before the charts: a selection naming a position this payload dropped would
+  // otherwise draw one line fewer than the control claims.
+  prunePositionSelection(payload);
+  if (positionsFilter)
+    positionsFilter.setOptions(payload.series?.positions ?? []);
+
   renderPortfolioCharts(payload);
   hasRendered = true;
 }
@@ -214,6 +286,17 @@ function setDepotFilter(depot) {
   loadPortfolio();
 }
 
+/**
+ * Switch which positions the chart draws, persist it and redraw.
+ *
+ * No refetch: the payload already carries a line per position, so the selection
+ * is answered entirely from what is on screen.
+ */
+function setPortfolioPositions(selection) {
+  storePositionSelection(selection);
+  if (lastPayload) renderPortfolioCharts(lastPayload);
+}
+
 /** Collapse or expand a depot group in place, without refetching. */
 function toggleDepotGroup(header) {
   const group = header.closest(".portfolio-group");
@@ -266,6 +349,16 @@ export function setupPortfolioListeners() {
   if (depotRoot) {
     depotFilter = createDepotFilter(depotRoot, { onChange: setDepotFilter });
     depotFilter.setValue(state.depotFilter);
+  }
+
+  const positionsRoot = document.querySelector(
+    '[data-el="portfolio-positions"]',
+  );
+  if (positionsRoot) {
+    positionsFilter = createPositionsFilter(positionsRoot, {
+      onChange: setPortfolioPositions,
+    });
+    positionsFilter.setValue(state.portfolioPositions);
   }
 
   const list = document.querySelector('[data-el="portfolio-list"]');
