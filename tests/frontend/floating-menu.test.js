@@ -156,7 +156,7 @@ describe("createFloatingMenu", () => {
     drop.mockRestore();
   });
 
-  it("hands the panel back to the stylesheet on clear", () => {
+  it("hands the panel back to the stylesheet on release", () => {
     const { root, trigger, menu } = mount({
       rect: at({ top: 700 }),
       contentHeight: 400,
@@ -168,7 +168,8 @@ describe("createFloatingMenu", () => {
     });
 
     floating.place();
-    floating.clear();
+    floating.bind();
+    floating.release();
 
     expect(menu.style.position).toBe("");
     expect(menu.style.top).toBe("");

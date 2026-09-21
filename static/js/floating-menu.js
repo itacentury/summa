@@ -35,7 +35,7 @@ const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
  * @param {string} [options.flipClass] class set on `flipRoot` while the panel
  *   opens upward, for styling that has to follow (a flipped shadow, say)
  * @param {HTMLElement} [options.flipRoot] defaults to the trigger's parent
- * @returns {{place: () => void, bind: () => void, release: () => void, clear: () => void}}
+ * @returns {{place: () => void, bind: () => void, release: () => void}}
  */
 export function createFloatingMenu(trigger, menu, options = {}) {
   const {
@@ -96,15 +96,16 @@ export function createFloatingMenu(trigger, menu, options = {}) {
     document.addEventListener("scroll", place, true);
   };
 
+  // Closing, so the panel is also handed back to the stylesheet: every
+  // property below was written by place(), and leaving them behind would let a
+  // panel that is shown by some other means than `.is-open` reappear wherever
+  // it last happened to be placed.
   const release = () => {
     if (!bound) return;
     bound = false;
     window.removeEventListener("resize", place);
     document.removeEventListener("scroll", place, true);
-  };
 
-  /** Hand the panel back to the stylesheet. */
-  const clear = () => {
     const props = [
       "position",
       "top",
@@ -121,5 +122,5 @@ export function createFloatingMenu(trigger, menu, options = {}) {
     if (flipClass && flipRoot) flipRoot.classList.remove(flipClass);
   };
 
-  return { place, bind, release, clear };
+  return { place, bind, release };
 }

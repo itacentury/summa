@@ -88,7 +88,6 @@ export function setupModelPicker(onChange = null) {
   const closeMenu = () => {
     if (!root.classList.contains("is-open")) return;
     root.classList.remove("is-open");
-    root.classList.remove("is-open-up");
     trigger.setAttribute("aria-expanded", "false");
     document.removeEventListener("pointerdown", onOutside, true);
     floating.release();
