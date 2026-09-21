@@ -170,7 +170,26 @@ latches the first 401 and re-raises the gate, so a new call site must use it
 rather than bare `fetch` — except the auth endpoints themselves, whose 401s are
 answers, not expiries: `auth.js` calls `/api/auth/*` with bare `fetch` on
 purpose, because latching a wrong password would re-enter the login view
-mid-submit and then swallow every genuine expiry. Styling is split per
+mid-submit and then swallow every genuine expiry. **Which of the three views is
+shown is driven by the URL hash** (`/#portfolio`), so a reload stays where the
+user was and back/forward step between views: `static/js/views.js` switches only
+on `hashchange` plus one `applyViewFromHash()` at the end of `init()` (last,
+because entering a view loads its data), and a nav click merely assigns
+`location.hash`. `setView()` therefore must never write to the URL — that would
+re-enter the router through its own event. Because `init()` only runs once the
+auth check has answered, that switch would land well after the first paint, so
+`static/js/boot-view.js` — a blocking classic script, the only non-module under
+`static/js/` — applies the same shell state while the page is still parsing.
+**It is the first thing in `<body>` for a reason:** a parser-blocking script
+only holds back what follows it, so from any later position the browser may
+already have painted the invoices view. That position costs it the DOM, hence
+two phases — the view-mode class goes on `document.body` immediately (which is
+what the `body.stats-mode .invoices-section` rule in `invoices.css` turns into a
+hidden section), and the view roots, topbar title and nav item follow on
+`readystatechange`, i.e. as soon as parsing ends and still long before the auth
+check answers. It deliberately loads no data, and beyond the mode class it
+copies no view table: it reads the tokens and titles off the nav items, so
+`views.js` stays the single authority. Styling is split per
 component under `static/css/` (`variables`, `base`, `header`, `filters`,
 `invoices`, `modals`, `components`, `stats`, `portfolio`), loaded via ordered `<link>` tags
 in `index.html` — the order is cascade-significant, and each file co-locates

@@ -6,6 +6,13 @@
  * only its own body and exposes a loader, and this router is the single place
  * that knows all three. That also keeps stats.js and portfolio.js free of
  * imports from one another.
+ *
+ * The URL hash is the single source of truth: a nav click only assigns
+ * `location.hash`, and the `hashchange` handler does the switching. That makes a
+ * reload land on the view the user was on, and it gets back/forward for free,
+ * because the browser records a history entry per hash change. `setView()`
+ * therefore must never write to the URL — doing so would re-enter this router
+ * through its own event.
  */
 
 import { state } from "./state.js";
@@ -79,16 +86,47 @@ const VIEWS = new Map([
   ["portfolio", showPortfolioView],
 ]);
 
+// The default view: what an absent or unrecognised hash falls back to, and the
+// one the server-rendered markup already shows.
+const DEFAULT_VIEW = "invoices";
+
 /**
- * Wire the sidebar navigation. Dispatch is by lookup rather than a chain of
- * conditionals, so an unrecognised `data-view` does nothing instead of falling
- * through to whichever view happens to be the default branch.
+ * Show the view named by the URL hash, or the default one when it names nothing
+ * known.
+ *
+ * Called once at boot and on every `hashchange`, so it is the only place a view
+ * is entered outside a direct `show*()` call.
+ */
+export function applyViewFromHash() {
+  const show = VIEWS.get(location.hash.slice(1)) ?? VIEWS.get(DEFAULT_VIEW);
+  show();
+}
+
+/**
+ * Wire the sidebar navigation and the hash listener.
+ *
+ * A click only assigns the hash; `applyViewFromHash` reacts to it. Dispatch is
+ * by lookup rather than a chain of conditionals, so an unrecognised `data-view`
+ * does nothing instead of falling through to whichever view happens to be the
+ * default branch — and no junk token reaches the URL.
  */
 export function setupViewListeners() {
+  window.addEventListener("hashchange", applyViewFromHash);
+
   document.querySelector(".sidebar-nav").addEventListener("click", (event) => {
     const button = event.target.closest(".nav-item");
     if (!button) return;
-    const show = VIEWS.get(button.dataset.view);
-    if (show) show();
+
+    const view = button.dataset.view;
+    if (!VIEWS.has(view)) return;
+
+    // Re-clicking the active view leaves the hash untouched, so no `hashchange`
+    // would fire; switch directly to keep a click on it a refresh, as it was
+    // before the hash drove navigation.
+    if (location.hash.slice(1) === view) {
+      applyViewFromHash();
+      return;
+    }
+    location.hash = view;
   });
 }

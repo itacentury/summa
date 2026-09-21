@@ -33,6 +33,7 @@ const steps = vi.hoisted(() => {
     "setupBulkListeners",
     "setupStatsListeners",
     "setupViewListeners",
+    "applyViewFromHash",
     "restorePortfolioPrefs",
     "setupPortfolioListeners",
     "setupSnapshotListeners",
@@ -78,6 +79,7 @@ vi.mock("../../static/js/stats.js", () => ({
   setupStatsListeners: steps.setupStatsListeners,
 }));
 vi.mock("../../static/js/views.js", () => ({
+  applyViewFromHash: steps.applyViewFromHash,
   setupViewListeners: steps.setupViewListeners,
 }));
 vi.mock("../../static/js/portfolio.js", () => ({
@@ -129,7 +131,9 @@ vi.mock("../../static/js/auth.js", () => ({
   setupSignOut: steps.setupSignOut,
 }));
 
-// Ordered as init() runs them: the pre-load block first, then the wiring loop.
+// Ordered as init() runs them: the pre-load block first, then the wiring loop,
+// then the view restore — which sits outside the loop because it has to run
+// after every wiring step, not merely among them.
 const PRE_LOAD_STEPS = ["setupComboboxes", "applyFilter", "refreshAllData"];
 const WIRING_STEPS = [
   "setupFilterListeners",
@@ -152,7 +156,8 @@ const WIRING_STEPS = [
   "setupSheetGestures",
   "setupViewportListeners",
 ];
-const ALL_STEPS = [...PRE_LOAD_STEPS, ...WIRING_STEPS];
+const POST_WIRING_STEPS = ["applyViewFromHash"];
+const ALL_STEPS = [...PRE_LOAD_STEPS, ...WIRING_STEPS, ...POST_WIRING_STEPS];
 
 let consoleError;
 
@@ -218,6 +223,20 @@ describe("init", () => {
 
     expect(callOrder("setupComboboxes")).toBeLessThan(
       callOrder("refreshAllData"),
+    );
+  });
+
+  it("restores the hashed view after every wiring step", async () => {
+    // Load-bearing: entering a view loads its data, and both loaders depend on
+    // earlier steps — stats on the inputs applyFilter() fills, the portfolio on
+    // the comboboxes setupPortfolioListeners() creates.
+    await runInit();
+
+    expect(callOrder("applyViewFromHash")).toBeGreaterThan(
+      callOrder("setupPortfolioListeners"),
+    );
+    expect(callOrder("applyViewFromHash")).toBeGreaterThan(
+      callOrder("applyFilter"),
     );
   });
 

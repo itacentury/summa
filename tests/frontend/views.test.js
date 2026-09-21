@@ -5,11 +5,16 @@
  * nav item is active, and the body carries at most one view-mode class. The
  * dispatch is covered too, because the listener it replaced routed every
  * unrecognised `data-view` to the invoices view.
+ *
+ * The hash is the second contract: it drives which view a reload lands on, so
+ * an unknown or absent one must fall back rather than throw, and a nav click
+ * must go through the URL instead of switching behind its back.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyViewFromHash,
   setupViewListeners,
   showInvoicesView,
   showPortfolioView,
@@ -50,11 +55,24 @@ const activeViews = () =>
 const title = () =>
   document.querySelector('[data-el="topbar-title"]').textContent;
 
+// replaceState rather than `location.hash = ""` so no stray hashchange from the
+// reset leaks into the next test.
+const clearHash = () => history.replaceState(null, "", location.pathname);
+
+// A nav click only assigns the hash; the switch happens in the hashchange
+// handler, which fires asynchronously.
+const clickNav = (view) =>
+  new Promise((resolve) => {
+    window.addEventListener("hashchange", resolve, { once: true });
+    document.querySelector(`[data-view="${view}"]`).click();
+  });
+
 describe("view switching", () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
     document.body.className = "";
     state.currentView = "invoices";
+    clearHash();
   });
 
   it("shows only the portfolio view", () => {
@@ -92,16 +110,19 @@ describe("view switching", () => {
     expect(document.body.classList.contains("portfolio-mode")).toBe(false);
   });
 
-  it("routes a nav click to the matching view", () => {
+  it("routes a nav click to the matching view through the hash", async () => {
     setupViewListeners();
 
-    document.querySelector('[data-view="portfolio"]').click();
+    await clickNav("portfolio");
+    expect(location.hash).toBe("#portfolio");
     expect(state.currentView).toBe("portfolio");
 
-    document.querySelector('[data-view="stats"]').click();
+    await clickNav("stats");
+    expect(location.hash).toBe("#stats");
     expect(state.currentView).toBe("stats");
 
-    document.querySelector('[data-view="invoices"]').click();
+    await clickNav("invoices");
+    expect(location.hash).toBe("#invoices");
     expect(state.currentView).toBe("invoices");
   });
 
@@ -113,5 +134,47 @@ describe("view switching", () => {
 
     expect(state.currentView).toBe("portfolio");
     expect(visibleViews()).toEqual(["portfolio-view"]);
+    expect(location.hash).toBe("");
+  });
+
+  it("re-enters the active view when its nav item is clicked again", () => {
+    setupViewListeners();
+    location.hash = "#portfolio";
+
+    // No hashchange fires here, so the click has to switch directly or the
+    // view's loader would never re-run.
+    document.querySelector('[data-view="portfolio"]').click();
+
+    expect(state.currentView).toBe("portfolio");
+    expect(visibleViews()).toEqual(["portfolio-view"]);
+  });
+
+  it("enters the view named by the hash", () => {
+    location.hash = "#portfolio";
+
+    applyViewFromHash();
+
+    expect(state.currentView).toBe("portfolio");
+    expect(visibleViews()).toEqual(["portfolio-view"]);
+    expect(activeViews()).toEqual(["portfolio"]);
+  });
+
+  it("falls back to the invoices view on an absent hash", () => {
+    showPortfolioView();
+
+    applyViewFromHash();
+
+    expect(state.currentView).toBe("invoices");
+    expect(visibleViews()).toEqual(["invoices-view"]);
+  });
+
+  it("falls back to the invoices view on an unknown hash", () => {
+    showPortfolioView();
+    location.hash = "#nonsense";
+
+    applyViewFromHash();
+
+    expect(state.currentView).toBe("invoices");
+    expect(visibleViews()).toEqual(["invoices-view"]);
   });
 });

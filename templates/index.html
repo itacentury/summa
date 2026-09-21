@@ -109,6 +109,12 @@
     />
   </head>
   <body>
+    {# First in the body and blocking on purpose: a parser-blocking script only
+       holds back what follows it, so from any later position the browser may
+       already have painted the invoices view. Not a module either — those are
+       deferred, and app.js additionally waits for the auth check. #}
+    <script src="{{ url_for('static', filename='js/boot-view.js') }}"></script>
+
     <div class="app">
       {% include "partials/topbar.html" %}
       {% include "partials/sidebar.html" %}

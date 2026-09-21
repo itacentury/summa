@@ -23,6 +23,13 @@ export default [
     rules: { ...js.configs.recommended.rules, ...styleRules },
   },
   {
+    // The one non-module under static/js/: it is loaded with a plain <script>
+    // tag so it runs before the first paint (see its docstring). Listed after
+    // the block above so its sourceType wins.
+    files: ["static/js/boot-view.js"],
+    languageOptions: { sourceType: "script" },
+  },
+  {
     files: ["static/sw.js"],
     languageOptions: {
       sourceType: "script",

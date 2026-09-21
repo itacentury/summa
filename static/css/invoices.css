@@ -1,4 +1,15 @@
 /* Invoices List */
+
+/* The invoices view is the only one the server renders visible, so on a reload
+   into another view it is the one that would flash. boot-view.js sets the mode
+   class before this section is even parsed; this rule is what turns that into a
+   hidden section at the first paint. It only restates what setView() enforces
+   anyway — the mode class and the invoices view are never both on. */
+body.stats-mode .invoices-section,
+body.portfolio-mode .invoices-section {
+  display: none;
+}
+
 .invoices-section {
   overflow: hidden;
   background: var(--bg-card);

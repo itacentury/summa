@@ -21,7 +21,7 @@ import { setupModalListeners } from "./modals.js";
 import { setupInvoiceListListeners } from "./render.js";
 import { setupBulkListeners } from "./bulk.js";
 import { setupStatsListeners } from "./stats.js";
-import { setupViewListeners } from "./views.js";
+import { applyViewFromHash, setupViewListeners } from "./views.js";
 import { restorePortfolioPrefs, setupPortfolioListeners } from "./portfolio.js";
 import { setupSnapshotListeners } from "./portfolio-snapshot.js";
 import { setupPositionListeners } from "./portfolio-position.js";
@@ -146,6 +146,11 @@ function init() {
     setupViewportListeners,
   ];
   for (const step of wiringSteps) runStep(step.name, step);
+
+  // Last, because entering a view loads its data: stats reads the filter inputs
+  // applyFilter() just populated, and the portfolio feeds options into the
+  // comboboxes setupPortfolioListeners() created above.
+  runStep("applyViewFromHash", applyViewFromHash);
 }
 
 let started = false;
