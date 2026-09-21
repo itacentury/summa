@@ -6,18 +6,27 @@ schema's constraints and the portfolio layer's reading rules against the data
 before any of it reaches a database.
 """
 
+import sqlite3
 from datetime import date
+from pathlib import Path
 
 import pytest
 
+import scripts.seed_portfolio as seed_portfolio
 from scripts.seed_portfolio import (
     DEFAULT_SEED,
     DEFAULT_WEEKS,
     SeedData,
     SeedPosition,
+    SeedSummary,
     build_seed_data,
+    snapshot_range,
+    symbol_notes,
     weekly_grid,
+    write_seed_data,
 )
+from summa import config
+from summa.db import create_portfolio_schema
 from summa.portfolio import (
     Position,
     PositionView,
@@ -247,3 +256,86 @@ def test_the_totals_read_as_a_real_portfolio(seeded: SeedData) -> None:
     assert totals.last_snapshot_date == TODAY.isoformat()
     # Both signs are represented, so the UI shows its gain and its loss styling.
     assert min(view.gain for view in views) < 0 < max(view.gain for view in views)
+
+
+# --- Writing and the command line -------------------------------------------
+
+
+def _memory_database() -> sqlite3.Connection:
+    """Return an in-memory database carrying the portfolio schema."""
+    conn: sqlite3.Connection = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    create_portfolio_schema(conn.cursor())
+    return conn
+
+
+def test_the_reported_range_spans_every_position(seeded: SeedData) -> None:
+    """The roster's order must not decide what the run reports it covered."""
+    reported: tuple[str, str] = snapshot_range(seeded.positions)
+
+    assert reported == snapshot_range(list(reversed(seeded.positions)))
+    assert reported[0] == min(
+        position.snapshots[0].date for position in seeded.positions
+    )
+    assert reported[1] == max(
+        position.snapshots[-1].date for position in seeded.positions
+    )
+
+
+def test_the_summary_counts_carried_rows_it_wrote(seeded: SeedData) -> None:
+    """Every line of the summary reports the database, not the generated data.
+
+    A re-run writes nothing, so it must not go on claiming carried rows either.
+    """
+    conn: sqlite3.Connection = _memory_database()
+    cursor: sqlite3.Cursor = conn.cursor()
+
+    first: SeedSummary = write_seed_data(cursor, seeded, reset=False)
+    again: SeedSummary = write_seed_data(cursor, seeded, reset=False)
+
+    assert 0 < first.rows_carried <= first.snapshots_written
+    assert again.snapshots_written == 0
+    assert again.rows_carried == 0
+    assert again.snapshots_existing == first.snapshots_written
+
+
+def test_a_matching_symbol_is_not_worth_a_note() -> None:
+    """The default run seeds what the chart reads; a note then says nothing."""
+    assert symbol_notes("EUNL.DE", "EUNL.DE", reset=True, dry_run=False) == []
+
+
+def test_a_foreign_symbol_is_reported_and_reset_names_its_extra_cost() -> None:
+    """--reset clears benchmark_prices, so a mistyped symbol leaves no closes at all."""
+    plain: list[str] = symbol_notes("SPY", "EUNL.DE", reset=False, dry_run=False)
+    with_reset: list[str] = symbol_notes("SPY", "EUNL.DE", reset=True, dry_run=False)
+
+    assert len(plain) == 1
+    assert "SPY" in plain[0] and "EUNL.DE" in plain[0]
+    assert len(with_reset) == 2
+    assert "--reset" in with_reset[1]
+
+
+def test_a_dry_run_does_not_claim_a_deletion_it_never_made() -> None:
+    """--dry-run writes into a mirror, so nothing on disk was cleared."""
+    notes: list[str] = symbol_notes("SPY", "EUNL.DE", reset=True, dry_run=True)
+
+    assert "would clear" in notes[1]
+
+
+def test_main_warns_before_seeding_a_foreign_symbol(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Seeding another ticker is allowed — it just no longer happens silently."""
+    monkeypatch.setenv(config.BENCHMARK_SYMBOL_ENV, "EUNL.DE")
+    database: Path = tmp_path / "seed.db"
+
+    exit_code: int = seed_portfolio.main(
+        ["--db", str(database), "--weeks", "12", "--symbol", "SPY", "--reset"]
+    )
+
+    assert exit_code == 0
+    errors: str = capsys.readouterr().err
+    assert "SPY" in errors
+    assert "EUNL.DE" in errors
+    assert "--reset" in errors

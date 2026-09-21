@@ -146,6 +146,19 @@ class SeedSummary:
 
 
 @dataclass(frozen=True)
+class SnapshotWrite:
+    """What one position's insert did to the database.
+
+    :param carried: how many of the *written* rows were carried forward -- a row
+        already present was not written by this run and so is not counted.
+    """
+
+    written: int
+    existing: int
+    carried: int
+
+
+@dataclass(frozen=True)
 class PositionSpec:
     """The recipe one position's random walk is grown from.
 
@@ -568,13 +581,53 @@ def build_seed_data(
     )
 
 
+def snapshot_range(positions: Sequence[SeedPosition]) -> tuple[str, str]:
+    """Return the first and last week any position was recorded in.
+
+    Taken across the whole roster rather than from its first entry: that one
+    covers the run only as long as a spec with ``start_offset=0`` happens to come
+    first, and a sold position ends before the grid does.
+
+    :param positions: at least one position, each with at least one snapshot.
+    """
+    first: str = min(position.snapshots[0].date for position in positions)
+    last: str = max(position.snapshots[-1].date for position in positions)
+    return first, last
+
+
+def symbol_notes(symbol: str, configured: str, reset: bool, dry_run: bool) -> list[str]:
+    """Return the stderr notes a run under a foreign benchmark symbol owes its user.
+
+    The chart draws the configured symbol alone, so seeding another one writes
+    closes nothing reads -- and with ``--reset``, which clears
+    ``benchmark_prices`` along with the rest, it also takes the closes the chart
+    *was* reading, leaving it with no benchmark at all.
+
+    :param configured: the symbol the app charts, per ``config.benchmark_symbol()``.
+    """
+    if symbol == configured:
+        return []
+
+    notes: list[str] = [
+        f"note: the chart reads {configured}, so these {symbol} rows stay unread "
+        f"until ${config.BENCHMARK_SYMBOL_ENV} names {symbol}"
+    ]
+    if reset:
+        verb: str = "would clear" if dry_run else "clears"
+        notes.append(
+            f"note: --reset {verb} every {configured} close as well, leaving the "
+            "chart without a benchmark line until it is fetched again"
+        )
+    return notes
+
+
 def format_summary(summary: SeedSummary) -> str:
     """Render the seed summary as an indented block."""
     lines: list[str] = [
         f"  depots     {summary.depots:5d}  ({summary.depots_created} created)",
         f"  positions  {summary.positions:5d}  ({summary.positions_created} created)",
         f"  snapshots  {summary.snapshots_written:5d} written, {summary.snapshots_existing} already present",
-        f"  carried    {summary.rows_carried:5d}  rows copied forward",
+        f"  carried    {summary.rows_carried:5d}  of them copied forward",
         f"  benchmark  {summary.benchmark_written:5d}  closes upserted",
     ]
     if summary.rows_deleted:
@@ -663,15 +716,15 @@ def resolve_position(
 
 def insert_snapshots(
     cursor: sqlite3.Cursor, position_id: int, snapshots: Sequence[SeedSnapshot]
-) -> tuple[int, int]:
+) -> SnapshotWrite:
     """Write a position's weeks, leaving any already recorded untouched.
 
     Rows go in one at a time so ``rowcount`` can tell a write from a conflict;
-    ``executemany`` would collapse the two.
-
-    :return: how many rows were written and how many were already present.
+    ``executemany`` would collapse the two -- and the same per-row answer is what
+    lets the carried rows be counted where they were actually written.
     """
     written: int = 0
+    carried: int = 0
     for snapshot in snapshots:
         cursor.execute(
             "INSERT OR IGNORE INTO portfolio_snapshots "
@@ -686,8 +739,13 @@ def insert_snapshots(
                 int(snapshot.carried),
             ),
         )
-        written += cursor.rowcount
-    return written, len(snapshots) - written
+        if cursor.rowcount == 0:
+            continue
+        written += 1
+        carried += int(snapshot.carried)
+    return SnapshotWrite(
+        written=written, existing=len(snapshots) - written, carried=carried
+    )
 
 
 def upsert_benchmark(
@@ -729,12 +787,12 @@ def write_seed_data(cursor: sqlite3.Cursor, data: SeedData, reset: bool) -> Seed
             cursor, depot_ids[position.depot], position
         )
         positions_created += int(position_is_new)
-        rows_written, rows_existing = insert_snapshots(
+        result: SnapshotWrite = insert_snapshots(
             cursor, position_id, position.snapshots
         )
-        written += rows_written
-        existing += rows_existing
-        carried += sum(1 for snapshot in position.snapshots if snapshot.carried)
+        written += result.written
+        existing += result.existing
+        carried += result.carried
 
     return SeedSummary(
         depots=len(data.depots),
@@ -837,6 +895,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: --weeks needs at least {MIN_WEEKS}", file=sys.stderr)
         return EXIT_USAGE_ERROR
 
+    # Read here rather than from the parser default, so a symbol the environment
+    # changed after parsing is still compared against the one the chart reads.
+    for note in symbol_notes(
+        args.symbol, config.benchmark_symbol(), args.reset, args.dry_run
+    ):
+        print(note, file=sys.stderr)
+
     data: SeedData = build_seed_data(args.weeks, args.seed, date.today(), args.symbol)
     try:
         summary: SeedSummary = seed_database(
@@ -847,8 +912,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_SEED_ERROR
 
     headline: str = "Dry run — nothing written" if args.dry_run else "Seeded"
-    first_date: str = data.positions[0].snapshots[0].date
-    last_date: str = data.positions[0].snapshots[-1].date
+    first_date, last_date = snapshot_range(data.positions)
     print(
         f"{headline}: {first_date}..{last_date} ({args.weeks} weeks, seed {args.seed}) "
         f"-> {args.db}"
