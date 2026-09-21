@@ -189,10 +189,8 @@ export async function loadPortfolio(allowRetry = true) {
 /** Mark the pill matching the active period, clearing the others. */
 function syncPeriodButtons() {
   document.querySelectorAll(".portfolio-period-btn").forEach((button) => {
-    button.classList.toggle(
-      "is-active",
-      button.dataset.range === state.portfolioRange,
-    );
+    const active = button.dataset.range === state.portfolioRange;
+    button.setAttribute("aria-pressed", String(active));
   });
 }
 

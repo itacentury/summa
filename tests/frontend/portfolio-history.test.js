@@ -33,8 +33,8 @@ const markup = `
       <div class="modal-body">
         <p data-el="history-subtitle"></p>
         <div data-el="history-filter">
-          <button class="portfolio-history-filter-btn is-active" data-scope="payments"></button>
-          <button class="portfolio-history-filter-btn" data-scope="all"></button>
+          <button class="portfolio-history-filter-btn" data-scope="payments" aria-pressed="true"></button>
+          <button class="portfolio-history-filter-btn" data-scope="all" aria-pressed="false"></button>
         </div>
         <div data-el="history-list"></div>
       </div>
@@ -139,10 +139,8 @@ describe("position history", () => {
     expect(dates()).toEqual(["18.01.2026", "11.01.2026", "04.01.2026"]);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(
-      document
-        .querySelector('[data-scope="all"]')
-        .classList.contains("is-active"),
-    ).toBe(true);
+      document.querySelector('[data-scope="all"]').getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   it("keeps a sale in the payments view, where the money left", async () => {
@@ -210,8 +208,8 @@ describe("position history", () => {
     expect(
       document
         .querySelector('[data-scope="payments"]')
-        .classList.contains("is-active"),
-    ).toBe(true);
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   // The fetch double ignores `signal`, so an aborted request still resolves

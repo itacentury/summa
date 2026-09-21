@@ -49,16 +49,17 @@ const markup = `
   <div class="is-hidden" data-el="stats-view"></div>
   <div class="is-hidden" data-el="portfolio-view">
     <div data-el="portfolio-period">
-      <button class="portfolio-period-btn" data-range="3m"></button>
-      <button class="portfolio-period-btn is-active" data-range="1y"></button>
-      <button class="portfolio-period-btn" data-range="ytd"></button>
-      <button class="portfolio-period-btn" data-range="max"></button>
+      <button class="portfolio-period-btn" data-range="3m" aria-pressed="false"></button>
+      <button class="portfolio-period-btn" data-range="1y" aria-pressed="true"></button>
+      <button class="portfolio-period-btn" data-range="ytd" aria-pressed="false"></button>
+      <button class="portfolio-period-btn" data-range="max" aria-pressed="false"></button>
     </div>
   </div>
 `;
 
 const activeRange = () =>
-  document.querySelector(".portfolio-period-btn.is-active")?.dataset.range;
+  document.querySelector('.portfolio-period-btn[aria-pressed="true"]')?.dataset
+    .range;
 
 const clickRange = (range) =>
   document
@@ -378,8 +379,8 @@ const viewMarkup = `
   <div class="is-hidden" data-el="stats-view"></div>
   <div class="is-hidden" data-el="portfolio-view">
     <div data-el="portfolio-period">
-      <button class="portfolio-period-btn is-active" data-range="1y"></button>
-      <button class="portfolio-period-btn" data-range="3m"></button>
+      <button class="portfolio-period-btn" data-range="1y" aria-pressed="true"></button>
+      <button class="portfolio-period-btn" data-range="3m" aria-pressed="false"></button>
     </div>
     <div class="portfolio-depot" data-el="portfolio-depot">
       <button class="portfolio-depot-trigger" aria-expanded="false">

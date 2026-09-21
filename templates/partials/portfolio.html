@@ -72,20 +72,36 @@
         role="group"
         aria-label="Chart period"
       >
-        <button type="button" class="portfolio-period-btn" data-range="3m">
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="3m"
+          aria-pressed="false"
+        >
           3M
         </button>
         <button
           type="button"
-          class="portfolio-period-btn is-active"
+          class="portfolio-period-btn"
           data-range="1y"
+          aria-pressed="true"
         >
           1Y
         </button>
-        <button type="button" class="portfolio-period-btn" data-range="ytd">
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="ytd"
+          aria-pressed="false"
+        >
           YTD
         </button>
-        <button type="button" class="portfolio-period-btn" data-range="max">
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="max"
+          aria-pressed="false"
+        >
           Max
         </button>
       </div>

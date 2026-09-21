@@ -49,11 +49,12 @@ function renderRows() {
 function syncFilterButtons() {
   const { filter } = historyElements();
   const active = paymentsOnly ? "payments" : "all";
-  filter
-    .querySelectorAll(".portfolio-history-filter-btn")
-    .forEach((button) =>
-      button.classList.toggle("is-active", button.dataset.scope === active),
+  filter.querySelectorAll(".portfolio-history-filter-btn").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.scope === active),
     );
+  });
 }
 
 /**

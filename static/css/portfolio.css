@@ -583,7 +583,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   color: var(--text-primary);
 }
 
-.portfolio-period-btn.is-active {
+.portfolio-period-btn[aria-pressed="true"] {
   font-weight: 600;
   color: var(--accent-text-on);
   background: var(--accent);
@@ -1131,7 +1131,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   color: var(--text-primary);
 }
 
-.portfolio-history-filter-btn.is-active {
+.portfolio-history-filter-btn[aria-pressed="true"] {
   font-weight: 600;
   color: var(--accent-text-on);
   background: var(--accent);
