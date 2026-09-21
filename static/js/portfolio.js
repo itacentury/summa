@@ -62,9 +62,9 @@ export function restorePortfolioPrefs() {
 /**
  * Read the persisted chart selection, or "all" when it is absent or unusable.
  *
- * The ids cannot be checked against the real positions this early — that is
- * `prunePositionSelection()`'s job once a payload arrives. Stored JSON is
- * parsed defensively because nothing stops a user from editing it.
+ * The ids cannot be checked against the real positions this early, and never
+ * are: `visiblePositionSelection()` intersects them per payload instead. Stored
+ * JSON is parsed defensively because nothing stops a user from editing it.
  */
 function storedPositionSelection() {
   const raw = localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY);
@@ -81,26 +81,30 @@ function storedPositionSelection() {
 }
 
 /**
- * Drop selected positions the payload no longer carries — sold, deleted, or
- * outside the active depot filter — and fall back to "all" when none survive.
+ * The stored selection narrowed to what this payload can actually draw.
  *
- * The depot filter's counterpart (`depotFilterIsStale`) has to refetch, because
- * a depot id is part of the request. A position selection is not, so this
- * simply narrows what the next draw reads.
+ * Read-only on purpose. A position missing from the payload is either gone for
+ * good (sold, deleted) or merely outside the active depot filter, and the two
+ * are indistinguishable here — so neither is written back, and a depot switch
+ * stays reversible. `positionLines()` applies the same intersection to the
+ * lines, so the control and the chart can never disagree.
  */
-function prunePositionSelection(payload) {
-  if (state.portfolioPositions === POSITIONS_ALL) return;
+function visiblePositionSelection(payload) {
+  if (state.portfolioPositions === POSITIONS_ALL) return POSITIONS_ALL;
 
   const available = new Set(
     (payload.series?.positions ?? []).map((entry) => entry.id),
   );
   const kept = state.portfolioPositions.filter((id) => available.has(id));
-  if (kept.length === state.portfolioPositions.length) return;
-
-  storePositionSelection(kept.length > 0 ? kept : POSITIONS_ALL);
+  return kept.length > 0 ? kept : POSITIONS_ALL;
 }
 
-/** Persist a selection and mirror it into the control. */
+/**
+ * Persist a selection and mirror it into the control.
+ *
+ * Only a deliberate toggle gets here: what a payload happens to carry never
+ * rewrites the stored list.
+ */
 function storePositionSelection(selection) {
   state.portfolioPositions = selection;
   localStorage.setItem(
@@ -171,11 +175,12 @@ function renderPortfolio(payload) {
   });
 
   lastPayload = payload;
-  // Before the charts: a selection naming a position this payload dropped would
-  // otherwise draw one line fewer than the control claims.
-  prunePositionSelection(payload);
-  if (positionsFilter)
+  // Options before value: a single pick's label is the position's name, which
+  // can only be resolved once the control knows this payload's positions.
+  if (positionsFilter) {
     positionsFilter.setOptions(payload.series?.positions ?? []);
+    positionsFilter.setValue(visiblePositionSelection(payload));
+  }
 
   renderPortfolioCharts(payload);
   hasRendered = true;

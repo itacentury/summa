@@ -793,6 +793,31 @@ describe("portfolio position filter", () => {
     rows[index].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   };
 
+  const positionsLabel = () =>
+    document.querySelector(".portfolio-positions-label").textContent;
+
+  const pickDepot = async (index) => {
+    document
+      .querySelector(".portfolio-depot-trigger")
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    const rows = document.querySelectorAll(".portfolio-depot-option");
+    rows[index].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    await flushUi();
+  };
+
+  /** The payload the server answers a depot filter with: its depot only. */
+  const narrowedToDepot = (id) => {
+    const payload = portfolioPayload();
+    const depot = payload.depots.find((entry) => entry.id === id);
+    const ids = new Set(depot.positions.map((position) => position.id));
+    payload.depot = id;
+    payload.depots = [depot];
+    payload.series.positions = payload.series.positions.filter((entry) =>
+      ids.has(entry.id),
+    );
+    return payload;
+  };
+
   it("offers every position the series carries, in the payload's order", async () => {
     setupPortfolioListeners();
     await loadPortfolio();
@@ -849,31 +874,87 @@ describe("portfolio position filter", () => {
     ).toBe("Deka Industrie 0");
   });
 
-  it("drops a stored position the payload no longer carries", async () => {
+  it("draws only the stored positions the payload carries, without forgetting the rest", async () => {
     localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[12,99]");
     restorePortfolioPrefs();
     setupPortfolioListeners();
 
     await loadPortfolio();
 
-    expect(state.portfolioPositions).toEqual([12]);
-    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[12]");
+    // 99 is kept: a missing id is either gone for good or merely filtered out,
+    // and this side cannot tell the two apart.
+    expect(state.portfolioPositions).toEqual([12, 99]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
+      "[12,99]",
+    );
+    expect(positionsLabel()).toBe("FTSE All-World");
     // A selection is not part of the request, so nothing is retried.
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(showErrorToast).not.toHaveBeenCalled();
   });
 
-  it("falls back to every position when none of the stored ones survive", async () => {
+  it("shows every position when none of the stored ones are available", async () => {
     localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[98,99]");
     restorePortfolioPrefs();
     setupPortfolioListeners();
 
     await loadPortfolio();
 
-    expect(state.portfolioPositions).toBe("all");
-    expect(
-      document.querySelector(".portfolio-positions-label").textContent,
-    ).toBe("All positions");
+    expect(state.portfolioPositions).toEqual([98, 99]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
+      "[98,99]",
+    );
+    expect(positionsLabel()).toBe("All positions");
+  });
+
+  it("restores the selection when the depot filter comes back", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[11,12]");
+    restorePortfolioPrefs();
+    global.fetch = vi.fn(async (url) =>
+      jsonResponse(
+        url.includes("depot=2") ? narrowedToDepot(2) : portfolioPayload(),
+      ),
+    );
+    setupPortfolioListeners();
+    await loadPortfolio();
+    expect(positionsLabel()).toBe("2 positions");
+
+    await pickDepot(2);
+
+    // Neither of the two is in this depot, so the chart falls back to the
+    // aggregate — but nothing about that is persisted.
+    expect(positionsLabel()).toBe("All positions");
+    expect(state.portfolioPositions).toEqual([11, 12]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
+      "[11,12]",
+    );
+
+    await pickDepot(0);
+
+    expect(positionsLabel()).toBe("2 positions");
+    expect(state.portfolioPositions).toEqual([11, 12]);
+  });
+
+  it("replaces the stored list once a pick is made in another depot", async () => {
+    localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[11,12]");
+    restorePortfolioPrefs();
+    global.fetch = vi.fn(async (url) =>
+      jsonResponse(
+        url.includes("depot=2") ? narrowedToDepot(2) : portfolioPayload(),
+      ),
+    );
+    setupPortfolioListeners();
+    await loadPortfolio();
+    await pickDepot(2);
+
+    openMenu();
+    clickOption(1);
+    await flushUi();
+
+    // A deliberate pick is the one thing that does write, and it writes what
+    // the control shows — the invisible ids do not survive it.
+    expect(state.portfolioPositions).toEqual([21]);
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[21]");
   });
 });
 
