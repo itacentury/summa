@@ -317,11 +317,10 @@ def test_get_portfolio_carries_a_line_per_position(
     assert [line["name"] for line in lines] == ["Gold", "Kept"]
     assert [line["id"] for line in lines] == [second, first]
     assert lines[1]["values"] == [1000.0, 1100.0]
-    assert lines[0]["invested"] == [400.0, 400.0]
+    assert lines[0]["values"] == [400.0, 380.0]
     # Every line spans the same grid as the aggregate it was summed into.
     for line in lines:
         assert len(line["values"]) == len(payload["series"]["dates"])
-        assert len(line["invested"]) == len(payload["series"]["dates"])
 
 
 def test_get_portfolio_depot_filter_narrows_the_position_lines(

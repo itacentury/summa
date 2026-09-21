@@ -187,11 +187,11 @@ function seriesPoints(dates, values) {
  * A position keeps the color of its place in `series.positions`, not of its
  * place in the selection: unchecking one line must not repaint the others.
  *
- * A single drawn position gets its invested line as well — the one case where
- * the comparison it offers is worth a second line. From two positions upwards
- * it would double the ink and read as twice as many holdings.
+ * Value lines only. The invested line belongs to the aggregate view: tying it
+ * to the number of checked boxes would let the chart change meaning without
+ * saying so.
  *
- * @returns {{label: string, values: number[], color: string, dashed?: boolean}[]}
+ * @returns {{label: string, values: number[], color: string}[]}
  */
 export function positionLines(series, selection) {
   if (selection === POSITIONS_ALL || !Array.isArray(selection)) return [];
@@ -208,15 +208,6 @@ export function positionLines(series, selection) {
     });
   });
 
-  if (lines.length === 1) {
-    const only = entries.find((entry) => chosen.has(entry.id));
-    lines.push({
-      label: "Invested",
-      values: only.invested,
-      color: INVESTED_COLOR,
-      dashed: true,
-    });
-  }
   return lines;
 }
 
@@ -250,8 +241,7 @@ function selectionDatasets(series, lines) {
     label: line.label,
     data: seriesPoints(series.dates, line.values),
     borderColor: line.color,
-    borderWidth: line.dashed ? 2 : 2.5,
-    ...(line.dashed ? { borderDash: [5, 5] } : {}),
+    borderWidth: 2.5,
   }));
 }
 
@@ -285,18 +275,6 @@ function aggregateDatasets(series) {
 }
 
 /**
- * The background a legend swatch takes for one line.
- *
- * A dashed line gets a dashed swatch, mirroring `borderDash: [5, 5]` the way the
- * fixed legend's invested bar does in CSS — a solid bar would claim the chart
- * draws a line it does not.
- */
-function swatchFill(line) {
-  if (!line.dashed) return line.color;
-  return `repeating-linear-gradient(to right, ${line.color} 0 5px, transparent 5px 10px)`;
-}
-
-/**
  * Show the legend matching what is drawn: the fixed aggregate one, or a swatch
  * per selected line.
  *
@@ -313,7 +291,7 @@ function syncChartLegend(lines, hasBenchmark) {
     dynamic.classList.toggle("is-hidden", !perPosition);
     dynamic.innerHTML = perPosition ? seriesLegendHtml(lines) : "";
     dynamic.querySelectorAll(".portfolio-legend-bar").forEach((bar, index) => {
-      bar.style.background = swatchFill(lines[index]);
+      bar.style.background = lines[index].color;
     });
   }
 

@@ -598,13 +598,14 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transform: rotate(180deg);
 }
 
+/* Fixed, and anchored from JS (floating-menu.js): .chart-card is overflow:hidden
+   and would clip an absolute menu against its own bottom edge. Leaving the card
+   also leaves its stacking context, hence the z-index of the floating panels
+   rather than the local one. Position and height come from the script. */
 .portfolio-positions-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 700;
   min-width: 190px;
-  max-height: 260px;
   padding: 4px;
   overflow-y: auto;
   list-style: none;
@@ -1402,11 +1403,6 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   .portfolio-positions-trigger {
     width: 100%;
     max-width: none;
-  }
-
-  .portfolio-positions-menu {
-    right: 0;
-    min-width: 0;
   }
 
   .portfolio-period-btn {

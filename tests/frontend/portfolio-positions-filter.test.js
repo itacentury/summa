@@ -178,6 +178,27 @@ describe("createPositionsFilter", () => {
     ).not.toContain("<img");
   });
 
+  it("places the menu against the viewport, out of the card that clips it", () => {
+    press(trigger(), "mousedown");
+
+    expect(
+      document.querySelector(".portfolio-positions-menu").style.position,
+    ).toBe("fixed");
+  });
+
+  it("re-anchors after a toggle, which changes the menu's height", () => {
+    const measure = vi.fn(() =>
+      trigger().ownerDocument.body.getBoundingClientRect(),
+    );
+    trigger().getBoundingClientRect = measure;
+
+    press(trigger(), "mousedown");
+    const onOpen = measure.mock.calls.length;
+    press(options()[1], "mousedown");
+
+    expect(measure.mock.calls.length).toBeGreaterThan(onOpen);
+  });
+
   it("redraws an open menu when the positions are replaced", () => {
     press(trigger(), "mousedown");
     filter.setOptions([{ id: 9, name: "Gold" }]);

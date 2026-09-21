@@ -483,12 +483,11 @@ def _serialize_history_row(row: portfolio.HistoryRow) -> dict[str, Any]:
 
 
 def _serialize_position_series(entry: portfolio.PositionSeries) -> dict[str, Any]:
-    """Render one position's chart lines."""
+    """Render one position's chart line."""
     return {
         "id": entry.position_id,
         "name": entry.name,
         "values": [_amount(value) for value in entry.values],
-        "invested": [_amount(value) for value in entry.invested],
     }
 
 

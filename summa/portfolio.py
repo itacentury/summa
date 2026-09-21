@@ -156,17 +156,16 @@ class PortfolioTotals:
 
 @dataclass(frozen=True)
 class PositionSeries:
-    """One position's own lines over the shared chart grid.
+    """One position's own value line over the shared chart grid.
 
-    The aggregated `portfolio` and `invested` lines are these summed up. They are
-    carried alongside rather than derived by the caller so the chart can draw a
-    subset of positions without asking the server a second question.
+    The aggregated `portfolio` line is these summed up. They are carried
+    alongside rather than derived by the caller so the chart can draw a subset
+    of positions without asking the server a second question.
     """
 
     position_id: int
     name: str
     values: list[float]
-    invested: list[float]
 
 
 @dataclass(frozen=True)
@@ -573,7 +572,6 @@ def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSe
                 position_id=position.id,
                 name=position.name,
                 values=values,
-                invested=deposits,
             )
         )
     return ChartSeries(

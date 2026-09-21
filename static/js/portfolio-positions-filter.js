@@ -12,6 +12,7 @@
  */
 
 import { escapeHtml } from "./dom.js";
+import { createFloatingMenu } from "./floating-menu.js";
 
 // The value the filter carries while nothing is picked out. Kept here so the
 // markup, the storage and the chart agree on one token.
@@ -34,6 +35,10 @@ export function createPositionsFilter(root, { onChange } = {}) {
 
   menu.id = "portfolio-positions-menu";
   trigger.setAttribute("aria-controls", menu.id);
+
+  // The chart card clips its content, so the menu has to be placed against the
+  // viewport rather than against the card it lives in.
+  const floating = createFloatingMenu(trigger, menu, { minWidth: 190 });
 
   // The selectable positions in render order, and the ids picked out of them.
   // An empty set *is* "all": the two are never distinct states, so unchecking
@@ -89,6 +94,7 @@ export function createPositionsFilter(root, { onChange } = {}) {
   const closeMenu = () => {
     if (!open) return;
     open = false;
+    floating.release();
     root.classList.remove("is-open");
     trigger.setAttribute("aria-expanded", "false");
     trigger.removeAttribute("aria-activedescendant");
@@ -101,6 +107,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
     trigger.setAttribute("aria-expanded", "true");
     highlighted = ALL_INDEX;
     renderMenu();
+    // After renderMenu, so the rows it just wrote are what gets measured.
+    floating.place();
+    floating.bind();
   };
 
   /**
@@ -118,6 +127,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
     }
     applyLabel();
     renderMenu();
+    // A toggle changes the row count and so the height: without this the panel
+    // would keep the box it was measured into and drift off its trigger.
+    floating.place();
     if (onChange) onChange(value());
   };
 
@@ -195,7 +207,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
         name: entry.name,
       }));
       applyLabel();
-      if (open) renderMenu();
+      if (!open) return;
+      renderMenu();
+      floating.place();
     },
     setValue(next) {
       selected = next === POSITIONS_ALL ? new Set() : new Set(next);

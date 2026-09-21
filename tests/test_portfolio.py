@@ -677,7 +677,7 @@ def test_build_series_keeps_one_line_per_position_in_order() -> None:
     assert [entry.position_id for entry in series.positions] == [7, 3]
     assert [entry.name for entry in series.positions] == ["FTSE All-World", "Bitcoin"]
     assert series.positions[0].values == pytest.approx([100.0])
-    assert series.positions[1].invested == pytest.approx([40.0])
+    assert series.positions[1].values == pytest.approx([50.0])
 
 
 def test_build_series_lists_a_position_without_a_reading_in_the_window() -> None:
@@ -695,7 +695,6 @@ def test_build_series_lists_a_position_without_a_reading_in_the_window() -> None
 
     assert len(series.positions) == 2
     assert series.positions[1].values == pytest.approx([0.0, 0.0])
-    assert series.positions[1].invested == pytest.approx([0.0, 0.0])
 
 
 def test_build_series_lines_add_up_to_the_portfolio_line() -> None:
@@ -727,8 +726,6 @@ def test_build_series_lines_add_up_to_the_portfolio_line() -> None:
     for slot in range(len(series.dates)):
         summed: float = sum(entry.values[slot] for entry in series.positions)
         assert series.portfolio[slot] == pytest.approx(summed)
-        summed = sum(entry.invested[slot] for entry in series.positions)
-        assert series.invested[slot] == pytest.approx(summed)
 
 
 def test_build_series_drops_a_sold_position_to_zero_on_its_own_line() -> None:
@@ -747,7 +744,6 @@ def test_build_series_drops_a_sold_position_to_zero_on_its_own_line() -> None:
     series = build_series(positions, ["2026-01-04", "2026-01-11", "2026-01-18"])
 
     assert series.positions[0].values == pytest.approx([400.0, 0.0, 0.0])
-    assert series.positions[0].invested == pytest.approx([400.0, -100.0, -100.0])
 
 
 def test_build_position_view_derives_every_number() -> None:

@@ -70,13 +70,11 @@ const chartPayload = () => ({
         id: 21,
         name: "Deka Industrie 0",
         values: [4940.0, 4925.73],
-        invested: [4700.0, 4700.0],
       },
       {
         id: 12,
         name: "FTSE All-World",
         values: [1803.0, 1801.69],
-        invested: [1650.0, 1650.0],
       },
     ],
   },
@@ -432,22 +430,11 @@ describe("positionLines", () => {
     ]);
   });
 
-  it("adds the invested line for a single position, where it still reads", () => {
+  it("draws the value line alone, never a second invested one", () => {
     const lines = positionLines(chartPayload().series, [12]);
 
-    expect(lines.map((line) => line.label)).toEqual([
-      "FTSE All-World",
-      "Invested",
-    ]);
-    expect(lines[1].values).toEqual([1650.0, 1650.0]);
-    expect(lines[1].dashed).toBe(true);
-  });
-
-  it("drops the invested line once a second position competes with it", () => {
-    const lines = positionLines(chartPayload().series, [21, 12]);
-
-    expect(lines).toHaveLength(2);
-    expect(lines.some((line) => line.dashed)).toBe(false);
+    expect(lines.map((line) => line.label)).toEqual(["FTSE All-World"]);
+    expect(lines[0].values).toEqual([1803.0, 1801.69]);
   });
 
   it("ignores an id the payload no longer carries", () => {
@@ -501,15 +488,15 @@ describe("renderPortfolioCharts with a position selection", () => {
     expect(bars[1].style.background).toBe(chartColors[1]);
   });
 
-  it("dashes the invested swatch, so it does not claim a solid line", () => {
+  it("legends a single position with its own color and nothing else", () => {
     state.portfolioPositions = [12];
     renderPortfolioCharts(chartPayload());
     const bars = document.querySelectorAll(
       '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
     );
 
+    expect(bars).toHaveLength(1);
     expect(bars[0].style.background).toBe(chartColors[1]);
-    expect(bars[1].style.background).toContain("repeating-linear-gradient");
   });
 
   it("escapes a position name in the legend rather than trusting it", () => {
