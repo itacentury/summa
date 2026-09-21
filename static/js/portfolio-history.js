@@ -16,7 +16,7 @@ import { historyRowsHtml } from "./portfolio-render.js";
 let rows = [];
 let currency = "EUR";
 let paymentsOnly = true;
-let loading = false;
+let status = "ready"; // "loading" | "ready" | "error"
 let controller = null; // aborts the in-flight history request
 
 /** The dialog's static hooks. */
@@ -34,15 +34,24 @@ function historyElements() {
 /**
  * Re-render the list from what was already fetched.
  *
- * The spinner is a state here rather than markup the opener assigns, because
- * the filter pills stay live behind it: no rows *while loading* means "not here
- * yet", which is not what either of `historyRowsHtml`'s empty wordings says.
+ * Both the spinner and the failure line are states here rather than markup
+ * whoever hit them assigns, because the filter pills stay live behind them: no
+ * rows *while loading* or *after a failed load* means "not here yet" and "we
+ * never found out", neither of which is what either of `historyRowsHtml`'s
+ * empty wordings says.
  */
 function renderRows() {
   const { list } = historyElements();
-  list.innerHTML = loading
-    ? '<div class="spinner"></div>'
-    : historyRowsHtml(rows, { currency, paymentsOnly });
+  if (status === "loading") {
+    list.innerHTML = '<div class="spinner"></div>';
+    return;
+  }
+  if (status === "error") {
+    list.innerHTML =
+      '<p class="portfolio-history-empty">History could not be loaded.</p>';
+    return;
+  }
+  list.innerHTML = historyRowsHtml(rows, { currency, paymentsOnly });
 }
 
 /** Mark the active filter pill, the way the chart's period group does. */
@@ -65,7 +74,6 @@ function syncFilterButtons() {
  * one would otherwise render its rows under the other position's heading.
  */
 async function loadHistory(positionId) {
-  const { list } = historyElements();
   controller?.abort();
   controller = new AbortController();
   const current = controller;
@@ -80,15 +88,15 @@ async function loadHistory(positionId) {
     if (controller !== current) return;
     rows = payload.rows;
     currency = payload.position.currency;
-    loading = false;
+    status = "ready";
     renderRows();
   } catch (error) {
     if (error.name === "AbortError") return; // superseded or closed
     if (controller !== current) return; // the newer load owns the dialog now
-    loading = false;
+    status = "error";
     console.error("Error loading position history:", error);
     showErrorToast("Failed to load history");
-    list.innerHTML = "";
+    renderRows();
   } finally {
     if (controller === current) controller = null;
   }
@@ -107,7 +115,7 @@ export function openHistoryModal(positionId, name) {
   rows = [];
   currency = "EUR";
   paymentsOnly = true;
-  loading = true;
+  status = "loading";
   syncFilterButtons();
   elements.subtitle.textContent = name;
   renderRows();
@@ -121,7 +129,7 @@ export function closeHistoryModal() {
   if (!elements) return;
   controller?.abort();
   controller = null;
-  loading = false;
+  status = "ready";
   elements.overlay.classList.remove("active");
   unlockScroll();
 }
