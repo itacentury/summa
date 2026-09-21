@@ -356,6 +356,12 @@
   body.portfolio-mode .fab-snapshot {
     display: flex;
   }
+
+  /* On this width the toolbar button is gone, so the FAB is the second snapshot
+     trigger that must step aside for the empty state. */
+  body.portfolio-mode.portfolio-no-positions .fab-snapshot {
+    display: none;
+  }
 }
 
 /* Intermediate widths (Design 7a): the sidebar collapses to a 64px icon rail —

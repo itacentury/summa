@@ -562,6 +562,10 @@ describe("portfolio rendering", () => {
         .querySelector('[data-el="portfolio-summary"]')
         .classList.contains("is-hidden"),
     ).toBe(true);
+    // The class the CSS hangs both snapshot triggers off.
+    expect(document.body.classList.contains("portfolio-no-positions")).toBe(
+      true,
+    );
   });
 
   it("keeps a fully sold portfolio visible instead of falling back to the empty state", async () => {
@@ -582,6 +586,10 @@ describe("portfolio rendering", () => {
         .classList.contains("is-hidden"),
     ).toBe(true);
     expect(listEl().classList.contains("is-hidden")).toBe(false);
+    // ... and it keeps its snapshot triggers: more weeks can still be recorded.
+    expect(document.body.classList.contains("portfolio-no-positions")).toBe(
+      false,
+    );
     expect(rowFor(13).querySelector(".portfolio-row-gain").textContent).toBe(
       "+50.00 €",
     );

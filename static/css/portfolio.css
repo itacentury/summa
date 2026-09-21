@@ -104,6 +104,12 @@
   border-radius: 12px;
 }
 
+/* Hidden while the empty state owns the screen: there is nothing to snapshot
+   yet, and "Add first position" already offers the only useful first step. */
+body.portfolio-no-positions .portfolio-snapshot-btn {
+  display: none;
+}
+
 /* ====== SUMMARY CARDS ====== */
 
 .portfolio-summary {

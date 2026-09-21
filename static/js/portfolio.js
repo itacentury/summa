@@ -66,6 +66,10 @@ function showSections({ hasPositions }) {
     section?.classList.toggle("is-hidden", !hasPositions),
   );
   empty.classList.toggle("is-hidden", hasPositions);
+  // A snapshot has nothing to record without positions, so both of its triggers
+  // (toolbar button and mobile FAB) hang off this class — the empty state's own
+  // "Add first position" is then the single way in.
+  document.body.classList.toggle("portfolio-no-positions", !hasPositions);
 }
 
 /**
