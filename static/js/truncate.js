@@ -68,17 +68,26 @@ export function truncatableHtml(text) {
 // `scrollWidth` back after every candidate.
 let sharedContext = null;
 
+/** The element's computed font shorthand. A style read, so it belongs with the widths. */
+function fontFor(element) {
+  return window.getComputedStyle(element).font;
+}
+
 /**
- * A text-width function bound to the element's computed font, or `null` where
- * canvas measurement is unavailable (which is the signal to leave the DOM alone).
+ * A text-width function bound to `font`, or `null` where canvas measurement is
+ * unavailable (which is the signal to leave the DOM alone).
+ *
+ * Taking the font as a string rather than an element is what lets the widths be
+ * read for the whole batch up front: the returned function measures through the
+ * shared context, so it is only valid until the next call rebinds the font.
  */
-function measurerFor(element) {
+function measurerForFont(font) {
   if (sharedContext === null) {
     sharedContext =
       document.createElement("canvas").getContext?.("2d") ?? false;
   }
   if (!sharedContext) return null;
-  sharedContext.font = window.getComputedStyle(element).font;
+  sharedContext.font = font;
   return (text) => sharedContext.measureText(text).width;
 }
 
@@ -136,45 +145,103 @@ function syncAccessibleName(carrier, host, full, truncated) {
 const MAX_SETTLE_PASSES = 4;
 
 /**
- * Re-cut one carrier against its current width. Idempotent, so a widening
- * viewport restores the full name.
+ * Re-cut every carrier in `carriers` against the width it has right now.
+ * Idempotent, so a widening viewport restores the full names.
  *
  * Every cut is made from `full` against a freshly measured width, never from
- * the text already on screen — which is what keeps a re-run from ratcheting the
- * name ever shorter. The loop exists because a host may be narrower once it no
- * longer holds the full name: where its width comes from its own content (a
- * flex item with an `auto` basis), a shrinking neighbour hands back the pixels
- * it had lent, and the cut would have been made against a width that no longer
- * exists. Re-measuring only ever narrows, so the loop terminates on its own.
+ * the text already on screen — which is what keeps a re-run from ratcheting a
+ * name ever shorter.
+ *
+ * Reads and writes are kept in separate passes over the whole set rather than
+ * per carrier. Writing text and then reading a width forces the browser to lay
+ * the document out again before it can answer, so interleaving the two costs
+ * one full layout *per name*; batched, the same work costs one layout per pass
+ * however many names there are. That matters because the viewport observer
+ * re-cuts the whole document on every width change — once per frame while a
+ * window is being dragged.
+ *
+ * Measuring the set together is sound because a cut only ever feeds back into
+ * the width of its own row: every carrier here is the only truncatable thing
+ * inside its host. That feedback is what the settle passes are for — a host
+ * whose width comes from its own content (a flex item with an `auto` basis)
+ * gets narrower once it no longer holds the full name, so the cut was made
+ * against a width that no longer exists. Re-measuring only ever narrows, so the
+ * loop terminates on its own; MAX_SETTLE_PASSES guards a pathological layout,
+ * it is not the convergence criterion.
  */
-export function applyTruncation(carrier) {
-  const full = carrier.dataset.full;
-  const host = carrier.parentElement;
-  if (!full || !host) return;
-
-  const restore = () => {
+function recutAll(carriers) {
+  // Write: back to the full name, so the widths read next are the ones a full
+  // name would have.
+  const jobs = [];
+  for (const carrier of carriers) {
+    const full = carrier.dataset.full;
+    const host = carrier.parentElement;
+    if (!full || !host) continue;
     carrier.textContent = full;
-    syncAccessibleName(carrier, host, full, false);
-  };
+    jobs.push({ carrier, host, full, shortened: full, font: "", available: 0 });
+  }
+  if (jobs.length === 0) return;
 
-  carrier.textContent = full;
-  const measure = measurerFor(carrier);
-  let available = availableWidth(host);
-  if (available <= 0 || !measure) return restore();
-
-  let shortened = middleTruncate(full, available, measure);
-  if (shortened === full) return restore();
-  carrier.textContent = shortened;
-
-  for (let pass = 1; pass < MAX_SETTLE_PASSES; pass += 1) {
-    const settled = availableWidth(host);
-    if (settled >= available) break;
-    available = settled;
-    shortened = middleTruncate(full, available, measure);
-    carrier.textContent = shortened;
+  // Read: one layout for the whole set.
+  for (const job of jobs) {
+    job.font = fontFor(job.carrier);
+    job.available = availableWidth(job.host);
   }
 
-  syncAccessibleName(carrier, host, full, shortened !== full);
+  // Write: pure canvas measurement from here, no layout is read back.
+  let settling = [];
+  for (const job of jobs) {
+    const measure = measurerForFont(job.font);
+    // No canvas, or a host with no room yet: the full name stays put.
+    if (!measure || job.available <= 0) continue;
+    job.shortened = middleTruncate(job.full, job.available, measure);
+    if (job.shortened === job.full) continue;
+    job.carrier.textContent = job.shortened;
+    settling.push(job);
+  }
+
+  for (
+    let pass = 1;
+    pass < MAX_SETTLE_PASSES && settling.length > 0;
+    pass += 1
+  ) {
+    settling = settleOnce(settling);
+  }
+
+  for (const job of jobs) {
+    syncAccessibleName(
+      job.carrier,
+      job.host,
+      job.full,
+      job.shortened !== job.full,
+    );
+  }
+}
+
+/**
+ * One settle pass: read every host that is still shrinking, then re-cut those
+ * that did. Returns the jobs that moved and so may move again.
+ */
+function settleOnce(jobs) {
+  const settled = jobs.map((job) => availableWidth(job.host));
+
+  const moved = [];
+  jobs.forEach((job, index) => {
+    if (settled[index] >= job.available) return;
+    job.available = settled[index];
+    const measure = measurerForFont(job.font);
+    job.shortened = middleTruncate(job.full, job.available, measure);
+    job.carrier.textContent = job.shortened;
+    moved.push(job);
+  });
+  return moved;
+}
+
+/**
+ * Re-cut one carrier against its current width.
+ */
+export function applyTruncation(carrier) {
+  recutAll([carrier]);
 }
 
 // Roots already being watched, and the width each was last measured at. Keyed
@@ -183,9 +250,7 @@ const watched = new WeakMap();
 
 /** Re-cut every carrier under `root` against the width it has right now. */
 function recut(root) {
-  for (const carrier of root.querySelectorAll("[data-full]")) {
-    applyTruncation(carrier);
-  }
+  recutAll(root.querySelectorAll("[data-full]"));
 }
 
 /**
