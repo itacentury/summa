@@ -397,8 +397,17 @@ describe("valueAxisLabels", () => {
     ]);
   });
 
+  it("steps down to cents when whole euros would still collide", () => {
+    // An almost flat axis: a single small position over a quiet week.
+    expect(valueAxisLabels([1000.2, 1000.4, 1000.6])).toEqual([
+      euro("1,000.20"),
+      euro("1,000.40"),
+      euro("1,000.60"),
+    ]);
+  });
+
   it("falls back for the whole run, never per tick", () => {
-    // Mixing the two formats on one axis would read as two different scales.
+    // Mixing two spellings on one axis would read as two different scales.
     const labels = valueAxisLabels([54250, 54300, 60000]);
 
     expect(labels.every((label) => !label.includes("k"))).toBe(true);
@@ -411,6 +420,7 @@ describe("valueAxisLabels", () => {
       [54250, 54300, 54350],
       [999, 1000, 1001],
       [0, 500, 1000],
+      [1000.2, 1000.4, 1000.6],
     ];
 
     runs.forEach((values) => {

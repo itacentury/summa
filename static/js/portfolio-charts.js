@@ -28,12 +28,22 @@ const axisFormat = new Intl.NumberFormat("en-US", {
 });
 
 // How the axis writes every tick: "20k €" instead of "20,000 €" keeps the labels
-// off the plot. `axisFormat` above is what it falls back to, see `valueAxisLabels()`.
+// off the plot. What it falls back to when ticks collide: `AXIS_FORMATS` below.
 const compactAxisFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
   compactDisplay: "short",
   maximumFractionDigits: 1,
 });
+
+// The last rung: on an almost flat axis the ticks sit less than a euro apart,
+// where whole euros would collide just as the compact form does.
+const centAxisFormat = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+// Tried in order, coarsest first.
+const AXIS_FORMATS = [compactAxisFormat, axisFormat, centAxisFormat];
 
 // Canvas cannot resolve CSS custom properties, so the series carry the literal
 // hex behind --accent, --chart-4 and --chart-7. The header legend does use the
@@ -93,23 +103,25 @@ function isoToMs(isoDate) {
 }
 
 /**
- * Label a run of y-axis ticks compactly (`20k €`), or spell every one of them out.
+ * Label a run of y-axis ticks compactly (`20k €`), or step down until they differ.
  *
  * Compacting rounds, and the scale sits tight around the data — over a narrow
- * window `1,250` and `1,290` both land on `1.3k`. The whole run therefore falls
- * back to the full amount the moment two labels would coincide, the invariant
- * `axisTicks()` keeps on the x-axis. Uniqueness belongs to the axis, not to a
- * single tick, which is why this takes them all.
+ * window `1,250` and `1,290` both land on `1.3k`. The run therefore steps down
+ * the `AXIS_FORMATS` ladder — compact, whole euros, cents — to the first spelling
+ * that separates every tick, the invariant `axisTicks()` keeps on the x-axis.
+ * Uniqueness belongs to the axis, not to a single tick, which is why this takes
+ * them all and switches the whole run at once: two spellings on one axis would
+ * read as two scales. Only ticks less than a cent apart run out of ladder.
  *
  * `Intl` renders an uppercase `K`/`M`; the axis type is deliberately quiet, so
- * the suffix is lowered to sit closer to the digits.
+ * the suffix is lowered to sit closer to the digits. On a spelled-out amount
+ * there is no letter to lower.
  */
 export function valueAxisLabels(values) {
-  const compact = values.map((value) =>
-    withEuro(compactAxisFormat.format(value).toLowerCase()),
+  const runs = AXIS_FORMATS.map((format) =>
+    values.map((value) => withEuro(format.format(value).toLowerCase())),
   );
-  if (new Set(compact).size === compact.length) return compact;
-  return values.map((value) => withEuro(axisFormat.format(value)));
+  return runs.find((run) => new Set(run).size === run.length) ?? runs.at(-1);
 }
 
 /** Format an axis tick as `Oct 25` — month name plus two-digit year. */
