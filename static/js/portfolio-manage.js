@@ -11,6 +11,7 @@ import { apiFetch } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
+import { refreshTruncation, truncatableHtml } from "./truncate.js";
 import { KIND_LABELS, formatDateDots } from "./portfolio-render.js";
 import { loadPortfolio } from "./portfolio.js";
 import { openPositionModal } from "./portfolio-position.js";
@@ -129,7 +130,7 @@ function rowHtml(id, name, sub, { closed = false } = {}) {
   return `
     <div class="manage-row${closed ? " is-closed" : ""}">
       <div class="manage-row-main">
-        <div class="manage-row-name">${escapeHtml(name)}</div>
+        <div class="manage-row-name">${truncatableHtml(name)}</div>
         <div class="manage-row-sub">${escapeHtml(sub)}</div>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" data-action="manage-edit" data-id="${id}">Edit</button>
@@ -181,6 +182,7 @@ function renderList() {
   list.innerHTML =
     rows ||
     `<div class="manage-empty">Nothing here yet — use the button below.</div>`;
+  refreshTruncation(list);
   list.querySelector("[data-autofocus]")?.focus();
 }
 

@@ -14,6 +14,7 @@
 import { escapeHtml } from "./dom.js";
 import { PORTFOLIO_MAX_LINES } from "./state.js";
 import { createFloatingMenu } from "./floating-menu.js";
+import { setTruncatableText } from "./truncate.js";
 
 // The value the filter carries while nothing is picked out. Kept here so the
 // markup, the storage and the chart agree on one token.
@@ -92,16 +93,16 @@ export function createPositionsFilter(root, { onChange } = {}) {
   // names the lines this chart draws, and it draws no hidden one.
   const applyLabel = () => {
     if (selected.size === 0) {
-      label.textContent = ALL_LABEL;
+      setTruncatableText(label, ALL_LABEL);
       return;
     }
     if (selected.size === 1) {
       const [id] = selected;
       const position = positions.find((entry) => entry.id === id);
-      label.textContent = position ? position.name : "1 position";
+      setTruncatableText(label, position ? position.name : "1 position");
       return;
     }
-    label.textContent = `${selected.size} positions`;
+    setTruncatableText(label, `${selected.size} positions`);
   };
 
   /** The row at a menu index: 0 is the "all" row, the rest are positions. */

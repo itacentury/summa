@@ -29,6 +29,7 @@ import { assignLineColors } from "./portfolio-line-colors.js";
 import { positionsListHtml, summaryCardsHtml } from "./portfolio-render.js";
 import { renderPortfolioCharts } from "./portfolio-charts.js";
 import { openHistoryModal } from "./portfolio-history.js";
+import { refreshTruncation } from "./truncate.js";
 
 // The live depot dropdown, and the ids of the last rendered payload's positions —
 // what the pruning below needs to drop expansions that no longer exist.
@@ -210,6 +211,7 @@ function renderPortfolio(payload) {
     collapsed: collapsedDepots,
     expanded: expandedPositions,
   });
+  refreshTruncation(list);
 
   lastPayload = payload;
   // Options before value: a single pick's label is the position's name, which

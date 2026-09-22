@@ -5,10 +5,12 @@
  * Pure module — every export either formats or parses a number, or takes a
  * slice of the `GET /api/portfolio` payload and returns an HTML string. Nothing
  * here touches the DOM, `fetch` or `state`, so each rule below is provable
- * without mounting the view. Imports only from `dom.js`, which is itself a leaf.
+ * without mounting the view. Imports only from the leaf modules `dom.js` and
+ * `truncate.js` (of which it uses the string half, not the DOM half).
  */
 
 import { escapeHtml, withEuro } from "./dom.js";
+import { truncatableHtml } from "./truncate.js";
 
 // The API sends the lowercase enum the schema's CHECK constraint holds; the row
 // meta line shows it the way the design spells it.
@@ -239,7 +241,7 @@ export function positionRowHtml(
             data-position-id="${position.id}" aria-expanded="${expanded}"
             aria-controls="portfolio-detail-${position.id}">
       <span class="portfolio-row-main">
-        <span class="portfolio-row-name">${escapeHtml(position.name)}${badge}</span>
+        <span class="portfolio-row-name">${truncatableHtml(position.name)}${badge}</span>
         <span class="portfolio-row-meta">${positionMeta(position, rangeStart)}</span>
       </span>
       <span class="portfolio-row-invested">${formatEuro(position.invested_eur)}</span>
