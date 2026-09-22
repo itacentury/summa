@@ -27,7 +27,8 @@ const SUBPIXEL_SLACK = 1;
  *
  * Pure: `measure` is injected, so the rule is provable without a DOM. Returns
  * the original string when it already fits, and a bare ellipsis when not even
- * one character of each end does.
+ * one character of each end does — which is wider than `maxWidth` when the
+ * ellipsis alone already is, there being nothing narrower left to name a row by.
  */
 export function middleTruncate(text, maxWidth, measure) {
   if (measure(text) <= maxWidth) return text;
@@ -39,8 +40,12 @@ export function middleTruncate(text, maxWidth, measure) {
     return `${head}${ELLIPSIS}${tail}`;
   };
 
-  // Largest number of kept characters that still fits, by bisection. `low` is
-  // always known to fit and `high` always known not to, so the loop terminates.
+  // Largest number of kept characters that still fits, by bisection. Only
+  // `high` carries a measured fact — it is always a miss — which is what the
+  // loop narrows towards; `low` is a measured hit except for the initial 0,
+  // which is assumed rather than measured. That assumption is the degenerate
+  // case above: below the width of the ellipsis itself there is nothing
+  // narrower to return.
   let low = 0;
   let high = text.length;
   while (high - low > 1) {
