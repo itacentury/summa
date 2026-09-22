@@ -27,8 +27,8 @@ const axisFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-// The same value where the axis has a phone's width to spend: "€20k" instead of
-// "€20,000" keeps the labels off the plot without dropping the scale entirely.
+// How the axis writes every tick: "20k €" instead of "20,000 €" keeps the labels
+// off the plot. `axisFormat` above is what it falls back to, see `valueAxisLabels()`.
 const compactAxisFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
   compactDisplay: "short",
@@ -93,14 +93,23 @@ function isoToMs(isoDate) {
 }
 
 /**
- * Label a y-axis value as `€20,000`, or `€20k` where `compact` is set.
+ * Label a run of y-axis ticks compactly (`20k €`), or spell every one of them out.
+ *
+ * Compacting rounds, and the scale sits tight around the data — over a narrow
+ * window `1,250` and `1,290` both land on `1.3k`. The whole run therefore falls
+ * back to the full amount the moment two labels would coincide, the invariant
+ * `axisTicks()` keeps on the x-axis. Uniqueness belongs to the axis, not to a
+ * single tick, which is why this takes them all.
  *
  * `Intl` renders an uppercase `K`/`M`; the axis type is deliberately quiet, so
  * the suffix is lowered to sit closer to the digits.
  */
-export function axisLabel(value, compact) {
-  if (!compact) return `€${axisFormat.format(value)}`;
-  return `€${compactAxisFormat.format(value).toLowerCase()}`;
+export function valueAxisLabels(values) {
+  const compact = values.map((value) =>
+    withEuro(compactAxisFormat.format(value).toLowerCase()),
+  );
+  if (new Set(compact).size === compact.length) return compact;
+  return values.map((value) => withEuro(axisFormat.format(value)));
 }
 
 /** Format an axis tick as `Oct 25` — month name plus two-digit year. */
@@ -436,7 +445,8 @@ function renderValueChart(payload) {
             color: TICK_COLOR,
             font: MONO_FONT,
             maxTicksLimit: 5,
-            callback: (value) => withEuro(axisFormat.format(value)),
+            callback: (value, index, ticks) =>
+              valueAxisLabels(ticks.map((tick) => tick.value))[index],
           },
         },
       },

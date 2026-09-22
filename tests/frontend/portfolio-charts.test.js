@@ -27,10 +27,10 @@ vi.mock("../../static/js/dom.js", async (importOriginal) => ({
 }));
 
 import {
-  axisLabel,
   axisTicks,
   positionLines,
   renderPortfolioCharts,
+  valueAxisLabels,
 } from "../../static/js/portfolio-charts.js";
 import {
   state,
@@ -372,18 +372,51 @@ describe("axisTicks", () => {
   });
 });
 
-describe("axisLabel", () => {
-  it("spells a euro amount out where the axis has the width for it", () => {
-    expect(axisLabel(20000, false)).toBe("€20,000");
-    expect(axisLabel(6743.42, false)).toBe("€6,743");
+describe("valueAxisLabels", () => {
+  const euro = (amount) => `${amount}\u00a0€`;
+
+  it("compacts the amounts, with a lowercase suffix", () => {
+    expect(valueAxisLabels([20000, 6500, 1200000])).toEqual([
+      euro("20k"),
+      euro("6.5k"),
+      euro("1.2m"),
+    ]);
   });
 
-  it("compacts the amount on a phone, with a lowercase suffix", () => {
-    expect(axisLabel(20000, true)).toBe("€20k");
-    expect(axisLabel(6500, true)).toBe("€6.5k");
-    expect(axisLabel(1200000, true)).toBe("€1.2m");
-    // Below a thousand there is nothing to compact.
-    expect(axisLabel(500, true)).toBe("€500");
+  it("leaves an amount below a thousand alone — there is nothing to compact", () => {
+    expect(valueAxisLabels([500, 750])).toEqual([euro("500"), euro("750")]);
+  });
+
+  it("spells the whole run out rather than collapse two ticks onto one label", () => {
+    // A single position over a month: compacted, all four would read "1.3k".
+    expect(valueAxisLabels([1250, 1270, 1290, 1310])).toEqual([
+      euro("1,250"),
+      euro("1,270"),
+      euro("1,290"),
+      euro("1,310"),
+    ]);
+  });
+
+  it("falls back for the whole run, never per tick", () => {
+    // Mixing the two formats on one axis would read as two different scales.
+    const labels = valueAxisLabels([54250, 54300, 60000]);
+
+    expect(labels.every((label) => !label.includes("k"))).toBe(true);
+  });
+
+  it("never hands back two identical labels, whatever the tick spacing", () => {
+    const runs = [
+      [20000, 30000, 40000],
+      [1250, 1270, 1290, 1310],
+      [54250, 54300, 54350],
+      [999, 1000, 1001],
+      [0, 500, 1000],
+    ];
+
+    runs.forEach((values) => {
+      const labels = valueAxisLabels(values);
+      expect(new Set(labels).size).toBe(labels.length);
+    });
   });
 });
 
@@ -411,13 +444,22 @@ describe("renderPortfolioCharts", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
+  it("compacts the y labels, on every viewport", () => {
+    renderPortfolioCharts(chartPayload());
+    const { y } = lineConfig().options.scales;
+    const ticks = [20000, 30000].map((value) => ({ value }));
+
+    expect(y.ticks.callback(20000, 0, ticks)).toBe("20k €");
+  });
+
   it("keeps the y labels on a phone, compacted rather than dropped", () => {
     mobileViewport.matches = true;
     renderPortfolioCharts(chartPayload());
     const { y } = lineConfig().options.scales;
+    const ticks = [20000, 30000].map((value) => ({ value }));
 
     expect(y.ticks.display).not.toBe(false);
-    expect(y.ticks.callback(20000)).toBe("€20k");
+    expect(y.ticks.callback(20000, 0, ticks)).toBe("20k €");
   });
 
   it("thins the date labels on a phone, where the compact y labels cost width", () => {
