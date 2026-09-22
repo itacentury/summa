@@ -823,9 +823,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== ALLOCATION ====== */
 
+/* The break belongs to the card's width, not to a viewport number: the sidebar
+   takes 233px of it, so the viewport says nothing about how wide a card
+   actually is. 470px is the width at which a row of name, track and amount
+   stops cutting the name harder than it has to. */
 .portfolio-bottom {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(470px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -914,11 +918,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   align-items: center;
 }
 
-/* A floor, not a ban on ellipsing: the track above shrinks down to its own
-   minimum first, and only then does the name start cutting. */
+/* Basis 0, never `auto`: a host sized from its own text gets narrower the moment
+   the middle-ellipsis shortens it, which puts `truncate.js` in the settle
+   feedback its docstring warns about and ratchets the name down. */
 .portfolio-change-name {
-  flex: 1 1 auto;
-  min-width: 90px;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12.5px;
@@ -926,12 +931,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   white-space: nowrap;
 }
 
-/* The name is the only other elastic child of the row, so a rigid track would
-   make it absorb every missing pixel on its own. */
+/* Proportional rather than shrinkable: with the name on a zero basis the row
+   never runs a deficit, so a shrinkable track would in practice stay rigid. */
 .portfolio-bar-track {
   display: flex;
-  flex: 0 1 140px;
-  min-width: 56px;
+  flex: none;
+  width: clamp(56px, 30%, 140px);
   height: 8px;
   overflow: hidden;
   background: var(--bg-primary);
@@ -1398,16 +1403,6 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 /* ====== PORTFOLIO RESPONSIVE ====== */
-
-/* Side by side, each card is barely 300px on a tablet: the donut and the bar
-   tracks hold their size, so the position names are what gets cut down to an
-   ellipsis. Stacking them gives every name the full row. (Same threshold as the
-   stats charts, which pair the same way.) */
-@media (width <= 960px) {
-  .portfolio-bottom {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* Mobile (Design 18b): the same content in the same order, stacked — hero above
    two small cards, a compact chart carrying its own period switcher, and one card

@@ -205,10 +205,12 @@
   color: var(--text-muted);
 }
 
-/* Stats Charts */
+/* Stats Charts — same intrinsic rule as the portfolio pair: the sidebar takes
+   233px, so a viewport threshold says nothing about how wide a card actually
+   is. */
 .stats-charts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(470px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -296,13 +298,6 @@
 /* ========================================
    STATISTICS RESPONSIVE
    ======================================== */
-
-/* Icon-rail band (Design 7b): charts stack; two up again above 960px. */
-@media (width <= 960px) {
-  .stats-charts {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* Mobile (Design 6a): Total full width, Invoices + Average side by side,
    charts stacked with the donut centered above its legend. */
