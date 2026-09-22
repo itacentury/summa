@@ -196,10 +196,21 @@ export function summaryCardsHtml(totals) {
 }
 
 /**
- * Build a position's meta line: kind, currency, and the dates that qualify it.
+ * Build a position's meta line: kind, currency, the dates that qualify it, and
+ * the benchmark-fallback badge.
  *
  * `since` appears only for a position whose history starts inside the selected
  * window — elsewhere it would be on every row and say nothing.
+ *
+ * The badge belongs here rather than beside the name because it qualifies the
+ * position just as `sold` does — and because the name line is a single
+ * `nowrap` line that clips, so between 640px and 960px the four amount columns
+ * left the badge cut off mid-word. This line may wrap instead.
+ *
+ * `Fallback` alone is what fits at that width; the wording the settings dialog
+ * uses survives in the `title` for a pointer and in a `visually-hidden`
+ * sibling for a screen reader, since a title is announced unreliably and never
+ * appears on a touch device at all.
  */
 function positionMeta(position, rangeStart) {
   const parts = [
@@ -216,7 +227,13 @@ function positionMeta(position, rangeStart) {
   if (position.closed_at) {
     parts.push(`sold ${formatDateDots(position.closed_at)}`);
   }
-  return escapeHtml(parts.join(" · "));
+
+  const badge = position.is_benchmark_fallback
+    ? '<span class="portfolio-badge" title="Benchmark fallback" aria-hidden="true">Fallback</span>' +
+      '<span class="visually-hidden">Benchmark fallback</span>'
+    : "";
+
+  return `${escapeHtml(parts.join(" · "))}${badge}`;
 }
 
 /**
@@ -232,16 +249,13 @@ export function positionRowHtml(
   { rangeStart = null, expanded = false } = {},
 ) {
   const tone = toneClass(position.gain);
-  const badge = position.is_benchmark_fallback
-    ? '<span class="portfolio-badge">Benchmark fallback</span>'
-    : "";
 
   return `
     <button type="button" class="portfolio-row${position.closed_at ? " is-closed" : ""}"
             data-position-id="${position.id}" aria-expanded="${expanded}"
             aria-controls="portfolio-detail-${position.id}">
       <span class="portfolio-row-main">
-        <span class="portfolio-row-name">${truncatableHtml(position.name)}${badge}</span>
+        <span class="portfolio-row-name">${truncatableHtml(position.name)}</span>
         <span class="portfolio-row-meta">${positionMeta(position, rangeStart)}</span>
       </span>
       <span class="portfolio-row-invested">${formatEuro(position.invested_eur)}</span>

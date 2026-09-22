@@ -1601,9 +1601,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     white-space: normal;
   }
 
+  /* Wraps as a whole or not at all: with the fallback badge ahead of it the
+     line is tight enough that the two words would otherwise split across it. */
   .portfolio-row[aria-expanded="true"] .portfolio-row-meta::after {
     font-weight: 600;
     color: var(--accent);
+    white-space: nowrap;
     content: " · Show less";
   }
 

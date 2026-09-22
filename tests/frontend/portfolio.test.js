@@ -638,8 +638,27 @@ describe("portfolio rendering", () => {
   it("badges the benchmark fallback position", async () => {
     await loadPortfolio();
 
-    expect(rowFor(11).querySelector(".portfolio-badge")).not.toBeNull();
+    const badge = rowFor(11).querySelector(
+      ".portfolio-row-meta .portfolio-badge",
+    );
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toBe("Fallback");
+    expect(badge.getAttribute("title")).toBe("Benchmark fallback");
     expect(rowFor(12).querySelector(".portfolio-badge")).toBeNull();
+  });
+
+  // The name line is a single clipping line, so a badge beside it is cut off
+  // mid-word once the amount columns squeeze it (see positionMeta).
+  it("keeps the fallback badge out of the name line and spells it out for a screen reader", async () => {
+    await loadPortfolio();
+
+    expect(
+      rowFor(11).querySelector(".portfolio-row-name .portfolio-badge"),
+    ).toBeNull();
+    expect(
+      rowFor(11).querySelector(".portfolio-row-meta .visually-hidden")
+        .textContent,
+    ).toBe("Benchmark fallback");
   });
 
   it("shows the empty state and hides the data sections when there are no positions", async () => {
