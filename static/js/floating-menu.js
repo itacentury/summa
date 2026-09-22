@@ -29,6 +29,9 @@ const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
  *   with before it is clamped into the viewport
  * @param {number} [options.minWidth] floor for the panel's own width; omit to
  *   let its content size it
+ * @param {boolean} [options.matchTrigger] take the trigger's width as a floor
+ *   too — what `min-width: 100%` would do for a panel that had not left its
+ *   container, and cannot do once it is placed against the viewport
  * @param {number} [options.maxHeight] ceiling before available space is applied
  * @param {number} [options.gap] distance between trigger and panel
  * @param {number} [options.padding] margin kept clear of every viewport edge
@@ -41,6 +44,7 @@ export function createFloatingMenu(trigger, menu, options = {}) {
   const {
     align = "left",
     minWidth = null,
+    matchTrigger = false,
     maxHeight = 260,
     gap = 6,
     padding = 8,
@@ -62,7 +66,11 @@ export function createFloatingMenu(trigger, menu, options = {}) {
     menu.style.top = "0px";
     menu.style.maxWidth = `${window.innerWidth - padding * 2}px`;
     menu.style.maxHeight = `${maxHeight}px`;
-    if (minWidth !== null) menu.style.minWidth = `${minWidth}px`;
+
+    // Recomputed on every call, not once at creation: place() already runs on
+    // resize, so a trigger that grows with the layout takes the panel with it.
+    const floor = Math.max(minWidth ?? 0, matchTrigger ? rect.width : 0);
+    if (floor > 0) menu.style.minWidth = `${floor}px`;
 
     const spaceBelow = window.innerHeight - rect.bottom - gap - padding;
     const spaceAbove = rect.top - gap - padding;

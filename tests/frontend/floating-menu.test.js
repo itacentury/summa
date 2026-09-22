@@ -112,6 +112,33 @@ describe("createFloatingMenu", () => {
     expect(px(menu.style.left)).toBe(VIEWPORT.width - 8 - 190);
   });
 
+  it("widens the panel to a trigger that outgrows the numeric floor", () => {
+    const { trigger, menu } = mount({ rect: at({ width: 358 }) });
+    createFloatingMenu(trigger, menu, {
+      minWidth: 190,
+      matchTrigger: true,
+    }).place();
+
+    expect(px(menu.style.minWidth)).toBe(358);
+  });
+
+  it("keeps the numeric floor under a trigger narrower than it", () => {
+    const { trigger, menu } = mount({ rect: at({ width: 120 }) });
+    createFloatingMenu(trigger, menu, {
+      minWidth: 190,
+      matchTrigger: true,
+    }).place();
+
+    expect(px(menu.style.minWidth)).toBe(190);
+  });
+
+  it("leaves the width to the stylesheet unless asked for a floor", () => {
+    const { trigger, menu } = mount({ rect: at({ width: 358 }) });
+    createFloatingMenu(trigger, menu).place();
+
+    expect(menu.style.minWidth).toBe("");
+  });
+
   it("marks the flip on the root, so styling can follow it", () => {
     const { root, trigger, menu } = mount({
       rect: at({ top: 700 }),

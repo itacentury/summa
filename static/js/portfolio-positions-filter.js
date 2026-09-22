@@ -49,8 +49,13 @@ export function createPositionsFilter(root, { onChange } = {}) {
   trigger.setAttribute("aria-controls", menu.id);
 
   // The chart card clips its content, so the menu has to be placed against the
-  // viewport rather than against the card it lives in.
-  const floating = createFloatingMenu(trigger, menu, { minWidth: 190 });
+  // viewport rather than against the card it lives in. That costs it the
+  // `min-width: 100%` the depot menu gets for free, and the trigger is stretched
+  // to the full row on narrow screens — hence matchTrigger.
+  const floating = createFloatingMenu(trigger, menu, {
+    minWidth: 190,
+    matchTrigger: true,
+  });
 
   // The selectable positions in render order, and the ids picked out of them.
   // An empty set *is* "all": the two are never distinct states, so unchecking
