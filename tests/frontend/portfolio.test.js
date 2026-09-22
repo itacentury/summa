@@ -36,11 +36,27 @@ import { showErrorToast } from "../../static/js/toast.js";
 import { showInvoicesView, showPortfolioView } from "../../static/js/views.js";
 import { flushUi, jsonResponse } from "./helpers.js";
 
-vi.mock("../../static/js/api.js", () => ({ loadInvoicesOnce: vi.fn() }));
-vi.mock("../../static/js/stats.js", () => ({ loadStats: vi.fn() }));
-vi.mock("../../static/js/drawer.js", () => ({ closeMobileSearch: vi.fn() }));
-vi.mock("../../static/js/toast.js", () => ({ showErrorToast: vi.fn() }));
-vi.mock("../../static/js/portfolio-history.js", () => ({
+// A mock factory replaces the whole namespace, so a factory listing only the
+// stubbed export breaks the run the moment anything in this graph imports a
+// sibling export — spread the original and override just what is stubbed.
+vi.mock("../../static/js/api.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  loadInvoicesOnce: vi.fn(),
+}));
+vi.mock("../../static/js/stats.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  loadStats: vi.fn(),
+}));
+vi.mock("../../static/js/drawer.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  closeMobileSearch: vi.fn(),
+}));
+vi.mock("../../static/js/toast.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  showErrorToast: vi.fn(),
+}));
+vi.mock("../../static/js/portfolio-history.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   openHistoryModal: vi.fn(),
 }));
 
