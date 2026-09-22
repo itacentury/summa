@@ -68,14 +68,35 @@ export function truncatableHtml(text) {
 // `scrollWidth` back after every candidate.
 let sharedContext = null;
 
-/** The element's computed font shorthand. A style read, so it belongs with the widths. */
+// A font no element on this page can have. `context.font = …` is a CSS parser,
+// not a property write: a value it cannot parse is ignored rather than thrown,
+// leaving the previous font bound. Assigning this first and reading it back
+// afterwards is the only way to tell an accepted assignment from an ignored one
+// — without it, one bad font would silently mismeasure every later carrier with
+// whatever was bound before it.
+const PROBE_FONT = '1px "summa-font-probe"';
+
+// The probe as the context re-serializes it, which is what a read-back returns.
+let probeFont = "";
+
+/**
+ * The element's computed font, as a string the canvas accepts. A style read, so
+ * it belongs with the widths.
+ */
 function fontFor(element) {
-  return window.getComputedStyle(element).font;
+  const style = window.getComputedStyle(element);
+  if (style.font) return style.font;
+
+  // Firefox reports an empty shorthand; the longhands are always populated, and
+  // a computed `fontSize` (px) plus `fontFamily` (quoted list) parse as one.
+  // Line-height is left out because the canvas ignores it anyway.
+  return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
 }
 
 /**
  * A text-width function bound to `font`, or `null` where canvas measurement is
- * unavailable (which is the signal to leave the DOM alone).
+ * unavailable or the font cannot be bound (which is the signal to leave the DOM
+ * alone, so the CSS tail ellipsis takes over).
  *
  * Taking the font as a string rather than an element is what lets the widths be
  * read for the whole batch up front: the returned function measures through the
@@ -85,9 +106,17 @@ function measurerForFont(font) {
   if (sharedContext === null) {
     sharedContext =
       document.createElement("canvas").getContext?.("2d") ?? false;
+    if (sharedContext) {
+      sharedContext.font = PROBE_FONT;
+      probeFont = sharedContext.font;
+    }
   }
   if (!sharedContext) return null;
+
+  sharedContext.font = PROBE_FONT;
   sharedContext.font = font;
+  if (sharedContext.font === probeFont) return null;
+
   return (text) => sharedContext.measureText(text).width;
 }
 
@@ -230,6 +259,7 @@ function settleOnce(jobs) {
     if (settled[index] >= job.available) return;
     job.available = settled[index];
     const measure = measurerForFont(job.font);
+    if (!measure) return;
     job.shortened = middleTruncate(job.full, job.available, measure);
     job.carrier.textContent = job.shortened;
     moved.push(job);
