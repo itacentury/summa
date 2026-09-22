@@ -569,16 +569,49 @@ export function biggestChangesHtml({ gainers = [], losers = [] } = {}) {
 }
 
 /**
+ * Readable names for the tickers the feed job knows, keyed by the symbol the
+ * payload carries. An unlisted ticker shows as itself rather than as nothing.
+ */
+const BENCHMARK_FEED_LABELS = new Map([
+  ["EUNL.DE", "MSCI World (iShares Core)"],
+]);
+
+/**
+ * Name the yardstick the benchmark line draws: the feed's index, or the own
+ * position standing in for it.
+ *
+ * The chart labels that line just "Benchmark", because the two sources are not
+ * the same kind of thing — one is an index, the other one of the user's own
+ * positions — and a single index name for both is what made a lone position in
+ * the chart look unexplained.
+ */
+export function benchmarkDisplayName(source, name) {
+  if (!name) return "";
+  if (source === "fallback") return name;
+  if (source === "feed") return BENCHMARK_FEED_LABELS.get(name) ?? name;
+  return "";
+}
+
+/**
  * Build the note under the value-over-time chart naming the benchmark's origin.
  *
  * A failed feed is not an error the user can act on — it only changes this one
  * sentence, which is why the fallback wording names the substitute rather than
- * the failure. Returns plain text, so the caller assigns it as `textContent`.
+ * the failure. This is also the only place the source is named unconditionally:
+ * the legend's hover title says the same thing, but a touch device never sees
+ * it. Returns plain text, so the caller assigns it as `textContent`.
  */
-export function benchmarkNoteText(source, updatedAt) {
-  if (source === "fallback")
-    return "Benchmark: own MSCI World SRI (index feed unavailable)";
-  if (source === "feed")
-    return `Benchmark from index feed · last updated ${formatDateDots(updatedAt)}`;
+export function benchmarkNoteText(source, updatedAt, name) {
+  const displayName = benchmarkDisplayName(source, name);
+  if (source === "fallback") {
+    const subject = displayName
+      ? `own position ${displayName}`
+      : "an own position";
+    return `Benchmark: ${subject} (index feed unavailable)`;
+  }
+  if (source === "feed") {
+    const subject = displayName ? `${displayName} · ` : "";
+    return `Benchmark: ${subject}index feed, last updated ${formatDateDots(updatedAt)}`;
+  }
   return "";
 }

@@ -13,6 +13,7 @@ import { lineColor } from "./portfolio-line-colors.js";
 import { mobileViewport } from "./dom.js";
 import {
   allocationLegendHtml,
+  benchmarkDisplayName,
   benchmarkNoteText,
   biggestChangesHtml,
   formatAmount,
@@ -286,7 +287,7 @@ function aggregateDatasets(series) {
 
   if (series.benchmark.length > 0) {
     datasets.push({
-      label: "MSCI World",
+      label: "Benchmark",
       data: seriesPoints(series.dates, series.benchmark),
       borderColor: BENCHMARK_COLOR,
       borderWidth: 2,
@@ -302,7 +303,7 @@ function aggregateDatasets(series) {
  * The dynamic swatches are painted through the CSSOM rather than a style
  * attribute, for the same CSP reason as the allocation ones.
  */
-function syncChartLegend(lines, hasBenchmark) {
+function syncChartLegend(lines, hasBenchmark, benchmarkName) {
   const fixed = document.querySelector('[data-el="portfolio-legend-static"]');
   const dynamic = document.querySelector('[data-el="portfolio-legend-series"]');
   const perPosition = lines.length > 0;
@@ -319,7 +320,11 @@ function syncChartLegend(lines, hasBenchmark) {
   const benchmarkItem = document.querySelector(
     '[data-el="portfolio-legend-benchmark"]',
   );
-  if (benchmarkItem) benchmarkItem.classList.toggle("is-hidden", !hasBenchmark);
+  if (!benchmarkItem) return;
+  benchmarkItem.classList.toggle("is-hidden", !hasBenchmark);
+  // An empty title would still open a blank tooltip, hence the removal.
+  if (benchmarkName) benchmarkItem.title = benchmarkName;
+  else benchmarkItem.removeAttribute("title");
 }
 
 /** Show either a chart body or its empty block, never both. */
@@ -358,10 +363,17 @@ function renderValueChart(payload) {
       ? benchmarkNoteText(
           payload.benchmark_source,
           payload.benchmark_updated_at,
+          payload.benchmark_name,
         )
       : "";
 
-  syncChartLegend(lines, hasBenchmark);
+  syncChartLegend(
+    lines,
+    hasBenchmark,
+    hasBenchmark
+      ? benchmarkDisplayName(payload.benchmark_source, payload.benchmark_name)
+      : "",
+  );
 
   const isEmpty = series.dates.length === 0;
   toggleEmpty(

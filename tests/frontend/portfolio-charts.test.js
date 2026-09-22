@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   allocationLegendHtml,
+  benchmarkDisplayName,
   benchmarkNoteText,
   biggestChangesHtml,
 } from "../../static/js/portfolio-render.js";
@@ -97,6 +98,7 @@ const chartPayload = () => ({
   },
   benchmark_source: "feed",
   benchmark_updated_at: "2026-09-06",
+  benchmark_name: "EUNL.DE",
 });
 
 // Every instance the stub built, so a re-render can be checked for destroying
@@ -215,21 +217,53 @@ describe("biggestChangesHtml", () => {
   });
 });
 
-describe("benchmarkNoteText", () => {
-  it("names the feed and the day it last delivered", () => {
-    expect(benchmarkNoteText("feed", "2026-09-06")).toBe(
-      "Benchmark from index feed · last updated 06.09.2026",
+describe("benchmarkDisplayName", () => {
+  it("spells out a ticker the feed job is configured for", () => {
+    expect(benchmarkDisplayName("feed", "EUNL.DE")).toBe(
+      "MSCI World (iShares Core)",
     );
   });
 
-  it("names the substitute, not the failure, when the feed is unavailable", () => {
-    expect(benchmarkNoteText("fallback", "2026-09-06")).toBe(
-      "Benchmark: own MSCI World SRI (index feed unavailable)",
+  it("shows an unlisted ticker as itself", () => {
+    expect(benchmarkDisplayName("feed", "URTH")).toBe("URTH");
+  });
+
+  it("takes the fallback's name from the position, unmapped", () => {
+    expect(benchmarkDisplayName("fallback", "MSCI World SRI")).toBe(
+      "MSCI World SRI",
+    );
+  });
+
+  it("has nothing to name without a source or a name", () => {
+    expect(benchmarkDisplayName(null, null)).toBe("");
+    expect(benchmarkDisplayName("feed", null)).toBe("");
+  });
+});
+
+describe("benchmarkNoteText", () => {
+  it("names the index, the feed and the day it last delivered", () => {
+    expect(benchmarkNoteText("feed", "2026-09-06", "EUNL.DE")).toBe(
+      "Benchmark: MSCI World (iShares Core) · index feed, last updated 06.09.2026",
+    );
+  });
+
+  it("names the substitute position, not the failure, when the feed is unavailable", () => {
+    expect(benchmarkNoteText("fallback", "2026-09-06", "MSCI World SRI")).toBe(
+      "Benchmark: own position MSCI World SRI (index feed unavailable)",
+    );
+  });
+
+  it("still reads as a sentence when the payload carries no name", () => {
+    expect(benchmarkNoteText("feed", "2026-09-06", null)).toBe(
+      "Benchmark: index feed, last updated 06.09.2026",
+    );
+    expect(benchmarkNoteText("fallback", "2026-09-06", null)).toBe(
+      "Benchmark: an own position (index feed unavailable)",
     );
   });
 
   it("says nothing at all when there is no third line", () => {
-    expect(benchmarkNoteText(null, null)).toBe("");
+    expect(benchmarkNoteText(null, null, null)).toBe("");
   });
 });
 
@@ -407,11 +441,21 @@ describe("renderPortfolioCharts", () => {
     expect(legend.classList.contains("is-hidden")).toBe(false);
   });
 
+  it("names the yardstick on the legend item rather than in the line's label", () => {
+    renderPortfolioCharts(chartPayload());
+    const legend = document.querySelector(
+      '[data-el="portfolio-legend-benchmark"]',
+    );
+
+    expect(legend.title).toBe("MSCI World (iShares Core)");
+  });
+
   it("drops the third line and its legend item when the series is empty", () => {
     const payload = chartPayload();
     payload.series.benchmark = [];
     payload.benchmark_source = null;
     payload.benchmark_updated_at = null;
+    payload.benchmark_name = null;
 
     renderPortfolioCharts(payload);
     const legend = document.querySelector(
@@ -420,6 +464,8 @@ describe("renderPortfolioCharts", () => {
 
     expect(lineConfig().data.datasets).toHaveLength(2);
     expect(legend.classList.contains("is-hidden")).toBe(true);
+    // An empty title would still open a blank tooltip on hover.
+    expect(legend.hasAttribute("title")).toBe(false);
     expect(noteText()).toBe("");
   });
 
@@ -629,7 +675,7 @@ describe("renderPortfolioCharts with a position selection", () => {
     expect(config.data.datasets.map((set) => set.label)).toEqual([
       "Portfolio",
       "Invested",
-      "MSCI World",
+      "Benchmark",
     ]);
     expect(fixed.classList.contains("is-hidden")).toBe(false);
   });

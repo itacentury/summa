@@ -258,11 +258,26 @@ def _load_positions(
 
 @dataclass(frozen=True)
 class _Benchmark:
-    """The benchmark line plus where it came from."""
+    """The benchmark line plus where it came from.
+
+    ``name`` is the raw fact behind ``source`` — the feed's symbol or the flagged
+    position's name — so the client can say which yardstick it is drawing. How it
+    is worded is the frontend's business.
+    """
 
     values: list[float]
     source: str | None
     updated_at: str | None
+    name: str | None
+
+
+@dataclass(frozen=True)
+class _Feed:
+    """The benchmark feed's closes inside the window, with the symbol they came from."""
+
+    points: list[tuple[str, float]]
+    updated_at: str | None
+    symbol: str | None
 
 
 def _feed_symbol(cursor: sqlite3.Cursor) -> tuple[str, str] | None:
@@ -296,18 +311,16 @@ def _feed_symbol(cursor: sqlite3.Cursor) -> tuple[str, str] | None:
     return str(row["symbol"]), str(row["latest"])
 
 
-def _feed_points(
-    cursor: sqlite3.Cursor, start: str | None
-) -> tuple[list[tuple[str, float]], str | None]:
-    """Return the benchmark symbol's closes inside the window and its last date.
+def _feed_points(cursor: sqlite3.Cursor, start: str | None) -> _Feed:
+    """Return the benchmark symbol's closes inside the window, its last date and itself.
 
-    An empty list means the chart falls back to the flagged position — which is
+    No points means the chart falls back to the flagged position — which is
     also what a configured symbol whose history stops before the window yields,
     the same way a stale feed already did.
     """
     found: tuple[str, str] | None = _feed_symbol(cursor)
     if found is None:
-        return [], None
+        return _Feed(points=[], updated_at=None, symbol=None)
 
     symbol, updated_at = found
     if start is None:
@@ -324,13 +337,13 @@ def _feed_points(
     points: list[tuple[str, float]] = [
         (price["date"], price["close"]) for price in cursor.fetchall()
     ]
-    return points, updated_at
+    return _Feed(points=points, updated_at=updated_at, symbol=symbol)
 
 
 def _fallback_points(
     cursor: sqlite3.Cursor, start: str | None
-) -> list[tuple[str, float]]:
-    """Return the deposit-free growth of the position flagged as benchmark fallback.
+) -> tuple[list[tuple[str, float]], str | None]:
+    """Return the deposit-free growth of the position flagged as benchmark fallback, and its name.
 
     The lookup ignores the depot filter on purpose: the benchmark is the chart's
     yardstick, not a member of the selection, and the feed path is global for the
@@ -341,11 +354,11 @@ def _fallback_points(
     benchmark line as if the index had risen.
     """
     cursor.execute(
-        "SELECT id FROM portfolio_positions WHERE is_benchmark_fallback = 1 LIMIT 1"
+        "SELECT id, name FROM portfolio_positions WHERE is_benchmark_fallback = 1 LIMIT 1"
     )
     row: Any = cursor.fetchone()
     if row is None:
-        return []
+        return [], None
 
     snapshots: list[portfolio.Snapshot] = _load_snapshots(cursor, [row["id"]])[
         row["id"]
@@ -357,7 +370,7 @@ def _fallback_points(
     for point in portfolio.growth_points(snapshots):
         if start is None or point[0] >= start:
             points.append(point)
-    return points
+    return points, str(row["name"])
 
 
 def _series_base(values: Sequence[float]) -> float:
@@ -379,17 +392,20 @@ def _build_benchmark(
     A missing or stale feed is never an error: the chart still has to render, so
     the worst outcome is a line labelled ``fallback`` — or no third line at all.
     """
-    points, updated_at = _feed_points(cursor, start)
+    feed: _Feed = _feed_points(cursor, start)
+    points: list[tuple[str, float]] = feed.points
+    updated_at: str | None = feed.updated_at
+    name: str | None = feed.symbol
     source: str | None = "feed"
     if not points:
-        points = _fallback_points(cursor, start)
+        points, name = _fallback_points(cursor, start)
         source = "fallback"
         updated_at = points[-1][0] if points else None
 
     values: list[float] = portfolio.rebase_to_grid(points, grid, base)
     if not values:
-        return _Benchmark(values=[], source=None, updated_at=None)
-    return _Benchmark(values=values, source=source, updated_at=updated_at)
+        return _Benchmark(values=[], source=None, updated_at=None, name=None)
+    return _Benchmark(values=values, source=source, updated_at=updated_at, name=name)
 
 
 # --- Serialization ----------------------------------------------------------
@@ -608,6 +624,7 @@ def get_portfolio() -> ApiResponse:
             },
             "benchmark_source": benchmark.source,
             "benchmark_updated_at": benchmark.updated_at,
+            "benchmark_name": benchmark.name,
         }
     )
 

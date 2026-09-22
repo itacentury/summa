@@ -536,6 +536,8 @@ def test_get_portfolio_falls_back_silently_without_a_feed(
     payload = response.get_json()
     assert payload["benchmark_source"] == "fallback"
     assert payload["benchmark_updated_at"] == _weeks_ago(1)
+    # The chart labels the line "Benchmark"; this is what it names on hover.
+    assert payload["benchmark_name"] == "MSCI"
     # Indexed to the portfolio's opening value, then following its own growth.
     assert payload["series"]["benchmark"] == [1500.0, 1650.0]
 
@@ -580,6 +582,7 @@ def test_get_portfolio_uses_the_feed_when_prices_exist(
 
     assert payload["benchmark_source"] == "feed"
     assert payload["benchmark_updated_at"] == _weeks_ago(1)
+    assert payload["benchmark_name"] == "URTH"
     # Rebased: 100 -> the portfolio's 1000, so the 10 % rise lands on 1100.
     assert payload["series"]["benchmark"] == [1000.0, 1100.0]
 
@@ -605,6 +608,7 @@ def test_get_portfolio_prefers_the_configured_symbol_over_a_fresher_one(
 
     assert payload["benchmark_source"] == "feed"
     assert payload["benchmark_updated_at"] == _weeks_ago(1)
+    assert payload["benchmark_name"] == config.DEFAULT_BENCHMARK_SYMBOL
     assert payload["series"]["benchmark"] == [1000.0, 1100.0]
 
 
@@ -687,6 +691,7 @@ def test_get_portfolio_has_no_benchmark_line_without_a_flagged_position(
 
     assert payload["series"]["benchmark"] == []
     assert payload["benchmark_source"] is None
+    assert payload["benchmark_name"] is None
 
 
 # --- GET /api/portfolio/snapshot/new ----------------------------------------
