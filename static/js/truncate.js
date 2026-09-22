@@ -22,10 +22,6 @@ const ELLIPSIS = "…";
 // would be cut. One pixel is the whole of that rounding.
 const SUBPIXEL_SLACK = 1;
 
-// The least of its host a name will give up to a sibling badge. Below this the
-// badge is asking for more than it is worth, and loses instead.
-const MIN_NAME_SHARE = 0.6;
-
 /**
  * Shorten `text` around its middle until `measure` reports it fits `maxWidth`.
  *
@@ -86,42 +82,20 @@ function measurerFor(element) {
   return (text) => sharedContext.measureText(text).width;
 }
 
-/** The element's outer width including horizontal margins. */
-function outerWidth(element) {
-  const style = window.getComputedStyle(element);
-  const margins =
-    parseFloat(style.marginLeft || 0) + parseFloat(style.marginRight || 0);
-  return element.offsetWidth + margins;
-}
-
 /**
  * How much room the carrier has inside its host.
  *
- * Measured on the host rather than the carrier: the carrier is inline (so that
- * a sibling badge stays on the same line) and an inline box reports no width of
- * its own. Whatever the host holds besides the carrier is subtracted.
+ * Measured on the host rather than the carrier: the carrier is inline, so that
+ * anything the host holds beside it stays on the same line, and an inline box
+ * reports no width of its own.
  *
- * Widths come from the layout box (`clientWidth`, `offsetWidth`) rather than
+ * The width comes from the layout box (`clientWidth`) rather than
  * `getBoundingClientRect()`, which reports the *transformed* box: a list painted
  * inside a modal that animates in with a `scale()` would be measured at a
  * fraction of the width it settles at, and nothing later would say so.
  */
-function availableWidth(carrier, host) {
-  const available = host.clientWidth + SUBPIXEL_SLACK;
-  let reserved = 0;
-  for (const child of host.children) {
-    if (child === carrier) continue;
-    if (child.classList.contains("visually-hidden")) continue;
-    reserved += outerWidth(child);
-  }
-
-  // Keeping a wide badge whole would cut the name it annotates down to nothing —
-  // and the badge would still be clipped, because the two together never fit. So
-  // past this share the name takes the whole host and the badge is the one that
-  // runs off the end, which is exactly what the CSS ellipsis does today.
-  const remaining = available - reserved;
-  if (remaining < available * MIN_NAME_SHARE) return available;
-  return remaining;
+function availableWidth(host) {
+  return host.clientWidth + SUBPIXEL_SLACK;
 }
 
 /**
@@ -131,7 +105,10 @@ function availableWidth(carrier, host) {
  * the CSS ellipsis never does, since it only hides glyphs.
  */
 function syncAccessibleName(carrier, host, full, truncated) {
-  const existing = host.querySelector(":scope > .visually-hidden");
+  // Found by its own hook rather than by `.visually-hidden`, which is a
+  // repository-wide convention: a host holding one for another reason would
+  // otherwise be adopted here and overwritten with the name.
+  const existing = host.querySelector(':scope > [data-el="spoken-name"]');
 
   if (!truncated) {
     carrier.removeAttribute("aria-hidden");
@@ -148,6 +125,7 @@ function syncAccessibleName(carrier, host, full, truncated) {
   }
   const spoken = document.createElement("span");
   spoken.className = "visually-hidden";
+  spoken.dataset.el = "spoken-name";
   spoken.textContent = full;
   carrier.after(spoken);
 }
@@ -181,7 +159,7 @@ export function applyTruncation(carrier) {
 
   carrier.textContent = full;
   const measure = measurerFor(carrier);
-  let available = availableWidth(carrier, host);
+  let available = availableWidth(host);
   if (available <= 0 || !measure) return restore();
 
   let shortened = middleTruncate(full, available, measure);
@@ -189,7 +167,7 @@ export function applyTruncation(carrier) {
   carrier.textContent = shortened;
 
   for (let pass = 1; pass < MAX_SETTLE_PASSES; pass += 1) {
-    const settled = availableWidth(carrier, host);
+    const settled = availableWidth(host);
     if (settled >= available) break;
     available = settled;
     shortened = middleTruncate(full, available, measure);
