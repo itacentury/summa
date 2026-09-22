@@ -119,10 +119,13 @@ function isoToMs(isoDate) {
  * there is no letter to lower.
  */
 export function valueAxisLabels(values) {
-  const runs = AXIS_FORMATS.map((format) =>
-    values.map((value) => withEuro(format.format(value).toLowerCase())),
-  );
-  return runs.find((run) => new Set(run).size === run.length) ?? runs.at(-1);
+  let run = [];
+  for (const format of AXIS_FORMATS) {
+    run = values.map((value) => withEuro(format.format(value).toLowerCase()));
+    if (new Set(run).size === run.length) return run;
+  }
+  // Out of ladder: the cent spelling is the last rung and the closest there is.
+  return run;
 }
 
 /** Format an axis tick as `Oct 25` — month name plus two-digit year. */
@@ -412,6 +415,8 @@ function renderValueChart(payload) {
   // Built once: the window is fixed for this chart, while `afterBuildTicks`
   // fires again on every resize.
   const { values: tickValues, daily } = axisTicks(min, max, tickLimit);
+  // Held per chart, not per module: a depot or period switch builds a new one.
+  let valueLabels = [];
 
   state.portfolioChart = new Chart(canvas, {
     type: "line",
@@ -454,12 +459,18 @@ function renderValueChart(payload) {
         y: {
           grid: { color: GRID_COLOR },
           border: { display: false },
+          // The ladder picks one spelling for the whole run, so the labels are
+          // built here rather than in the callback, which fires once per tick.
+          afterBuildTicks: (scale) => {
+            valueLabels = valueAxisLabels(
+              scale.ticks.map((tick) => tick.value),
+            );
+          },
           ticks: {
             color: TICK_COLOR,
             font: MONO_FONT,
             maxTicksLimit: 5,
-            callback: (value, index, ticks) =>
-              valueAxisLabels(ticks.map((tick) => tick.value))[index],
+            callback: (value, index) => valueLabels[index],
           },
         },
       },

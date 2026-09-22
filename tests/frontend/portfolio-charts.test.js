@@ -476,7 +476,9 @@ describe("renderPortfolioCharts", () => {
     const { y } = lineConfig().options.scales;
     const ticks = [20000, 30000].map((value) => ({ value }));
 
-    expect(y.ticks.callback(20000, 0, ticks)).toBe("20k €");
+    y.afterBuildTicks({ ticks });
+
+    expect(y.ticks.callback(20000, 0)).toBe("20k €");
   });
 
   it("keeps the y labels on a phone, compacted rather than dropped", () => {
@@ -485,8 +487,10 @@ describe("renderPortfolioCharts", () => {
     const { y } = lineConfig().options.scales;
     const ticks = [20000, 30000].map((value) => ({ value }));
 
+    y.afterBuildTicks({ ticks });
+
     expect(y.ticks.display).not.toBe(false);
-    expect(y.ticks.callback(20000, 0, ticks)).toBe("20k €");
+    expect(y.ticks.callback(20000, 0)).toBe("20k €");
   });
 
   it("thins the date labels on a phone, where the compact y labels cost width", () => {
