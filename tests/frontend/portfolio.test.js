@@ -401,9 +401,9 @@ describe("portfolio formatters", () => {
   });
 
   it("writes an explicit sign on gains and losses", () => {
-    expect(formatSigned(89.27)).toBe("+89.27 €");
-    expect(formatSigned(-1234.5)).toBe("-1,234.50 €");
-    expect(formatSigned(0)).toBe("+0.00 €");
+    expect(formatSigned(89.27)).toBe(`+89.27${EUR}`);
+    expect(formatSigned(-1234.5)).toBe(`-1,234.50${EUR}`);
+    expect(formatSigned(0)).toBe(`+0.00${EUR}`);
   });
 
   it("renders an undefined percentage as a dash, not as zero", () => {
@@ -466,6 +466,9 @@ const viewMarkup = `
   </div>
 `;
 
+// The formatters join amount and symbol with a non-breaking space (dom.js).
+const EUR = " €";
+
 const summaryText = () =>
   document.querySelector('[data-el="portfolio-summary"]').textContent;
 const listEl = () => document.querySelector('[data-el="portfolio-list"]');
@@ -514,14 +517,14 @@ describe("portfolio rendering", () => {
   it("renders the summary cards, naming the net amount only when it differs", async () => {
     await loadPortfolio();
 
-    expect(summaryText()).toContain("€ 6,727.42");
-    expect(summaryText()).toContain("+377.42 €");
+    expect(summaryText()).toContain(`6,727.42${EUR}`);
+    expect(summaryText()).toContain(`+377.42${EUR}`);
     expect(summaryText()).toContain("+5.7 %");
     // contributed_eur is the headline, invested_eur the divergent net figure.
-    expect(summaryText()).toContain("€ 6,650.00");
-    expect(summaryText()).toContain("net € 6,350.00");
+    expect(summaryText()).toContain(`6,650.00${EUR}`);
+    expect(summaryText()).toContain(`net 6,350.00${EUR}`);
     expect(summaryText()).toContain("4 positions · 2 depots");
-    expect(summaryText()).toContain("-15.58 €");
+    expect(summaryText()).toContain(`-15.58${EUR}`);
     expect(summaryText()).toContain("snapshot 06.09.2026");
   });
 
@@ -533,7 +536,7 @@ describe("portfolio rendering", () => {
     await loadPortfolio();
 
     expect(summaryText()).toContain("4 positions · 2 depots");
-    expect(summaryText()).not.toContain("net €");
+    expect(summaryText()).not.toContain("net ");
   });
 
   it("renders every depot group with its subtotal, and rows that sum to it", async () => {
@@ -542,7 +545,7 @@ describe("portfolio rendering", () => {
     const headers = [...document.querySelectorAll(".portfolio-group-header")];
     expect(headers).toHaveLength(2);
     expect(headers[0].textContent).toContain("Trade Republic · 3 positions");
-    expect(headers[0].textContent).toContain("€ 1,801.69");
+    expect(headers[0].textContent).toContain(`1,801.69${EUR}`);
     expect(headers[1].textContent).toContain("Deka · 1 position");
 
     const groupRows = [
@@ -560,8 +563,8 @@ describe("portfolio rendering", () => {
     await loadPortfolio();
 
     const footer = document.querySelector(".portfolio-list-total");
-    expect(footer.textContent).toBe("6,727.42 €");
-    expect(summaryText()).toContain("€ 6,727.42");
+    expect(footer.textContent).toBe(`6,727.42${EUR}`);
+    expect(summaryText()).toContain(`6,727.42${EUR}`);
   });
 
   it("marks the footer's invested column net, unlike the card above it", async () => {
@@ -573,8 +576,8 @@ describe("portfolio rendering", () => {
     const net = document.querySelector(".portfolio-list-net");
     expect(net.textContent).toContain("net");
     // invested_eur, next to the card's contributed_eur — two figures, two labels.
-    expect(net.textContent).toContain("6,350.00 €");
-    expect(summaryText()).toContain("€ 6,650.00");
+    expect(net.textContent).toContain(`6,350.00${EUR}`);
+    expect(summaryText()).toContain(`6,650.00${EUR}`);
   });
 
   it("keeps a sold position in its group, marked and muted", async () => {
@@ -584,11 +587,11 @@ describe("portfolio rendering", () => {
     expect(sold.classList.contains("is-closed")).toBe(true);
     expect(sold.textContent).toContain("sold 12.05.2026");
     expect(sold.querySelector(".portfolio-row-value").textContent).toBe(
-      "0.00 €",
+      `0.00${EUR}`,
     );
     // Its realized gain is what keeps the rows summing to the grand total.
     expect(sold.querySelector(".portfolio-row-gain").textContent).toBe(
-      "+50.00 €",
+      `+50.00${EUR}`,
     );
   });
 
@@ -666,7 +669,7 @@ describe("portfolio rendering", () => {
       false,
     );
     expect(rowFor(13).querySelector(".portfolio-row-gain").textContent).toBe(
-      "+50.00 €",
+      `+50.00${EUR}`,
     );
   });
 

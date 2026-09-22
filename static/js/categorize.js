@@ -10,7 +10,7 @@
 
 import { state } from "./state.js";
 import { refreshAllData } from "./api.js";
-import { escapeHtml, formatCurrency } from "./dom.js";
+import { escapeHtml, formatCurrency, withEuro } from "./dom.js";
 import { showUndoToast, showErrorToast, flushPendingToast } from "./toast.js";
 import {
   adjustUncategorizedCount,
@@ -100,7 +100,7 @@ function itemsLineHtml(groups) {
       (group) => `
         <div class="categorize-item-line">
           <span class="categorize-item-line-name">${group.qty > 1 ? `${group.qty}× ` : ""}${escapeHtml(group.name)}</span>
-          <span class="categorize-item-line-price">€${formatCurrency(group.price)}</span>
+          <span class="categorize-item-line-price">${withEuro(formatCurrency(group.price))}</span>
         </div>`,
     )
     .join("");
@@ -196,7 +196,7 @@ function rowHtml(row, index) {
   const itemCount = groups.length;
   const hasExpandableItems = itemCount > 1;
   const isExpanded = reviewRows[index].expanded;
-  const total = `€${formatCurrency(row.total)}`;
+  const total = withEuro(formatCurrency(row.total));
   const metaLead =
     itemCount === 1
       ? `${escapeHtml(groups[0]?.name || "No items")} · 1 item · ${total}`

@@ -128,6 +128,9 @@ const positionOverlay = () =>
 const dateInput = () => document.querySelector('[data-el="snapshot-date"]');
 const hint = () => document.querySelector('[data-el="snapshot-hint"]');
 const saveButton = () => document.querySelector('[data-el="snapshot-save"]');
+// The formatters join amount and symbol with a non-breaking space (dom.js).
+const EUR = " €";
+
 const totalText = () =>
   document.querySelector('[data-el="snapshot-total"]').textContent;
 const rowFor = (id) => document.querySelector(`[data-position-id="${id}"]`);
@@ -285,10 +288,10 @@ describe("snapshot form", () => {
     await openForm();
 
     // 1000 EUR carried + 216 USD at 1.08 = 1200 EUR.
-    expect(totalText()).toBe("1,200.00 €");
+    expect(totalText()).toBe(`1,200.00${EUR}`);
 
     type(fieldOf(11, "value"), "324");
-    expect(totalText()).toBe("1,300.00 €");
+    expect(totalText()).toBe(`1,300.00${EUR}`);
   });
 
   it("posts blank fields as null and reloads the view", async () => {

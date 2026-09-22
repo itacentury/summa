@@ -8,7 +8,7 @@
  * without mounting the view. Imports only from `dom.js`, which is itself a leaf.
  */
 
-import { escapeHtml } from "./dom.js";
+import { escapeHtml, withEuro } from "./dom.js";
 
 // The API sends the lowercase enum the schema's CHECK constraint holds; the row
 // meta line shows it the way the design spells it.
@@ -35,14 +35,9 @@ export function formatAmount(value) {
   return amountFormat.format(value === 0 ? 0 : value);
 }
 
-/** Format an EUR amount with a leading symbol (`€ 16,810.72`) — cards and subtotals. */
-export function formatEuroPrefixed(value) {
-  return `€ ${formatAmount(value)}`;
-}
-
-/** Format an EUR amount with a trailing symbol (`1,389.27 €`) — list cells. */
-export function formatEuroSuffixed(value) {
-  return `${formatAmount(value)} €`;
+/** Format an EUR amount with a trailing symbol (`1,389.27 €`). */
+export function formatEuro(value) {
+  return withEuro(formatAmount(value));
 }
 
 /**
@@ -53,7 +48,7 @@ export function formatEuroSuffixed(value) {
  */
 export function formatSigned(value) {
   const sign = value < 0 ? "-" : "+";
-  return `${sign}${formatAmount(Math.abs(value))} €`;
+  return withEuro(`${sign}${formatAmount(Math.abs(value))}`);
 }
 
 /**
@@ -158,7 +153,7 @@ function investedSubLine(totals) {
   if (totals.invested_eur === totals.contributed_eur) return counts;
   // Its own line rather than a fourth `·` segment: the card is the narrowest of
   // the three, and one more segment wraps it taller than its neighbours.
-  return `<span class="portfolio-card-net">net ${formatEuroPrefixed(
+  return `<span class="portfolio-card-net">net ${formatEuro(
     totals.invested_eur,
   )}</span>${counts}`;
 }
@@ -176,7 +171,7 @@ export function summaryCardsHtml(totals) {
   return `
     <div class="portfolio-card portfolio-card-hero">
       <div class="portfolio-card-label">Portfolio value</div>
-      <div class="portfolio-hero-value">${formatEuroPrefixed(totals.value_eur)}</div>
+      <div class="portfolio-hero-value">${formatEuro(totals.value_eur)}</div>
       <div class="portfolio-hero-change">
         <span class="portfolio-chip ${gainTone}">${formatSigned(totals.gain)}</span>
         <span class="portfolio-hero-percent ${gainTone}">${formatPercent(totals.gain_pct)}</span>
@@ -185,7 +180,7 @@ export function summaryCardsHtml(totals) {
     </div>
     <div class="portfolio-card">
       <div class="portfolio-card-label">Invested</div>
-      <div class="portfolio-card-value portfolio-card-value-amount">${formatEuroPrefixed(
+      <div class="portfolio-card-value portfolio-card-value-amount">${formatEuro(
         totals.contributed_eur,
       )}</div>
       <div class="portfolio-card-sub">${investedSubLine(totals)}</div>
@@ -247,8 +242,8 @@ export function positionRowHtml(
         <span class="portfolio-row-name">${escapeHtml(position.name)}${badge}</span>
         <span class="portfolio-row-meta">${positionMeta(position, rangeStart)}</span>
       </span>
-      <span class="portfolio-row-invested">${formatEuroSuffixed(position.invested_eur)}</span>
-      <span class="portfolio-row-value">${formatEuroSuffixed(position.value_eur)}</span>
+      <span class="portfolio-row-invested">${formatEuro(position.invested_eur)}</span>
+      <span class="portfolio-row-value">${formatEuro(position.value_eur)}</span>
       <span class="portfolio-row-gain ${tone}">${formatSigned(position.gain)}</span>
       <span class="portfolio-row-percent ${tone}">${formatPercent(position.gain_pct)}</span>
     </button>
@@ -291,7 +286,7 @@ export function positionDetailHtml(position, { open = false } = {}) {
           </div>
           <div class="portfolio-detail-item is-mobile-only">
             <div class="portfolio-detail-label">Invested</div>
-            <div class="portfolio-detail-value">${formatEuroSuffixed(
+            <div class="portfolio-detail-value">${formatEuro(
               position.invested_eur,
             )}</div>
           </div>
@@ -369,7 +364,7 @@ export function historyRowsHtml(
       return `
         <div class="portfolio-history-row">
           <span class="portfolio-history-date">${formatDateDots(row.date)}${label}</span>
-          <span class="portfolio-history-value">${formatEuroSuffixed(
+          <span class="portfolio-history-value">${formatEuro(
             row.value_eur,
           )}${native}</span>
           <span class="portfolio-history-deposit ${toneClass(
@@ -418,7 +413,7 @@ export function depotGroupHtml(
           depot.positions.length,
           "position",
         )}</span>
-        <span class="portfolio-group-value">${formatEuroPrefixed(depot.value_eur)}</span>
+        <span class="portfolio-group-value">${formatEuro(depot.value_eur)}</span>
         <span class="portfolio-group-gain ${tone}">${formatSigned(depot.gain)}</span>
         <span class="portfolio-group-percent ${tone}">${formatPercent(depot.gain_pct)}</span>
       </button>
@@ -444,9 +439,9 @@ export function listFooterHtml(totals) {
       <span class="portfolio-list-legend">Columns: position · net invested · value · gain/loss</span>
       <span class="portfolio-list-net">
         net
-        <span class="portfolio-list-invested">${formatEuroSuffixed(totals.invested_eur)}</span>
+        <span class="portfolio-list-invested">${formatEuro(totals.invested_eur)}</span>
       </span>
-      <span class="portfolio-list-total">${formatEuroSuffixed(totals.value_eur)}</span>
+      <span class="portfolio-list-total">${formatEuro(totals.value_eur)}</span>
     </div>
   `;
 }

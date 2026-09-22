@@ -4,7 +4,13 @@
  */
 
 import { state, chartColors } from "./state.js";
-import { els, escapeHtml, formatCurrency, mobileViewport } from "./dom.js";
+import {
+  els,
+  escapeHtml,
+  formatCurrency,
+  mobileViewport,
+  withEuro,
+} from "./dom.js";
 import { showErrorToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { apiFetch } from "./http.js";
@@ -156,7 +162,7 @@ function renderCategoryChart(data) {
         <div class="legend-item">
           <span class="legend-color"></span>
           <span class="legend-label">${escapeHtml(item.category)}</span>
-          <span class="legend-value">€${formatCurrency(item.amount)}</span>
+          <span class="legend-value">${withEuro(formatCurrency(item.amount))}</span>
           <span class="legend-percent">${percent}%</span>
         </div>
       `;
@@ -203,7 +209,7 @@ function renderCategoryChart(data) {
               const value = context.raw;
               const percent =
                 total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-              return `€${formatCurrency(value)} (${percent}%)`;
+              return `${withEuro(formatCurrency(value))} (${percent}%)`;
             },
           },
         },
@@ -257,7 +263,7 @@ function renderStoreChart(data) {
           borderWidth: 1,
           padding: 12,
           callbacks: {
-            label: (context) => `€${formatCurrency(context.raw)}`,
+            label: (context) => withEuro(formatCurrency(context.raw)),
           },
         },
       },
@@ -272,7 +278,7 @@ function renderStoreChart(data) {
             font: mobile
               ? { size: 10.5, family: "'JetBrains Mono', monospace" }
               : undefined,
-            callback: (value) => `€${value}`,
+            callback: (value) => withEuro(value),
           },
         },
         y: {

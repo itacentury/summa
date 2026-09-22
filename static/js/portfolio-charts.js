@@ -10,13 +10,13 @@
 
 import { state, chartColors, positionLineColors } from "./state.js";
 import { lineColor } from "./portfolio-line-colors.js";
-import { mobileViewport } from "./dom.js";
+import { mobileViewport, withEuro } from "./dom.js";
 import {
   allocationLegendHtml,
   benchmarkDisplayName,
   benchmarkNoteText,
   biggestChangesHtml,
-  formatAmount,
+  formatEuro,
   seriesLegendHtml,
 } from "./portfolio-render.js";
 import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
@@ -406,7 +406,7 @@ function renderValueChart(payload) {
           callbacks: {
             title: (items) => formatTooltipDate(items[0].parsed.x),
             label: (context) =>
-              `${context.dataset.label}: €${formatAmount(context.parsed.y)}`,
+              `${context.dataset.label}: ${formatEuro(context.parsed.y)}`,
           },
         },
       },
@@ -436,7 +436,7 @@ function renderValueChart(payload) {
             color: TICK_COLOR,
             font: MONO_FONT,
             maxTicksLimit: 5,
-            callback: (value) => axisLabel(value, mobile),
+            callback: (value) => withEuro(axisFormat.format(value)),
           },
         },
       },
@@ -500,7 +500,7 @@ function renderAllocationChart(allocation) {
           ...TOOLTIP_STYLE,
           callbacks: {
             label: (context) =>
-              `€${formatAmount(context.raw)} (${allocation[
+              `${formatEuro(context.raw)} (${allocation[
                 context.dataIndex
               ].share_pct.toFixed(1)}%)`,
           },

@@ -32,10 +32,11 @@
   font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
-.stat-value.currency::before {
-  margin-right: 0.25rem;
+.stat-value.currency::after {
+  margin-left: 0.25rem;
   font-size: 1.25rem;
   color: var(--text-secondary);
   content: "€";
@@ -167,8 +168,8 @@
   letter-spacing: -0.02em;
 }
 
-.stats-view .stat-value.currency::before {
-  margin-right: 0.25rem;
+.stats-view .stat-value.currency::after {
+  margin-left: 0.25rem;
   font-size: 1.25rem;
   color: inherit;
   content: "€";

@@ -129,7 +129,7 @@ describe("itemRowsHtml", () => {
     const html = itemRowsHtml([{ item_name: "A & B", item_price: "3.5" }]);
 
     expect(html).toContain("A &amp; B");
-    expect(html).toContain("€3.50");
+    expect(html).toContain("3.50 €");
   });
 });
 

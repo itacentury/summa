@@ -43,10 +43,11 @@ body.portfolio-mode .invoices-section {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--amount);
+  white-space: nowrap;
 }
 
-.section-total::before {
-  margin-right: 0.25rem;
+.section-total::after {
+  margin-left: 0.25rem;
   font-size: 0.875rem;
   content: "€";
 }
@@ -293,10 +294,11 @@ body.portfolio-mode .invoices-section {
   font-weight: 500;
   color: var(--amount);
   text-align: right;
+  white-space: nowrap;
 }
 
-.invoice-total::before {
-  margin-right: 0.125rem;
+.invoice-total::after {
+  margin-left: 0.25rem;
   font-size: 0.875rem;
   content: "€";
 }

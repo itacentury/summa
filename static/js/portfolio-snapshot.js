@@ -19,7 +19,7 @@ import { escapeHtml, todayIso } from "./dom.js";
 import {
   formatAmount,
   formatDateDots,
-  formatEuroSuffixed,
+  formatEuro,
   parseAmountInput,
   toneClass,
 } from "./portfolio-render.js";
@@ -185,7 +185,7 @@ function updateTotal() {
     sum += (effective ?? 0) / (position.previous_fx_rate ?? 1);
   }
 
-  total.textContent = formatEuroSuffixed(sum);
+  total.textContent = formatEuro(sum);
 }
 
 /** The neutral sub-line: what the form does when a field is left empty. */
