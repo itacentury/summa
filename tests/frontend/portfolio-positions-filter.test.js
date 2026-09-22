@@ -275,4 +275,74 @@ describe("the palette cap", () => {
 
     expect(filter.getValue()).toHaveLength(PORTFOLIO_MAX_LINES);
   });
+
+  it("counts the picks it has no row for towards the same cap", () => {
+    const visible = MANY.slice(0, 3).map((position) => position.id);
+    filter.setOptions(MANY);
+    filter.setValue(visible, { hidden: PORTFOLIO_MAX_LINES - visible.length });
+    press(trigger(), "mousedown");
+
+    // Three rows checked, yet the palette is spent: the other five lines are
+    // drawn for picks this payload has no row for.
+    const unchecked = options().slice(visible.length + 1);
+    expect(
+      unchecked.every((row) => row.classList.contains("is-disabled")),
+    ).toBe(true);
+    expect(
+      unchecked.every((row) => row.getAttribute("aria-disabled") === "true"),
+    ).toBe(true);
+    expect(labelText()).toBe("3 positions");
+  });
+
+  it("names the hidden picks in the hint, and only then", () => {
+    filter.setOptions(MANY);
+    filter.setValue(
+      MANY.slice(0, 3).map((position) => position.id),
+      {
+        hidden: PORTFOLIO_MAX_LINES - 3,
+      },
+    );
+    press(trigger(), "mousedown");
+
+    expect(
+      document.querySelector(".portfolio-positions-hint").textContent,
+    ).toBe(`Max. ${PORTFOLIO_MAX_LINES} lines · 5 in other depots`);
+
+    // Back to nothing hidden: the unfiltered wording is unchanged.
+    filter.setValue(POSITIONS_ALL);
+    fill(PORTFOLIO_MAX_LINES);
+
+    expect(
+      document.querySelector(".portfolio-positions-hint").textContent,
+    ).toBe(`Max. ${PORTFOLIO_MAX_LINES} lines`);
+  });
+
+  it("leaves the checked rows and the all row usable under a hidden count", () => {
+    filter.setOptions(MANY);
+    filter.setValue(
+      MANY.slice(0, 3).map((position) => position.id),
+      {
+        hidden: PORTFOLIO_MAX_LINES - 3,
+      },
+    );
+    press(trigger(), "mousedown");
+    const rows = options();
+
+    expect(rows[0].getAttribute("aria-disabled")).toBe("false");
+    expect(rows[1].getAttribute("aria-disabled")).toBe("false");
+  });
+
+  it("takes a visible pick again once the merged total drops below the cap", () => {
+    filter.setOptions(MANY);
+    filter.setValue(
+      MANY.slice(0, 3).map((position) => position.id),
+      {
+        hidden: PORTFOLIO_MAX_LINES - 3,
+      },
+    );
+    clickRow(1);
+    clickRow(4);
+
+    expect(filter.getValue()).toEqual([MANY[1].id, MANY[2].id, MANY[3].id]);
+  });
 });

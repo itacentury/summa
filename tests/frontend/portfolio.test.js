@@ -1055,14 +1055,15 @@ describe("portfolio position filter", () => {
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[11]");
   });
 
-  it("caps the merged selection at the palette, visible ids first", async () => {
-    const hidden = Array.from(
-      { length: PORTFOLIO_MAX_LINES },
-      (unused, index) => 900 + index,
-    );
+  /** Stored ids no depot carries, so a depot filter hides every one of them. */
+  const hiddenIds = (count) =>
+    Array.from({ length: count }, (unused, index) => 900 + index);
+
+  /** Load with `stored` persisted, then narrow to depot 2. */
+  const filteredWithStored = async (stored) => {
     localStorage.setItem(
       PORTFOLIO_POSITIONS_STORAGE_KEY,
-      JSON.stringify(hidden),
+      JSON.stringify(stored),
     );
     restorePortfolioPrefs();
     global.fetch = vi.fn(async (url) =>
@@ -1073,15 +1074,52 @@ describe("portfolio position filter", () => {
     setupPortfolioListeners();
     await loadPortfolio();
     await pickDepot(2);
+  };
+
+  it("refuses a pick that the hidden ones have already spent the palette on", async () => {
+    await filteredWithStored(hiddenIds(PORTFOLIO_MAX_LINES));
+
+    openMenu();
+    const rows = [...document.querySelectorAll(".portfolio-positions-option")];
+    // Not one row is checked here, and every one of them is still greyed out:
+    // the palette is spent on lines this depot does not show.
+    expect(
+      rows.slice(1).every((row) => row.classList.contains("is-disabled")),
+    ).toBe(true);
+    expect(
+      document.querySelector(".portfolio-positions-hint").textContent,
+    ).toBe(
+      `Max. ${PORTFOLIO_MAX_LINES} lines · ${PORTFOLIO_MAX_LINES} in other depots`,
+    );
+
+    clickOption(1);
+    await flushUi();
+
+    // The refusal is the point: nothing is evicted behind the user's back.
+    expect(state.portfolioPositions).toEqual(hiddenIds(PORTFOLIO_MAX_LINES));
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
+      JSON.stringify(hiddenIds(PORTFOLIO_MAX_LINES)),
+    );
+  });
+
+  it("takes the pick that fills the last palette slot, visible ids first", async () => {
+    const hidden = hiddenIds(PORTFOLIO_MAX_LINES - 1);
+    await filteredWithStored(hidden);
 
     openMenu();
     clickOption(1);
     await flushUi();
 
-    // The pick must not be the one that loses its palette slot.
-    expect(state.portfolioPositions).toHaveLength(PORTFOLIO_MAX_LINES);
-    expect(state.portfolioPositions[0]).toBe(21);
+    expect(state.portfolioPositions).toEqual([21, ...hidden]);
     expect(positionLineColors.has(21)).toBe(true);
+
+    // And it took the last slot: the hint says so, counting the seven it
+    // cannot show alongside the one it just checked.
+    expect(
+      document.querySelector(".portfolio-positions-hint").textContent,
+    ).toBe(
+      `Max. ${PORTFOLIO_MAX_LINES} lines · ${hidden.length} in other depots`,
+    );
   });
 });
 

@@ -23,9 +23,16 @@ const ALL_LABEL = "Total portfolio";
 // Index of the leading "all" row, which is not one of the positions.
 const ALL_INDEX = 0;
 
-// Shown under the rows once the palette is spent, so the greyed-out rows say
-// why rather than just failing to respond.
-const LIMIT_HINT = `Max. ${PORTFOLIO_MAX_LINES} lines`;
+/**
+ * Shown under the rows once the palette is spent, so the greyed-out rows say
+ * why rather than just failing to respond. Picks the caller is holding off
+ * screen are named, because without them the ceiling would look wrong: it bites
+ * while fewer than `PORTFOLIO_MAX_LINES` rows are checked.
+ */
+const limitHint = (hidden) =>
+  hidden === 0
+    ? `Max. ${PORTFOLIO_MAX_LINES} lines`
+    : `Max. ${PORTFOLIO_MAX_LINES} lines · ${hidden} in other depots`;
 
 /**
  * Create the position filter bound to `root` (the `.portfolio-positions`
@@ -39,6 +46,11 @@ const LIMIT_HINT = `Max. ${PORTFOLIO_MAX_LINES} lines`;
  * read `POSITIONS_ALL`. The caller owns the selection — which may be wider than
  * the rows shown here — so only it can decide what either one means for the
  * part it is not showing.
+ *
+ * Of that wider selection the control is told one thing, `setValue()`'s `hidden`
+ * count: the ceiling is the palette's and applies to the whole of it, so
+ * counting only these rows would let a pick evict an off-screen line with
+ * nothing greyed out to say so.
  */
 export function createPositionsFilter(root, { onChange } = {}) {
   const trigger = root.querySelector(".portfolio-positions-trigger");
@@ -65,12 +77,19 @@ export function createPositionsFilter(root, { onChange } = {}) {
   let highlighted = ALL_INDEX;
   let open = false;
 
+  // How many of the caller's picks this payload has no row for. Not part of
+  // `selected`: they are not togglable here and must never reach `value()`.
+  let hiddenCount = 0;
+
   const value = () => (selected.size === 0 ? POSITIONS_ALL : [...selected]);
 
   // The chart draws one palette color per line, so the palette is the ceiling:
-  // a further line could only repeat a color another holding already owns.
-  const atLimit = () => selected.size >= PORTFOLIO_MAX_LINES;
+  // a further line could only repeat a color another holding already owns. The
+  // hidden picks are counted because they hold colors too.
+  const atLimit = () => selected.size + hiddenCount >= PORTFOLIO_MAX_LINES;
 
+  // Counts only the rows on screen, deliberately unlike atLimit(): the label
+  // names the lines this chart draws, and it draws no hidden one.
   const applyLabel = () => {
     if (selected.size === 0) {
       label.textContent = ALL_LABEL;
@@ -107,7 +126,7 @@ export function createPositionsFilter(root, { onChange } = {}) {
     // role="presentation" on the hint: it is a label for the list, not a row a
     // listbox may offer as one more option.
     const hint = atLimit()
-      ? `<li class="portfolio-positions-hint" role="presentation">${LIMIT_HINT}</li>`
+      ? `<li class="portfolio-positions-hint" role="presentation">${limitHint(hiddenCount)}</li>`
       : "";
     menu.innerHTML = [
       rowHtml(ALL_INDEX, selected.size === 0, ALL_LABEL),
@@ -150,7 +169,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
    * `onChange`'s second argument, because only the caller knows whether it is
    * holding a wider selection than these rows show. Checking one past the
    * palette's last color does nothing at all: the row is already greyed out, so
-   * a silent no-op is what it promised.
+   * a silent no-op is what it promised — and because the hidden picks count
+   * towards the ceiling, that refusal covers them too, rather than leaving the
+   * caller to evict one of them without a row to show for it.
    */
   const toggle = (index) => {
     let toggled = null;
@@ -257,13 +278,23 @@ export function createPositionsFilter(root, { onChange } = {}) {
       renderMenu();
       floating.place();
     },
-    setValue(next) {
+    /**
+     * Show `next` as the checked rows, with `hidden` naming how many further
+     * picks the caller holds that these rows cannot show. Those spend palette
+     * slots all the same, so they raise the ceiling these rows are measured
+     * against — see `atLimit()`.
+     */
+    setValue(next, { hidden = 0 } = {}) {
+      hiddenCount = hidden;
       // Capped here as well, so a restored selection cannot seat more lines
-      // than a live one is allowed to.
+      // than a live one is allowed to — the hidden ones having been served
+      // first, as the caller orders them.
       selected =
         next === POSITIONS_ALL
           ? new Set()
-          : new Set([...next].slice(0, PORTFOLIO_MAX_LINES));
+          : new Set(
+              [...next].slice(0, Math.max(0, PORTFOLIO_MAX_LINES - hidden)),
+            );
       applyLabel();
       if (open) renderMenu();
     },

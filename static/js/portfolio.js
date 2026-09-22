@@ -134,8 +134,9 @@ function hiddenPositionSelection(payload) {
  *
  * Only a deliberate toggle gets here: what a payload happens to carry never
  * rewrites the stored list. The control is fed the visible slice rather than
- * `selection` itself, because an id it has no row for would still count
- * towards its line limit and its "N positions" label.
+ * `selection` itself, because an id it has no row for has no business in its
+ * "N positions" label — but it is told how many such ids there are, because the
+ * palette limit is spent by the whole selection, not by the part on screen.
  */
 function storePositionSelection(selection) {
   state.portfolioPositions = selection;
@@ -145,7 +146,9 @@ function storePositionSelection(selection) {
     selection === POSITIONS_ALL ? POSITIONS_ALL : JSON.stringify(selection),
   );
   if (positionsFilter && lastPayload)
-    positionsFilter.setValue(visiblePositionSelection(lastPayload));
+    positionsFilter.setValue(visiblePositionSelection(lastPayload), {
+      hidden: hiddenPositionSelection(lastPayload).length,
+    });
 }
 
 /** The containers the view toggles between its loading, empty and data states. */
@@ -213,7 +216,9 @@ function renderPortfolio(payload) {
   // can only be resolved once the control knows this payload's positions.
   if (positionsFilter) {
     positionsFilter.setOptions(payload.series?.positions ?? []);
-    positionsFilter.setValue(visiblePositionSelection(payload));
+    positionsFilter.setValue(visiblePositionSelection(payload), {
+      hidden: hiddenPositionSelection(payload).length,
+    });
   }
 
   renderPortfolioCharts(payload);
@@ -342,9 +347,14 @@ function setPortfolioPositions(selection, toggled) {
  * A toggle edits only what was on screen: the ids the active depot filter hides
  * are carried across it, so switching back shows the lines again. The "all" row
  * is the exception — it is not a position but a reset, so it clears the hidden
- * ids too. The cap is the palette's, and the visible ids come first: an
- * oversized selection would spend slots on lines this payload cannot draw and
- * leave a checked row colourless.
+ * ids too.
+ *
+ * The final slice is a backstop, not the normal path: the control counts the
+ * hidden ids towards the same cap, so a pick that would overflow is refused at
+ * a greyed-out row instead of evicting something here. It stays for the one
+ * case the control cannot see, a hand-edited store. The visible ids come first
+ * either way — an oversized selection would otherwise spend slots on lines this
+ * payload cannot draw and leave a checked row colourless.
  */
 function mergedPositionSelection(selection, toggled) {
   if (toggled === null || !lastPayload) return selection;
@@ -423,6 +433,9 @@ export function setupPortfolioListeners() {
     positionsFilter = createPositionsFilter(positionsRoot, {
       onChange: setPortfolioPositions,
     });
+    // No hidden count yet: which ids a payload cannot show is only knowable once
+    // one has arrived, and the first render corrects it long before the menu
+    // can be opened.
     positionsFilter.setValue(state.portfolioPositions);
   }
 
