@@ -822,8 +822,16 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .portfolio-donut {
   position: relative;
   flex: none;
-  width: 132px;
-  height: 132px;
+  width: clamp(104px, 32%, 132px);
+  aspect-ratio: 1;
+}
+
+/* Taken out of the flow so the box keeps the square `aspect-ratio` gives it:
+   Chart.js sizes the canvas from the box, so a canvas that counts towards the
+   box's own height would settle on the library's 300px default instead. */
+.portfolio-donut canvas {
+  position: absolute;
+  inset: 0;
 }
 
 .portfolio-alloc-legend {
@@ -889,9 +897,11 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   align-items: center;
 }
 
+/* A floor, not a ban on ellipsing: the track above shrinks down to its own
+   minimum first, and only then does the name start cutting. */
 .portfolio-change-name {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12.5px;
@@ -899,10 +909,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   white-space: nowrap;
 }
 
+/* The name is the only other elastic child of the row, so a rigid track would
+   make it absorb every missing pixel on its own. */
 .portfolio-bar-track {
   display: flex;
-  flex: none;
-  width: 140px;
+  flex: 0 1 140px;
+  min-width: 56px;
   height: 8px;
   overflow: hidden;
   background: var(--bg-primary);
@@ -1370,6 +1382,16 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
+/* Side by side, each card is barely 300px on a tablet: the donut and the bar
+   tracks hold their size, so the position names are what gets cut down to an
+   ellipsis. Stacking them gives every name the full row. (Same threshold as the
+   stats charts, which pair the same way.) */
+@media (width <= 960px) {
+  .portfolio-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Mobile (Design 18b): the same content in the same order, stacked — hero above
    two small cards, a compact chart carrying its own period switcher, and one card
    per depot whose rows carry their figures on two lines. */
@@ -1454,17 +1476,16 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     padding: 0 16px 10px;
   }
 
-  .portfolio-bottom {
-    grid-template-columns: 1fr;
-  }
-
   .portfolio-alloc-body {
     flex-direction: column;
     align-items: stretch;
   }
 
+  /* Stacked above the legend, the percentage would resolve against the card's
+     full width instead of the space left beside it. */
   .portfolio-donut {
     align-self: center;
+    width: 132px;
   }
 
   /* Each depot becomes its own card and the list is only their stack, so the
