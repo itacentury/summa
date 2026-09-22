@@ -1137,6 +1137,32 @@ describe("portfolio position filter", () => {
     );
   });
 
+  it("offers a way out when the hidden picks alone have spent the palette", async () => {
+    await filteredWithStored(hiddenIds(PORTFOLIO_MAX_LINES));
+
+    openMenu();
+    const reset = document.querySelector(".portfolio-positions-reset");
+    // The "all" row above is checked here and so reads as the state in force;
+    // this row is the only thing on screen that offers to change it.
+    expect(reset.textContent).toBe(
+      `Clear ${PORTFOLIO_MAX_LINES} picks in other depots`,
+    );
+
+    reset.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    await flushUi();
+
+    expect(state.portfolioPositions).toBe("all");
+    expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
+    expect(positionsLabel()).toBe("Total portfolio");
+
+    // And the list takes picks again, in the depot the user is actually in.
+    const rows = [...document.querySelectorAll(".portfolio-positions-option")];
+    expect(
+      rows.slice(1).some((row) => row.classList.contains("is-disabled")),
+    ).toBe(false);
+    expect(document.querySelector(".portfolio-positions-reset")).toBeNull();
+  });
+
   it("takes the pick that fills the last palette slot, visible ids first", async () => {
     const hidden = hiddenIds(PORTFOLIO_MAX_LINES - 1);
     await filteredWithStored(hidden);

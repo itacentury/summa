@@ -648,6 +648,23 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: none;
 }
 
+/* The way out of a fully greyed-out list. The "all" row above does the same
+   thing, but with nothing checked it reads as the state already in force rather
+   than as an action. It commands rather than selects, so it carries the accent
+   in place of a checkbox. */
+.portfolio-positions-reset {
+  padding: 6px 9px;
+  font-size: 12.5px;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.portfolio-positions-reset.is-highlighted {
+  background: var(--bg-hover);
+}
+
 /* Why those rows are greyed out. Sticky, because the menu scrolls once the
    depot holds more positions than it can show — a footer below the fold would
    explain nothing. */

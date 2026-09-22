@@ -36,6 +36,12 @@ const limitHint = (hidden) =>
     : `Max. ${PORTFOLIO_MAX_LINES} lines · ${hidden} in other depots`;
 
 /**
+ * The reset row's label. Always plural: the row only appears once the hidden
+ * picks alone have spent the whole palette.
+ */
+const resetLabel = (hidden) => `Clear ${hidden} picks in other depots`;
+
+/**
  * Create the position filter bound to `root` (the `.portfolio-positions`
  * element). `onChange(value, toggled)` fires only on a user-driven toggle,
  * never on setValue() or setOptions(); `value` is either `POSITIONS_ALL` or an
@@ -47,6 +53,10 @@ const limitHint = (hidden) =>
  * read `POSITIONS_ALL`. The caller owns the selection — which may be wider than
  * the rows shown here — so only it can decide what either one means for the
  * part it is not showing.
+ *
+ * That wider selection is also why the reset needs a second row of its own:
+ * once the hidden picks alone have spent the palette, the "all" row is checked
+ * and so reads as the state in force rather than as the way out of it.
  *
  * Of that wider selection the control is told one thing, `setValue()`'s `hidden`
  * count: the ceiling is the palette's and applies to the whole of it, so
@@ -89,6 +99,16 @@ export function createPositionsFilter(root, { onChange } = {}) {
   // hidden picks are counted because they hold colors too.
   const atLimit = () => selected.size + hiddenCount >= PORTFOLIO_MAX_LINES;
 
+  // The one state the rows themselves offer no way out of: every one of them is
+  // greyed out and none is checked, so there is neither a row to take nor a row
+  // to give back. Anywhere else the "all" row shows unchecked and is remedy
+  // enough.
+  const resetShown = () => selected.size === 0 && atLimit();
+
+  // Seated after the last position, so it joins the same index scheme the
+  // keyboard and the click delegation already walk.
+  const resetIndex = () => (resetShown() ? positions.length + 1 : -1);
+
   // Counts only the rows on screen, deliberately unlike atLimit(): the label
   // names the lines this chart draws, and it draws no hidden one.
   const applyLabel = () => {
@@ -123,6 +143,14 @@ export function createPositionsFilter(root, { onChange } = {}) {
   `;
   };
 
+  // Written on one line so its text node is the label exactly, the way the hint
+  // row's is.
+  const resetHtml = () => {
+    const index = resetIndex();
+    const highlight = index === highlighted ? " is-highlighted" : "";
+    return `<li class="portfolio-positions-reset${highlight}" role="option" aria-selected="false" id="${menu.id}-option-${index}" data-index="${index}">${resetLabel(hiddenCount)}</li>`;
+  };
+
   const renderMenu = () => {
     // role="presentation" on the hint: it is a label for the list, not a row a
     // listbox may offer as one more option.
@@ -134,6 +162,8 @@ export function createPositionsFilter(root, { onChange } = {}) {
       ...positions.map((position, index) =>
         rowHtml(index + 1, selected.has(position.id), position.name),
       ),
+      // Above the hint, which is sticky and has to stay the last element.
+      resetShown() ? resetHtml() : "",
       hint,
     ].join("");
 
@@ -172,12 +202,21 @@ export function createPositionsFilter(root, { onChange } = {}) {
    * palette's last color does nothing at all: the row is already greyed out, so
    * a silent no-op is what it promised — and because the hidden picks count
    * towards the ceiling, that refusal covers them too, rather than leaving the
-   * caller to evict one of them without a row to show for it.
+   * caller to evict one of them without a row to show for it. The trailing
+   * reset row, shown only while that refusal covers every row at once, is the
+   * "all" row's second entrance rather than a case of its own.
    */
   const toggle = (index) => {
     let toggled = null;
-    if (index === ALL_INDEX) selected = new Set();
-    else {
+    // Read before the selection is cleared: the reset row's index is derived
+    // from the very state that clearing ends.
+    const isReset = index === resetIndex();
+    if (index === ALL_INDEX || isReset) {
+      selected = new Set();
+      // The row is about to stop being rendered, so the highlight may not stay
+      // on it.
+      if (isReset) highlighted = ALL_INDEX;
+    } else {
       const position = positionAt(index);
       if (!position) return;
       if (selected.has(position.id)) selected.delete(position.id);
@@ -196,7 +235,8 @@ export function createPositionsFilter(root, { onChange } = {}) {
   // Shared with setOptions(): the highlight is a bare index, so replacing the
   // rows is as able to strand it past the last one as moving it is.
   const clampHighlight = () => {
-    highlighted = Math.max(ALL_INDEX, Math.min(positions.length, highlighted));
+    const last = positions.length + (resetShown() ? 1 : 0);
+    highlighted = Math.max(ALL_INDEX, Math.min(last, highlighted));
   };
 
   const moveHighlight = (delta) => {
@@ -249,7 +289,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
 
   // mousedown so it lands before the trigger's focusout closes the menu.
   menu.addEventListener("mousedown", (event) => {
-    const option = event.target.closest(".portfolio-positions-option");
+    const option = event.target.closest(
+      ".portfolio-positions-option, .portfolio-positions-reset",
+    );
     if (!option) return;
     event.preventDefault();
     highlighted = Number(option.dataset.index);
@@ -297,6 +339,9 @@ export function createPositionsFilter(root, { onChange } = {}) {
               [...next].slice(0, Math.max(0, PORTFOLIO_MAX_LINES - hidden)),
             );
       applyLabel();
+      // The reset row comes and goes with `hidden`, so the highlight can be
+      // stranded past the last row by a mere recount.
+      clampHighlight();
       if (open) renderMenu();
     },
     getValue() {

@@ -346,3 +346,94 @@ describe("the palette cap", () => {
     expect(filter.getValue()).toEqual([MANY[1].id, MANY[2].id, MANY[3].id]);
   });
 });
+
+describe("the reset row", () => {
+  const resetRow = () => document.querySelector(".portfolio-positions-reset");
+
+  /** The dead end: every pick sits in a depot these rows cannot show. */
+  const fullyHidden = () => {
+    filter.setValue(POSITIONS_ALL, { hidden: PORTFOLIO_MAX_LINES });
+    press(trigger(), "mousedown");
+  };
+
+  it("stays away while a row can still be taken", () => {
+    press(trigger(), "mousedown");
+
+    expect(resetRow()).toBeNull();
+  });
+
+  it("stays away while a checked row can be given back", () => {
+    filter.setOptions(MANY);
+    for (let index = 1; index <= PORTFOLIO_MAX_LINES; index += 1)
+      clickRow(index);
+
+    // The cap bites, but unchecking any of the eight is remedy enough.
+    expect(resetRow()).toBeNull();
+
+    filter.setValue([MANY[0].id], { hidden: PORTFOLIO_MAX_LINES - 1 });
+    press(trigger(), "mousedown");
+
+    expect(resetRow()).toBeNull();
+  });
+
+  it("appears once every row is greyed and none is checked", () => {
+    fullyHidden();
+
+    expect(resetRow().textContent).toBe(
+      `Clear ${PORTFOLIO_MAX_LINES} picks in other depots`,
+    );
+    expect(
+      options()
+        .slice(1)
+        .every((row) => row.classList.contains("is-disabled")),
+    ).toBe(true);
+  });
+
+  it("sits above the hint, which has to stay the last row", () => {
+    fullyHidden();
+
+    expect(resetRow().nextElementSibling).toBe(
+      document.querySelector(".portfolio-positions-hint"),
+    );
+  });
+
+  it("reports the clear the way the all row does, so hidden picks go too", () => {
+    fullyHidden();
+    press(resetRow(), "mousedown");
+
+    expect(onChange).toHaveBeenCalledWith(POSITIONS_ALL, null);
+  });
+
+  it("goes once the caller reports the picks cleared", () => {
+    fullyHidden();
+    press(resetRow(), "mousedown");
+    // What the caller answers a cleared selection with.
+    filter.setValue(POSITIONS_ALL, { hidden: 0 });
+
+    expect(resetRow()).toBeNull();
+    expect(options().some((row) => row.classList.contains("is-disabled"))).toBe(
+      false,
+    );
+  });
+
+  it("is reachable by keyboard, past the last position", () => {
+    fullyHidden();
+    for (let step = 0; step < POSITIONS.length + 1; step += 1) key("ArrowDown");
+
+    expect(trigger().getAttribute("aria-activedescendant")).toBe(resetRow().id);
+    expect(resetRow().classList.contains("is-highlighted")).toBe(true);
+
+    key("Enter");
+
+    expect(onChange).toHaveBeenCalledWith(POSITIONS_ALL, null);
+  });
+
+  it("does not let the highlight run past it", () => {
+    fullyHidden();
+    for (let step = 0; step < POSITIONS.length + 5; step += 1) key("ArrowDown");
+    key("Enter");
+
+    // Still the reset, not a row beyond the end that would toggle nothing.
+    expect(onChange).toHaveBeenCalledWith(POSITIONS_ALL, null);
+  });
+});
