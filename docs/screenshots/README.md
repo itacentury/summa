@@ -7,19 +7,22 @@ ratio.
 
 ## Index
 
-| File                              | Surface                                                  |
-| --------------------------------- | -------------------------------------------------------- |
-| `invoice-list-expanded-desktop`   | The invoice list with a row expanded to its line items   |
-| `stats-desktop`                   | Statistics: summary cards, category doughnut, top stores |
-| `filter-panel-desktop`            | The filter panel expanded                                |
-| `new-invoice-filled-desktop`      | New invoice with line items and calculated total         |
-| `bulk-selection-desktop`          | Multi-select with the bulk action toolbar                |
-| `categorize-row-expanded-desktop` | AI category suggestions, one row showing its items       |
-| `import-empty-desktop`            | Import: dropzone and paste box                           |
-| `import-errors-desktop`           | Import: per-entry error correction                       |
-| `login-desktop`                   | The optional password gate                               |
-| `invoice-list-expanded-mobile`    | The same list at phone width, with topbar and FAB        |
-| `drawer-mobile`                   | The navigation drawer with its scrim                     |
+| File                              | Surface                                                   |
+| --------------------------------- | --------------------------------------------------------- |
+| `invoice-list-expanded-desktop`   | The invoice list with a row expanded to its line items    |
+| `stats-desktop`                   | Statistics: summary cards, category doughnut, top stores  |
+| `filter-panel-desktop`            | The filter panel expanded                                 |
+| `new-invoice-filled-desktop`      | New invoice with line items and calculated total          |
+| `bulk-selection-desktop`          | Multi-select with the bulk action toolbar                 |
+| `categorize-row-expanded-desktop` | AI category suggestions, one row showing its items        |
+| `import-empty-desktop`            | Import: dropzone and paste box                            |
+| `import-errors-desktop`           | Import: per-entry error correction                        |
+| `login-desktop`                   | The optional password gate                                |
+| `portfolio-overview-desktop`      | Portfolio: summary cards and the value-over-time chart    |
+| `portfolio-positions-desktop`     | Portfolio: a position expanded, allocation, weekly movers |
+| `invoice-list-expanded-mobile`    | The same list at phone width, with topbar and FAB         |
+| `portfolio-mobile`                | The portfolio at phone width, with its snapshot FAB       |
+| `drawer-mobile`                   | The navigation drawer with its scrim                      |
 
 ## Regenerating
 
@@ -46,6 +49,11 @@ forward by whole months at seed time, so the default "Month" filter always has
 data. [`scripts/screenshot-import-sample.json`](../../scripts/screenshot-import-sample.json)
 is the smaller file that drives the import modal; two of its entries are invalid
 on purpose, to produce the error-correction panel.
+
+The portfolio side has no import endpoint, so its history comes from
+[`scripts/seed_portfolio.py`](../../scripts/seed_portfolio.py), which the run
+calls before it starts the server — the generator is deterministic, and the run
+pins both `--seed` and `--weeks`, so the same chart comes out every time.
 
 The AI suggestion endpoint is stubbed via `page.route()`, so the run needs no
 Anthropic API key and stays deterministic.

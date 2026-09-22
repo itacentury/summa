@@ -51,6 +51,17 @@ on `--seed`, so a screenshot is reproducible; `--reset` clears the four
 portfolio tables first and never touches the invoice side, while a re-run
 without it keeps every week already recorded.
 
+`docs/screenshots/` is a **generated** artifact of the UI, produced in full by
+`scripts/screenshots.mjs` (a fourth workstation tool; it seeds both sides of the
+database, drives Playwright and replaces every PNG at once). Never add or edit a
+screenshot by hand. **When a change alters a captured surface, regenerate the set
+once before the branch is merged** — once per branch, not per commit, because
+each run is a binary diff over the whole folder. A surface worth showing that no
+existing shot covers means three edits together: a step in `screenshots.mjs`, a
+row in the index in `docs/screenshots/README.md`, and a cell in the root
+`README.md` table if it belongs in the shop window. Playwright lives outside the
+repo; `docs/screenshots/README.md` documents the run and its prerequisites.
+
 `.env` — copied from `.env.example` — is what decides whether a local run is behind
 the login gate (`AUTH_ENABLED`), and `uv` fails outright when that file is missing. The
 VS Code task `Run: Start Server` (`summa.code-workspace`) loads it the same way, through

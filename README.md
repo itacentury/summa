@@ -12,6 +12,8 @@ Invoice management and expense tracking web application.
 | Creating an invoice with its line items.                                      | Reviewing AI category suggestions before applying them.                          |
 | ![Invoice list on a phone](docs/screenshots/invoice-list-expanded-mobile.png) | ![Login](docs/screenshots/login-desktop.png)                                     |
 | The same list as an installed PWA on a phone.                                 | The optional password gate.                                                      |
+| ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                 | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
+| Depot value over time, against the benchmark.                                 | Positions, allocation and the biggest movers of the week.                        |
 
 The full set lives in [`docs/screenshots/`](docs/screenshots/), which also
 documents how to regenerate it.
