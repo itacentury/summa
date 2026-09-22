@@ -500,7 +500,7 @@ export function allocationLegendHtml(allocation) {
       return `
         <div class="portfolio-alloc-item${aggregated}">
           <span class="portfolio-alloc-color"></span>
-          <span class="portfolio-alloc-label">${escapeHtml(slice.label)}</span>
+          <span class="portfolio-alloc-label">${truncatableHtml(slice.label)}</span>
           <span class="portfolio-alloc-percent">${slice.share_pct.toFixed(1)} %</span>
         </div>
       `;
@@ -541,7 +541,7 @@ function changeRowHtml(change, largest) {
 
   return `
     <div class="portfolio-change-row">
-      <span class="portfolio-change-name">${escapeHtml(change.name)}</span>
+      <span class="portfolio-change-name">${truncatableHtml(change.name)}</span>
       <span class="portfolio-bar-track">
         <span class="portfolio-bar-fill ${tone}" data-share="${share}"></span>
       </span>

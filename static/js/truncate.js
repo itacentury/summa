@@ -152,9 +152,22 @@ function syncAccessibleName(carrier, host, full, truncated) {
   carrier.after(spoken);
 }
 
+// How often a cut may be measured again after the host settled around it. The
+// widths below only ever fall, so this is a guard against a pathological layout,
+// not a convergence criterion: two passes settle the cases in this app.
+const MAX_SETTLE_PASSES = 4;
+
 /**
  * Re-cut one carrier against its current width. Idempotent, so a widening
  * viewport restores the full name.
+ *
+ * Every cut is made from `full` against a freshly measured width, never from
+ * the text already on screen — which is what keeps a re-run from ratcheting the
+ * name ever shorter. The loop exists because a host may be narrower once it no
+ * longer holds the full name: where its width comes from its own content (a
+ * flex item with an `auto` basis), a shrinking neighbour hands back the pixels
+ * it had lent, and the cut would have been made against a width that no longer
+ * exists. Re-measuring only ever narrows, so the loop terminates on its own.
  */
 export function applyTruncation(carrier) {
   const full = carrier.dataset.full;
@@ -166,18 +179,24 @@ export function applyTruncation(carrier) {
     syncAccessibleName(carrier, host, full, false);
   };
 
-  // Measured before anything is written, so the width is the one the full name
-  // is laid out against and a re-run cannot ratchet the text ever shorter.
   carrier.textContent = full;
-  const available = availableWidth(carrier, host);
   const measure = measurerFor(carrier);
+  let available = availableWidth(carrier, host);
   if (available <= 0 || !measure) return restore();
 
-  const shortened = middleTruncate(full, available, measure);
+  let shortened = middleTruncate(full, available, measure);
   if (shortened === full) return restore();
-
   carrier.textContent = shortened;
-  syncAccessibleName(carrier, host, full, true);
+
+  for (let pass = 1; pass < MAX_SETTLE_PASSES; pass += 1) {
+    const settled = availableWidth(carrier, host);
+    if (settled >= available) break;
+    available = settled;
+    shortened = middleTruncate(full, available, measure);
+    carrier.textContent = shortened;
+  }
+
+  syncAccessibleName(carrier, host, full, shortened !== full);
 }
 
 // Roots already being watched, and the width each was last measured at. Keyed

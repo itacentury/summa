@@ -20,6 +20,7 @@ import {
   seriesLegendHtml,
 } from "./portfolio-render.js";
 import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
+import { refreshTruncation } from "./truncate.js";
 
 // Whole euros on the axis: the two decimals the cards and rows carry are noise
 // at tick size, and the design leaves the y labels deliberately quiet.
@@ -491,6 +492,9 @@ function renderAllocationChart(allocation) {
   legend.querySelectorAll(".portfolio-alloc-color").forEach((swatch, index) => {
     swatch.style.background = chartColors[index % chartColors.length];
   });
+  // Re-cut here rather than once per payload: a position toggle and a
+  // breakpoint change both re-enter this path and rewrite the container.
+  refreshTruncation(legend);
 
   const isEmpty = allocation.length === 0;
   canvas.parentElement.classList.toggle("is-hidden", isEmpty);
@@ -545,6 +549,7 @@ function renderBiggestChanges(changes) {
   container.querySelectorAll(".portfolio-bar-fill").forEach((fill) => {
     fill.style.width = `${Number(fill.dataset.share) * 100}%`;
   });
+  refreshTruncation(container);
 }
 
 /** Draw all three portfolio visualisations from one payload. */

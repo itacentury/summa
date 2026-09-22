@@ -175,6 +175,12 @@ describe("allocationLegendHtml", () => {
     expect(html).toContain("&lt;img");
   });
 
+  it("hands the label to the middle-ellipsis carrier, not the CSS one", () => {
+    const html = allocationLegendHtml(chartPayload().allocation);
+
+    expect(html).toContain('<span data-full="Deka Industrie 0"');
+  });
+
   it("falls back to a message when nothing is held", () => {
     expect(allocationLegendHtml([])).toContain("portfolio-card-empty");
   });
@@ -208,6 +214,17 @@ describe("biggestChangesHtml", () => {
     expect(document.querySelectorAll(".portfolio-change-divider")).toHaveLength(
       0,
     );
+  });
+
+  it("hands each mover's name to the middle-ellipsis carrier", () => {
+    document.body.innerHTML = biggestChangesHtml(chartPayload().changes);
+    const names = Array.from(
+      document.querySelectorAll(".portfolio-change-name > [data-full]"),
+    ).map((carrier) => carrier.dataset.full);
+
+    // The card that motivated the cut: two holdings compared one under the
+    // other, where an end ellipsis drops exactly what tells them apart.
+    expect(names).toEqual(["FTSE All-World", "Deka Industrie 0"]);
   });
 
   it("falls back to a message when nothing moved", () => {
