@@ -29,7 +29,7 @@ Three operational CLIs live under `scripts/` and are not part of the served app:
 
 ```bash
 uv run python -m scripts.import_portfolio_xlsx book.xlsx --fx USD=1.08  # load depot history
-uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (cron)
+uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (compose loop)
 uv run python -m scripts.seed_portfolio --reset                         # fake depot history for UI checks
 ```
 
@@ -169,8 +169,9 @@ wide workbook (row 1 depot bands, row 2 a `name · Einzahlung · Delta` triple p
 position, row 3+ one row per week), recomputes Delta instead of importing it, and
 is idempotent via `INSERT OR IGNORE` on `(position_id, date)` — a re-run never
 rewrites a week you corrected in the UI. `scripts/fetch_benchmark.py` keeps
-`benchmark_prices` fresh from a public chart feed and exits non-zero so cron can
-report. Which symbol the chart draws is configuration, not freshness:
+`benchmark_prices` fresh from a public chart feed and exits non-zero so the
+`benchmark` compose loop retries after an hour (the error lands in `docker
+compose logs benchmark`). Which symbol the chart draws is configuration, not freshness:
 `config.benchmark_symbol()` (`BENCHMARK_SYMBOL`, default `EUNL.DE`) names it for
 both the job's `--symbol` default and `_feed_points()`, so an exploratory fetch
 of another ticker writes rows nothing reads. Only when the configured symbol has
