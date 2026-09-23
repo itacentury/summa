@@ -43,7 +43,9 @@ carries it — the importer is a workstation tool. `fetch_benchmark` is the
 exception: `.dockerignore` whitelists it (plus `__init__.py` and
 `portfolio_db.py`) into the image, where the `benchmark` compose service runs it
 in a sleep loop (`BENCHMARK_INTERVAL_SECONDS`, default daily), so keep its
-imports to the stdlib and `summa`. `scripts` is in
+imports to the stdlib and `summa` — the `docker` workflow's smoke step
+(`python -m scripts.fetch_benchmark --help` in the built image) fails on any
+other import. `scripts` is in
 `[tool.mypy] files`, so all three are strict-checked.
 
 `seed_portfolio.py` is a workstation tool too, for looking at the Portfolio
@@ -234,7 +236,7 @@ and the app together with the pre-generated PWA icons committed under
 4 threads) as a non-root `appuser`. `entrypoint.sh` fixes `/data` volume
 ownership via `setpriv` before dropping privileges. In the container the DB lives at
 `/data/invoices.db`. `docker-compose.yml` runs a second service, `benchmark`, from
-the same image to refresh `benchmark_prices` (see _Commands_).
+an image built from the same Dockerfile to refresh `benchmark_prices` (see _Commands_).
 
 Image build, vulnerability scan and push live in a separate
 [`docker` workflow](.github/workflows/docker.yml) (distinct from CI's three

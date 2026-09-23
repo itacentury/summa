@@ -217,21 +217,23 @@ per client (ten failures per five minutes).
 Depot history is loaded from a workbook by `scripts/import_portfolio_xlsx.py`. It
 does **not** run inside the container: the image ships neither the importer nor
 `openpyxl` (a dev-only dependency). Run it from a local checkout against the
-production database file instead — no checkout is needed on the server:
+production database file instead — no checkout is needed on the server. Below,
+`<host>` is the server and `<deploy-dir>` the directory holding its
+`docker-compose.yml`:
 
 ```bash
 # Stop every service — the app and the benchmark refresh both write to the
 # database — so nothing writes concurrently and the WAL is checkpointed
-ssh server 'cd ~/docker/summa && docker compose stop'
-scp server:~/docker/summa/data/invoices.db ./prod.db
+ssh <host> 'cd <deploy-dir> && docker compose stop'
+scp <host>:<deploy-dir>/data/invoices.db ./prod.db
 cp prod.db prod.db.bak
 
 uv sync
 uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db --dry-run
 uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db
 
-scp prod.db server:~/docker/summa/data/invoices.db
-ssh server 'cd ~/docker/summa && docker compose start'
+scp prod.db <host>:<deploy-dir>/data/invoices.db
+ssh <host> 'cd <deploy-dir> && docker compose start'
 ```
 
 Before copying the file back, make sure no `invoices.db-wal` / `invoices.db-shm`
@@ -248,7 +250,7 @@ on every start.
 
 The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`,
 which, unlike the importer, ships in the image: the `benchmark` service in
-[`docker-compose.yml`](docker-compose.yml) runs it from the same image once a day
+[`docker-compose.yml`](docker-compose.yml) runs it once a day from an image built from the same Dockerfile
 (`BENCHMARK_INTERVAL_SECONDS` overrides that, down to a floor of one hour) for the symbol in
 `BENCHMARK_SYMBOL`, writing to the same `./data` database while the app keeps
 running — which is why the import above stops it along with the app. A deployment with its own compose file copies that service block,
