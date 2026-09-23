@@ -24,10 +24,10 @@ npm run screenshots:setup
 
 Then import Playwright from `scripts/screenshots/node_modules` or use the
 repository's screenshot tooling. If Chromium is already present under
-`/opt/pw-browsers/chromium-*`, pass its executable path to Playwright via
-`executablePath` to skip the ~170 MB Chromium, headless shell and ffmpeg
-download. Useful widths: 1280 (desktop), 600 (just under the 640px sheet
-breakpoint), 390 and 320 (phones).
+`$PLAYWRIGHT_BROWSERS_PATH`, or in Playwright's own browser cache, pass its
+executable path to Playwright via `executablePath` to skip the ~170 MB Chromium,
+headless shell and ffmpeg download. Useful widths: 1280 (desktop), 600 (just
+under the 640px sheet breakpoint), 390 and 320 (phones).
 
 Gotchas:
 
