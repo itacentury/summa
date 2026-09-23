@@ -319,6 +319,10 @@ const portfolioPayload = () => ({
   range_start: "2025-09-14",
   range_end: "2026-09-14",
   depot: null,
+  depot_options: [
+    { id: 1, name: "Trade Republic" },
+    { id: 2, name: "Deka" },
+  ],
   depots: [
     {
       id: 1,
