@@ -20,9 +20,10 @@ services:
 
   # Refreshes the chart's benchmark series from an image built from the same
   # Dockerfile. A failed fetch only logs and is retried after an hour (the
-  # interval floor) rather than a full interval, so the loop never exits. Because of that, the interval is
-  # checked once up front: a value `sleep` would reject or a too-short one would
-  # turn the loop into a hot loop against the feed.
+  # interval floor) rather than a full interval, so the loop never exits.
+  # Because of that, the interval is checked once up front: a value `sleep`
+  # would reject or a too-short one would turn the loop into a hot loop
+  # against the feed.
   benchmark:
     build: .
     restart: unless-stopped

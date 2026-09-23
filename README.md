@@ -252,14 +252,15 @@ on every start.
 
 The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`,
 which, unlike the importer, ships in the image: the `benchmark` service in
-[`docker-compose.yml`](docker-compose.yml) runs it once a day from an image built from the same Dockerfile
-(`BENCHMARK_INTERVAL_SECONDS` overrides that, down to a floor of one hour) for the symbol in
-`BENCHMARK_SYMBOL`, writing to the same `./data` database while the app keeps
-running — which is why the import above stops it along with the app. A deployment with its own compose file copies that service block,
-swapping `build: .` for the `image:` it pulls. Check a run with
-`docker compose logs benchmark`; a failed fetch is retried after an hour rather than
-waiting out the full interval, and until one succeeds the chart falls back and
-says so in its footnote.
+[`docker-compose.yml`](docker-compose.yml) runs it once a day from an image
+built from the same Dockerfile (`BENCHMARK_INTERVAL_SECONDS` overrides that,
+down to a floor of one hour) for the symbol in `BENCHMARK_SYMBOL`, writing to
+the same `./data` database while the app keeps running — which is why the
+import above stops it along with the app. A deployment with its own compose
+file copies that service block, swapping `build: .` for the `image:` it pulls.
+Check a run with `docker compose logs benchmark`; a failed fetch is retried
+after an hour rather than waiting out the full interval, and until one
+succeeds the chart falls back and says so in its footnote.
 
 ## Configuration
 
