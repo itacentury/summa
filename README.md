@@ -4,18 +4,16 @@ Invoice management and expense tracking web application.
 
 ## Screenshots
 
-|                                                                               |                                                                                  |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![Invoice list](docs/screenshots/invoice-list-expanded-desktop.png)           | ![Statistics](docs/screenshots/stats-desktop.png)                                |
-| The invoice list with a row expanded to its line items.                       | Statistics for the period, with per-category and per-store breakdowns.           |
-| ![New invoice](docs/screenshots/new-invoice-filled-desktop.png)               | ![AI category suggestions](docs/screenshots/categorize-row-expanded-desktop.png) |
-| Creating an invoice with its line items.                                      | Reviewing AI category suggestions before applying them.                          |
-| ![Invoice list on a phone](docs/screenshots/invoice-list-expanded-mobile.png) | ![Login](docs/screenshots/login-desktop.png)                                     |
-| The same list as an installed PWA on a phone.                                 | The optional password gate.                                                      |
-| ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                 | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
-| Depot value over time, against the benchmark.                                 | Positions, allocation and the biggest movers of the week.                        |
-| ![Portfolio on a phone](docs/screenshots/portfolio-mobile.png)                | ![Navigation drawer](docs/screenshots/drawer-mobile.png)                         |
-| The portfolio at phone width, with its snapshot FAB.                          | The navigation drawer on a phone.                                                |
+|                                                                                                          |                                                                                  |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ![Invoice list](docs/screenshots/invoice-list-expanded-desktop.png)                                      | ![Statistics](docs/screenshots/stats-desktop.png)                                |
+| The invoice list with a row expanded to its line items.                                                  | Statistics for the period, with per-category and per-store breakdowns.           |
+| ![New invoice](docs/screenshots/new-invoice-filled-desktop.png)                                          | ![AI category suggestions](docs/screenshots/categorize-row-expanded-desktop.png) |
+| Creating an invoice with its line items.                                                                 | Reviewing AI category suggestions before applying them.                          |
+| ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                                            | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
+| Depot value over time, against the benchmark.                                                            | Positions, allocation and the biggest movers of the week.                        |
+| <img src="docs/screenshots/invoice-list-expanded-mobile.png" alt="Invoice list on a phone" height="300"> |                                                                                  |
+| The same list as an installed PWA on a phone.                                                            |                                                                                  |
 
 The full set lives in [`docs/screenshots/`](docs/screenshots/), which also
 documents how to regenerate it.
