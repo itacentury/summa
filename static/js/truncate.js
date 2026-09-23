@@ -71,8 +71,10 @@ export function truncatableHtml(text) {
   return `<span data-full="${escaped}">${escaped}</span>`;
 }
 
-// One bound measurer per computed font. Each needs its own context because a
-// cached closure over a shared context would use whichever font was bound last.
+// One bound measurer per computed font. Fixed CSS font sizes keep this set
+// bounded; introducing fluid font sizing must also introduce cache eviction.
+// Each needs its own context because a cached closure over a shared context
+// would use whichever font was bound last.
 const fontMeasurers = new Map();
 
 // A font no element on this page can have. `context.font = …` is a CSS parser,
