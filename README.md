@@ -220,8 +220,9 @@ does **not** run inside the container: the image ships neither the importer nor
 production database file instead — no checkout is needed on the server:
 
 ```bash
-# Stop the app so nothing writes concurrently and the WAL is checkpointed
-ssh server 'cd ~/docker/summa && docker compose stop summa'
+# Stop every service — the app and the benchmark refresh both write to the
+# database — so nothing writes concurrently and the WAL is checkpointed
+ssh server 'cd ~/docker/summa && docker compose stop'
 scp server:~/docker/summa/data/invoices.db ./prod.db
 cp prod.db prod.db.bak
 
@@ -230,7 +231,7 @@ uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db --dry
 uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db
 
 scp prod.db server:~/docker/summa/data/invoices.db
-ssh server 'cd ~/docker/summa && docker compose start summa'
+ssh server 'cd ~/docker/summa && docker compose start'
 ```
 
 Before copying the file back, make sure no `invoices.db-wal` / `invoices.db-shm`
@@ -250,7 +251,7 @@ which, unlike the importer, ships in the image: the `benchmark` service in
 [`docker-compose.yml`](docker-compose.yml) runs it from the same image once a day
 (`BENCHMARK_INTERVAL_SECONDS` overrides that) for the symbol in
 `BENCHMARK_SYMBOL`, writing to the same `./data` database while the app keeps
-running. A deployment with its own compose file copies that service block,
+running — which is why the import above stops it along with the app. A deployment with its own compose file copies that service block,
 swapping `build: .` for the `image:` it pulls. Check a run with
 `docker compose logs benchmark`; a failed fetch is retried on the next pass, and
 until one succeeds the chart falls back and says so in its footnote.
