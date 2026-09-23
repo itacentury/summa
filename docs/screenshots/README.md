@@ -33,11 +33,21 @@ Screenshots go to a work directory; only after every surface has succeeded are
 this folder's PNGs dropped and replaced, so what remains is exactly what the
 script produces and a failed run leaves the folder as committed. Browser and
 image tooling are pinned in a separate package so the regular frontend install
-and CI job stay small. Set them up once, then regenerate the full set:
+and CI job stay small. Set them up once:
 
 ```bash
 npm run screenshots:setup
+```
+
+After changing the compression pass, run its focused tests:
+
+```bash
 npm test --prefix scripts/screenshots
+```
+
+Regenerate the full set whenever a captured UI surface changes:
+
+```bash
 npm run screenshots
 ```
 
