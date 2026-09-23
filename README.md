@@ -219,20 +219,25 @@ does **not** run inside the container: the image ships neither the importer nor
 `openpyxl` (a dev-only dependency). Run it from a local checkout against the
 production database file instead — no checkout is needed on the server. Below,
 `<host>` is the server and `<deploy-dir>` the directory holding its
-`docker-compose.yml`:
+`docker-compose.yml`. The commands run from the checkout, but the database copy,
+its backup and the workbook live in a directory outside it, so none of them can
+end up in a commit:
 
 ```bash
+work=~/summa-import
+mkdir -p "$work"   # put portfolio.xlsx here
+
 # Stop every service — the app and the benchmark refresh both write to the
 # database — so nothing writes concurrently and the WAL is checkpointed
 ssh <host> 'cd <deploy-dir> && docker compose stop'
-scp <host>:<deploy-dir>/data/invoices.db ./prod.db
-cp prod.db prod.db.bak
+scp <host>:<deploy-dir>/data/invoices.db "$work/prod.db"
+cp "$work/prod.db" "$work/prod.db.bak"
 
 uv sync
-uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db --dry-run
-uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db
+uv run python -m scripts.import_portfolio_xlsx "$work/portfolio.xlsx" --db "$work/prod.db" --dry-run
+uv run python -m scripts.import_portfolio_xlsx "$work/portfolio.xlsx" --db "$work/prod.db"
 
-scp prod.db <host>:<deploy-dir>/data/invoices.db
+scp "$work/prod.db" <host>:<deploy-dir>/data/invoices.db
 ssh <host> 'cd <deploy-dir> && docker compose start'
 ```
 
