@@ -6,13 +6,11 @@
  * something the others don't. Adding a step here means adding a file to the
  * index in docs/screenshots/README.md.
  *
- * Playwright is deliberately not a dependency of this repo (CI's `frontend` job
- * installs from package.json and has no use for a browser). Install it once
- * somewhere outside the repo and point NODE_PATH at it:
+ * Browser and image tooling live in a separate package so CI's frontend job
+ * does not install them. Set it up once, then run the capture from the repo root:
  *
- *   mkdir -p /tmp/summa-pw && cd /tmp/summa-pw && npm init -y && npm i playwright
- *   npx playwright install chromium
- *   NODE_PATH=/tmp/summa-pw/node_modules node scripts/screenshots.mjs
+ *   npm run screenshots:setup
+ *   npm run screenshots
  *
  * The run starts its own dev server against a throwaway database, so the
  * repository's own invoices.db is never touched. It aborts up front if port 8000
@@ -26,10 +24,12 @@
 
 import { spawn } from "node:child_process";
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { compressScreenshots } from "./screenshots/compress.mjs";
+import { loadChromium } from "./screenshots/dependencies.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(REPO_ROOT, "docs", "screenshots");
@@ -60,38 +60,6 @@ let captured = 0;
 /* ------------------------------------------------------------------ utils */
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Resolve Playwright, which lives outside this repo (see the header comment).
- */
-const loadPlaywright = async () => {
-  // A CommonJS package imported by file URL exposes its exports on `default`.
-  const unwrap = (module) => module.chromium ?? module.default?.chromium;
-
-  try {
-    const chromium = unwrap(await import("playwright"));
-    if (chromium) return chromium;
-  } catch {
-    // Not resolvable from the repo; fall back to NODE_PATH below.
-  }
-
-  const require = createRequire(import.meta.url);
-  // `delimiter`, not ":" — on Windows the separator is ";" and a drive letter
-  // would otherwise split "C:\pw\node_modules" into two useless halves.
-  const roots = (process.env.NODE_PATH ?? "").split(delimiter).filter(Boolean);
-  for (const root of roots) {
-    try {
-      const entry = require.resolve("playwright", { paths: [root] });
-      const chromium = unwrap(await import(pathToFileURL(entry).href));
-      if (chromium) return chromium;
-    } catch {
-      // Try the next NODE_PATH entry.
-    }
-  }
-  throw new Error(
-    "Playwright not found. See the header of this file for how to install it.",
-  );
-};
 
 /**
  * One GET against the app root, with the body drained.
@@ -731,11 +699,7 @@ const captureLogin = async (browser) => {
 };
 
 /**
- * Shrink the captured PNGs. The UI is flat-coloured, so quantizing to a
- * 256-colour palette is visually identical at roughly a third of the size,
- * which is worth having for images living in git; oxipng only recompresses
- * losslessly, so it is the last resort. Publishing requires one of the tools
- * to succeed so raw captures cannot replace the committed set.
+ * Shrink the captured PNGs before publishing them to the repository.
  */
 const compress = async () => {
   const files = (await readdir(SHOT_DIR))
@@ -743,30 +707,9 @@ const compress = async () => {
     .map((name) => join(SHOT_DIR, name));
   if (files.length === 0) return;
 
-  // pngquant exits 98 when --skip-if-larger skips a file: it ran, it just left
-  // that one alone, so treat it as done rather than falling through.
-  const attempts = [
-    [
-      "pngquant",
-      ["--force", "--skip-if-larger", "--ext", ".png", "--", ...files],
-      [0, 98],
-    ],
-    ["magick", ["mogrify", "-colors", "256", ...files], [0]],
-    ["oxipng", ["-o", "4", "--strip", "safe", "-q", ...files], [0]],
-  ];
-  for (const [tool, args, okCodes] of attempts) {
-    const succeeded = await new Promise((resolve) => {
-      const child = spawn(tool, args, { stdio: "ignore" });
-      child.on("error", () => resolve(false));
-      child.on("exit", (code) => resolve(okCodes.includes(code)));
-    });
-    if (succeeded) {
-      console.log(`\ncompressed with ${tool}`);
-      return;
-    }
-  }
-  throw new Error(
-    "Screenshot compression failed; install pngquant, ImageMagick or oxipng",
+  const { processed, replaced } = await compressScreenshots(files);
+  console.log(
+    `\ncompressed with sharp (${replaced}/${processed} files became smaller)`,
   );
 };
 
@@ -804,7 +747,7 @@ const newContext = async (browser, viewport) =>
   });
 
 const main = async () => {
-  const chromium = await loadPlaywright();
+  const chromium = await loadChromium();
   await assertPortFree();
 
   await rm(WORK_DIR, { recursive: true, force: true });

@@ -1,0 +1,16 @@
+{
+  "name": "summa-screenshot-tooling",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned browser and image tooling for Summa screenshot regeneration.",
+  "type": "module",
+  "scripts": {
+    "capture": "node ../screenshots.mjs",
+    "install-browser": "playwright install chromium",
+    "test": "node --test *.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.55.1",
+    "sharp": "0.35.4"
+  }
+}

@@ -31,15 +31,13 @@ repository's `invoices.db` is never touched — and it aborts up front rather th
 screenshot a server it did not start, so stop any dev server on port 8000 first.
 Screenshots go to a work directory; only after every surface has succeeded are
 this folder's PNGs dropped and replaced, so what remains is exactly what the
-script produces and a failed run leaves the folder as committed. Playwright is
-deliberately not a dependency of this repo — install it once outside it:
+script produces and a failed run leaves the folder as committed. Browser and
+image tooling are pinned in a separate package so the regular frontend install
+and CI job stay small. Set them up once, then regenerate the full set:
 
 ```bash
-mkdir -p /tmp/summa-pw && cd /tmp/summa-pw && npm init -y && npm i playwright
-npx playwright install chromium
-
-cd /path/to/summa
-NODE_PATH=/tmp/summa-pw/node_modules node scripts/screenshots.mjs
+npm run screenshots:setup
+npm run screenshots
 ```
 
 The demo data lives in [`scripts/screenshot-data.json`](../../scripts/screenshot-data.json)
@@ -60,8 +58,6 @@ Anthropic API key and stays deterministic.
 
 The committed PNGs are quantized to a 256-colour palette, which is visually
 identical for this flat-coloured UI at about a third of the size. The run does
-that itself with `pngquant` or ImageMagick; when neither is installed but
-`oxipng` is, it falls back to a lossless recompress instead, which keeps every
-colour and saves correspondingly less. At least one of the three tools must be
-installed: without a successful compression pass, the run fails and leaves the
-committed screenshots untouched.
+that itself with the pinned Sharp package and keeps the original capture when
+quantization would make an individual file larger. If the compression pass
+fails, the run leaves the committed screenshots untouched.

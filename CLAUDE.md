@@ -59,8 +59,10 @@ once before the branch is merged** — once per branch, not per commit, because
 each run is a binary diff over the whole folder. A surface worth showing that no
 existing shot covers means three edits together: a step in `screenshots.mjs`, a
 row in the index in `docs/screenshots/README.md`, and a cell in the root
-`README.md` table if it belongs in the shop window. Playwright lives outside the
-repo; `docs/screenshots/README.md` documents the run and its prerequisites.
+`README.md` table if it belongs in the shop window. Playwright and Sharp live
+outside the root frontend toolchain in the separately locked
+`scripts/screenshots/` package; `docs/screenshots/README.md` documents its setup
+and the run.
 
 `.env` — copied from `.env.example` — is what decides whether a local run is behind
 the login gate (`AUTH_ENABLED`), and `uv` fails outright when that file is missing. The

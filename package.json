@@ -13,7 +13,9 @@
     "fix": "eslint . --fix && stylelint \"static/**/*.css\" --fix && prettier --write .",
     "lint": "npm run lint:js && npm run lint:css && npm run lint:headings && npm run format:check",
     "test": "cross-env TZ=Europe/Berlin vitest run",
-    "test:watch": "cross-env TZ=Europe/Berlin vitest"
+    "test:watch": "cross-env TZ=Europe/Berlin vitest",
+    "screenshots:setup": "npm ci --prefix scripts/screenshots && npm run install-browser --prefix scripts/screenshots",
+    "screenshots": "npm run capture --prefix scripts/screenshots"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
