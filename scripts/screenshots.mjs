@@ -734,8 +734,8 @@ const captureLogin = async (browser) => {
  * Shrink the captured PNGs. The UI is flat-coloured, so quantizing to a
  * 256-colour palette is visually identical at roughly a third of the size,
  * which is worth having for images living in git; oxipng only recompresses
- * losslessly, so it is the last resort. Skipped, with a note, when none of the
- * tools is installed.
+ * losslessly, so it is the last resort. Publishing requires one of the tools
+ * to succeed so raw captures cannot replace the committed set.
  */
 const compress = async () => {
   const files = (await readdir(SHOT_DIR))
@@ -765,8 +765,8 @@ const compress = async () => {
       return;
     }
   }
-  console.log(
-    "\nnote: install pngquant, oxipng or ImageMagick to shrink the PNGs",
+  throw new Error(
+    "Screenshot compression failed; install pngquant, ImageMagick or oxipng",
   );
 };
 

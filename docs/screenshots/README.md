@@ -62,5 +62,6 @@ The committed PNGs are quantized to a 256-colour palette, which is visually
 identical for this flat-coloured UI at about a third of the size. The run does
 that itself with `pngquant` or ImageMagick; when neither is installed but
 `oxipng` is, it falls back to a lossless recompress instead, which keeps every
-colour and saves correspondingly less. With none of the three installed it just
-tells you.
+colour and saves correspondingly less. At least one of the three tools must be
+installed: without a successful compression pass, the run fails and leaves the
+committed screenshots untouched.
