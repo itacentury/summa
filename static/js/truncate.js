@@ -71,9 +71,9 @@ export function truncatableHtml(text) {
   return `<span data-full="${escaped}">${escaped}</span>`;
 }
 
-// One reused 2D context: measuring through it costs no layout, unlike reading
-// `scrollWidth` back after every candidate.
-let sharedContext = null;
+// One bound measurer per computed font. Each needs its own context because a
+// cached closure over a shared context would use whichever font was bound last.
+const fontMeasurers = new Map();
 
 // A font no element on this page can have. `context.font = …` is a CSS parser,
 // not a property write: a value it cannot parse is ignored rather than thrown,
@@ -82,9 +82,6 @@ let sharedContext = null;
 // — without it, one bad font would silently mismeasure every later carrier with
 // whatever was bound before it.
 const PROBE_FONT = '1px "summa-font-probe"';
-
-// The probe as the context re-serializes it, which is what a read-back returns.
-let probeFont = "";
 
 /**
  * The element's computed font, as a string the canvas accepts. A style read, so
@@ -106,25 +103,29 @@ function fontFor(element) {
  * alone, so the CSS tail ellipsis takes over).
  *
  * Taking the font as a string rather than an element is what lets the widths be
- * read for the whole batch up front: the returned function measures through the
- * shared context, so it is only valid until the next call rebinds the font.
+ * read for the whole batch up front. Results live for the module lifetime, so
+ * repeated carriers and settle passes parse each distinct font only once.
  */
 function measurerForFont(font) {
-  if (sharedContext === null) {
-    sharedContext =
-      document.createElement("canvas").getContext?.("2d") ?? false;
-    if (sharedContext) {
-      sharedContext.font = PROBE_FONT;
-      probeFont = sharedContext.font;
-    }
+  if (fontMeasurers.has(font)) return fontMeasurers.get(font);
+
+  const context = document.createElement("canvas").getContext?.("2d");
+  if (!context) {
+    fontMeasurers.set(font, null);
+    return null;
   }
-  if (!sharedContext) return null;
 
-  sharedContext.font = PROBE_FONT;
-  sharedContext.font = font;
-  if (sharedContext.font === probeFont) return null;
+  context.font = PROBE_FONT;
+  const probeFont = context.font;
+  context.font = font;
+  if (context.font === probeFont) {
+    fontMeasurers.set(font, null);
+    return null;
+  }
 
-  return (text) => sharedContext.measureText(text).width;
+  const measure = (text) => context.measureText(text).width;
+  fontMeasurers.set(font, measure);
+  return measure;
 }
 
 /**

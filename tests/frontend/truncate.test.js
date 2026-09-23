@@ -222,16 +222,19 @@ describe("applyTruncation", () => {
  * every string, which is why the cases here need their own.
  */
 
-/** A context that only accepts `<…> <size>px <family>` and records what it measured with. */
+/** A context that accepts `<…> <size>px <family>` and records binds and measurements. */
 function makeStrictContext() {
   let current = "10px sans-serif";
+  const assigned = [];
   const used = [];
   return {
+    assigned,
     used,
     get font() {
       return current;
     },
     set font(value) {
+      assigned.push(value);
       if (/\d+px\s+\S/.test(value)) current = value;
     },
     measureText(text) {
@@ -255,13 +258,17 @@ function stubComputedStyle(styleFor) {
 describe("font binding", () => {
   let previousGetContext;
   let previousGetComputedStyle;
-  let context;
+  let contexts;
 
   beforeEach(() => {
     previousGetContext = HTMLCanvasElement.prototype.getContext;
     previousGetComputedStyle = window.getComputedStyle;
-    context = makeStrictContext();
-    HTMLCanvasElement.prototype.getContext = () => context;
+    contexts = [];
+    HTMLCanvasElement.prototype.getContext = () => {
+      const context = makeStrictContext();
+      contexts.push(context);
+      return context;
+    };
   });
 
   afterEach(() => {
@@ -269,7 +276,7 @@ describe("font binding", () => {
     window.getComputedStyle = previousGetComputedStyle;
   });
 
-  /** The module caches its context for its whole lifetime, so each case needs a fresh instance. */
+  /** The module caches its measurers for its whole lifetime, so each case needs a fresh instance. */
   async function freshModule() {
     vi.resetModules();
     return import("../../static/js/truncate.js");
@@ -306,7 +313,33 @@ describe("font binding", () => {
     expect(bad.carrier.textContent).toBe(NAME);
     expect(fine.carrier.textContent).toContain("…");
     // Nothing was measured with the canvas default or with a neighbour's font.
-    expect(new Set(context.used)).toEqual(new Set([good]));
+    expect(new Set(contexts.flatMap((context) => context.used))).toEqual(
+      new Set([good]),
+    );
+  });
+
+  it("binds each distinct font only once across carriers and recuts", async () => {
+    const first = '500 12px "Sora"';
+    const second = 'italic 600 14px "Sora"';
+    stubComputedStyle((element) => ({ font: element.dataset.font ?? first }));
+    const { refreshTruncation } = await freshModule();
+
+    const root = makeRoot([], 21, 10);
+    root.lastElementChild.firstElementChild.dataset.font = second;
+
+    refreshTruncation(root);
+    refreshTruncation(root);
+
+    expect(contexts).toHaveLength(2);
+    expect(contexts.flatMap((context) => context.assigned)).toEqual([
+      '1px "summa-font-probe"',
+      first,
+      '1px "summa-font-probe"',
+      second,
+    ]);
+    expect(new Set(contexts.flatMap((context) => context.used))).toEqual(
+      new Set([first, second]),
+    );
   });
 
   it("composes the shorthand from the longhands when the browser reports none", async () => {
@@ -323,6 +356,6 @@ describe("font binding", () => {
     applyTruncation(carrier);
 
     expect(carrier.textContent).toContain("…");
-    expect(context.used[0]).toBe('italic 600 12px "Sora", sans-serif');
+    expect(contexts[0].used[0]).toBe('italic 600 12px "Sora", sans-serif');
   });
 });
