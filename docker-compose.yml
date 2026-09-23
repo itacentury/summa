@@ -19,9 +19,10 @@ services:
         required: false
 
   # Refreshes the chart's benchmark series from the same image. A failed fetch
-  # only logs and is retried on the next pass, so the loop never exits. Because
-  # of that, the interval is checked once up front: a value `sleep` would reject
-  # or a too-short one would turn the loop into a hot loop against the feed.
+  # only logs and is retried after an hour (the interval floor) rather than a
+  # full interval, so the loop never exits. Because of that, the interval is
+  # checked once up front: a value `sleep` would reject or a too-short one would
+  # turn the loop into a hot loop against the feed.
   benchmark:
     build: .
     restart: unless-stopped
@@ -50,4 +51,10 @@ services:
           echo "BENCHMARK_INTERVAL_SECONDS=$$interval is below the 3600 s floor, using 3600" >&2
           interval=3600
         fi
-        while true; do python -m scripts.fetch_benchmark; sleep "$$interval"; done
+        while true; do
+          if python -m scripts.fetch_benchmark; then
+            sleep "$$interval"
+          else
+            sleep 3600
+          fi
+        done
