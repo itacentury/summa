@@ -29,7 +29,7 @@ Three operational CLIs live under `scripts/` and are not part of the served app:
 
 ```bash
 uv run python -m scripts.import_portfolio_xlsx book.xlsx --fx USD=1.08  # load depot history
-uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (cron)
+uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (compose loop)
 uv run python -m scripts.seed_portfolio --reset                         # fake depot history for UI checks
 ```
 
@@ -39,7 +39,13 @@ portfolio schema when it is missing and are safe to re-run. All three also take
 an in-memory copy of the database (`connect_mirror()` in
 `scripts/portfolio_db.py`), so a dry run neither creates the file nor touches an
 existing one. `openpyxl` is a **dev-only** dependency, so the runtime image never
-carries it — the importer is a workstation tool. `scripts` is in
+carries it — the importer is a workstation tool. `fetch_benchmark` is the
+exception: `.dockerignore` whitelists it (plus `__init__.py` and
+`portfolio_db.py`) into the image, where the `benchmark` compose service runs it
+in a sleep loop (`BENCHMARK_INTERVAL_SECONDS`, default daily), so keep its
+imports to the stdlib and `summa` — the `docker` workflow's smoke step
+(`python -m scripts.fetch_benchmark --help` in the built image) fails on any
+other import. `scripts` is in
 `[tool.mypy] files`, so all three are strict-checked.
 
 `seed_portfolio.py` is a workstation tool too, for looking at the Portfolio
@@ -165,8 +171,9 @@ wide workbook (row 1 depot bands, row 2 a `name · Einzahlung · Delta` triple p
 position, row 3+ one row per week), recomputes Delta instead of importing it, and
 is idempotent via `INSERT OR IGNORE` on `(position_id, date)` — a re-run never
 rewrites a week you corrected in the UI. `scripts/fetch_benchmark.py` keeps
-`benchmark_prices` fresh from a public chart feed and exits non-zero so cron can
-report. Which symbol the chart draws is configuration, not freshness:
+`benchmark_prices` fresh from a public chart feed and exits non-zero so the
+`benchmark` compose loop retries after an hour (the error lands in `docker
+compose logs benchmark`). Which symbol the chart draws is configuration, not freshness:
 `config.benchmark_symbol()` (`BENCHMARK_SYMBOL`, default `EUNL.DE`) names it for
 both the job's `--symbol` default and `_feed_points()`, so an exploratory fetch
 of another ticker writes rows nothing reads. Only when the configured symbol has
@@ -228,7 +235,8 @@ and the app together with the pre-generated PWA icons committed under
 `static/icons/` (no build-time icon generation). Runs `gunicorn` (2 workers,
 4 threads) as a non-root `appuser`. `entrypoint.sh` fixes `/data` volume
 ownership via `setpriv` before dropping privileges. In the container the DB lives at
-`/data/invoices.db`.
+`/data/invoices.db`. `docker-compose.yml` runs a second service, `benchmark`, from
+an image built from the same Dockerfile to refresh `benchmark_prices` (see _Commands_).
 
 Image build, vulnerability scan and push live in a separate
 [`docker` workflow](.github/workflows/docker.yml) (distinct from CI's three

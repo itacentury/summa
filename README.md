@@ -4,16 +4,16 @@ Invoice management and expense tracking web application.
 
 ## Screenshots
 
-|                                                                               |                                                                                  |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![Invoice list](docs/screenshots/invoice-list-expanded-desktop.png)           | ![Statistics](docs/screenshots/stats-desktop.png)                                |
-| The invoice list with a row expanded to its line items.                       | Statistics for the period, with per-category and per-store breakdowns.           |
-| ![New invoice](docs/screenshots/new-invoice-filled-desktop.png)               | ![AI category suggestions](docs/screenshots/categorize-row-expanded-desktop.png) |
-| Creating an invoice with its line items.                                      | Reviewing AI category suggestions before applying them.                          |
-| ![Invoice list on a phone](docs/screenshots/invoice-list-expanded-mobile.png) | ![Login](docs/screenshots/login-desktop.png)                                     |
-| The same list as an installed PWA on a phone.                                 | The optional password gate.                                                      |
-| ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                 | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
-| Depot value over time, against the benchmark.                                 | Positions, allocation and the biggest movers of the week.                        |
+|                                                                                                          |                                                                                  |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ![Invoice list](docs/screenshots/invoice-list-expanded-desktop.png)                                      | ![Statistics](docs/screenshots/stats-desktop.png)                                |
+| The invoice list with a row expanded to its line items.                                                  | Statistics for the period, with per-category and per-store breakdowns.           |
+| ![New invoice](docs/screenshots/new-invoice-filled-desktop.png)                                          | ![AI category suggestions](docs/screenshots/categorize-row-expanded-desktop.png) |
+| Creating an invoice with its line items.                                                                 | Reviewing AI category suggestions before applying them.                          |
+| ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                                            | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
+| Depot value over time, against the benchmark.                                                            | Positions, allocation and the biggest movers of the week.                        |
+| <img src="docs/screenshots/invoice-list-expanded-mobile.png" alt="Invoice list on a phone" height="300"> |                                                                                  |
+| The same list as an installed PWA on a phone.                                                            |                                                                                  |
 
 The full set lives in [`docs/screenshots/`](docs/screenshots/), which also
 documents how to regenerate it.
@@ -211,6 +211,59 @@ per client (ten failures per five minutes).
   both `$` intact and no surrounding quotes. If a mangled hash does reach the app
   it logs `AUTH_PASSWORD_HASH is not a readable hash` at startup, so it shows up
   in the container log rather than only as a login that never works.
+
+## Portfolio Import
+
+Depot history is loaded from a workbook by `scripts/import_portfolio_xlsx.py`. It
+does **not** run inside the container: the image ships neither the importer nor
+`openpyxl` (a dev-only dependency). Run it from a local checkout against the
+production database file instead — no checkout is needed on the server. Below,
+`<host>` is the server and `<deploy-dir>` the directory holding its
+`docker-compose.yml`. The commands run from the checkout, but the database copy,
+its backup and the workbook live in a directory outside it, so none of them can
+end up in a commit:
+
+```bash
+work=~/summa-import
+mkdir -p "$work"   # put portfolio.xlsx here
+
+# Stop every service — the app and the benchmark refresh both write to the
+# database — so nothing writes concurrently and the WAL is checkpointed
+ssh <host> 'cd <deploy-dir> && docker compose stop'
+scp <host>:<deploy-dir>/data/invoices.db "$work/prod.db"
+cp "$work/prod.db" "$work/prod.db.bak"
+
+uv sync
+uv run python -m scripts.import_portfolio_xlsx "$work/portfolio.xlsx" --db "$work/prod.db" --dry-run
+uv run python -m scripts.import_portfolio_xlsx "$work/portfolio.xlsx" --db "$work/prod.db"
+
+scp "$work/prod.db" <host>:<deploy-dir>/data/invoices.db
+ssh <host> 'cd <deploy-dir> && docker compose start'
+```
+
+Before copying the file back, make sure no `invoices.db-wal` / `invoices.db-shm`
+is left next to it on the server — SQLite would replay a stale WAL onto the
+replaced database. File ownership needs no fixing: the entrypoint re-owns `/data`
+on every start.
+
+- `--fx CODE=RATE` sets the rate for each foreign-currency position, in units of
+  that currency per EUR (e.g. `--fx USD=1.08`); a currency without one is stored
+  at `1.0`.
+- `--sheet NAME` picks the worksheet (default `Übersicht`).
+- Re-running is safe: a week already in the database is kept as it is, so values
+  corrected in the UI survive a later import.
+
+The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`,
+which, unlike the importer, ships in the image: the `benchmark` service in
+[`docker-compose.yml`](docker-compose.yml) runs it once a day from an image
+built from the same Dockerfile (`BENCHMARK_INTERVAL_SECONDS` overrides that,
+down to a floor of one hour) for the symbol in `BENCHMARK_SYMBOL`, writing to
+the same `./data` database while the app keeps running — which is why the
+import above stops it along with the app. A deployment with its own compose
+file copies that service block, swapping `build: .` for the `image:` it pulls.
+Check a run with `docker compose logs benchmark`; a failed fetch is retried
+after an hour rather than waiting out the full interval, and until one
+succeeds the chart falls back and says so in its footnote.
 
 ## Configuration
 

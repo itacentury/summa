@@ -17,6 +17,10 @@ tests/
 docs/
 assets/
 scripts/
+# ...except the benchmark refresh the `benchmark` compose service runs
+!scripts/__init__.py
+!scripts/portfolio_db.py
+!scripts/fetch_benchmark.py
 .claude/
 
 # Docker itself (not part of the image)

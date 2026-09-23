@@ -1,15 +1,18 @@
 """Refresh the benchmark series in ``benchmark_prices`` from a public feed.
 
-Meant for cron. The series is the MSCI World, taken from the iShares Core MSCI
-World UCITS ETF on Xetra so that it is quoted in EUR and the line the chart
-draws is not a mix of index growth and EUR/USD movement.
+Run periodically by the ``benchmark`` compose service (or by hand). The series
+is the MSCI World, taken from the iShares Core MSCI World UCITS ETF on Xetra so
+that it is quoted in EUR and the line the chart draws is not a mix of index
+growth and EUR/USD movement.
 
 Only the closes matter: :func:`summa.portfolio.rebase_to_grid` indexes them to
 the portfolio's own starting value, so the absolute level is never shown.
 
-A failure exits non-zero so cron can report it. Nothing else breaks -- the API
-falls back to the position flagged ``is_benchmark_fallback`` when the window
-holds no feed rows, which costs the chart its footnote and nothing more.
+A failure exits non-zero, which makes the compose loop retry after an hour;
+the error itself shows up in ``docker compose logs benchmark``. Nothing else
+breaks -- the API falls back to the position flagged ``is_benchmark_fallback``
+when the window holds no feed rows, which costs the chart its footnote and
+nothing more.
 """
 
 import argparse
@@ -155,8 +158,8 @@ def parse_chart_payload(payload: object) -> tuple[str, list[BenchmarkPrice]]:
 def fetch_chart(symbol: str, range_token: str, interval: str, timeout: float) -> object:
     """Fetch a symbol's chart payload and return the decoded JSON.
 
-    There is no retry loop: cron retries by running again, and a non-zero exit
-    is how a run reports itself.
+    There is no retry loop: the compose loop retries by running again, and a
+    non-zero exit is how a run reports itself.
 
     :raises FeedError: on any network, HTTP or decoding failure.
     """
@@ -207,7 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="fetch_benchmark",
         description="Refresh the portfolio benchmark series from a public feed.",
         epilog=(
-            "Exits non-zero on failure so cron can report it; the app degrades "
+            "Exits non-zero on failure so a caller can retry; the app degrades "
             "to its own fallback position in the meantime."
         ),
     )

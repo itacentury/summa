@@ -109,6 +109,13 @@ jobs:
           pull: ${{ env.REFRESH_BASE == 'true' }}
           no-cache: ${{ env.REFRESH_BASE == 'true' }}
 
+      # The benchmark service runs fetch_benchmark from this image, which only
+      # carries the scripts .dockerignore whitelists. Importing it here (argparse
+      # exits on --help before any network or DB access) catches a new import of
+      # a non-whitelisted module before it only fails in the benchmark logs.
+      - name: Smoke-test benchmark script in image
+        run: docker run --rm summa:scan python -m scripts.fetch_benchmark --help
+
       - name: Install grype
         id: grype
         uses: anchore/scan-action/download-grype@v6
