@@ -185,6 +185,7 @@ function showSections({ hasPositions }) {
 function renderPortfolio(payload) {
   const { summary, list } = portfolioElements();
   const depots = payload.depots ?? [];
+  // Normalized once here so every consumer below can rely on it.
   const renderPayload = { ...payload, depots };
 
   positionIds.clear();
@@ -208,7 +209,7 @@ function renderPortfolio(payload) {
   showSections({
     hasPositions: depots.some((depot) => depot.positions.length > 0),
   });
-  summary.innerHTML = summaryCardsHtml(payload.totals);
+  summary.innerHTML = summaryCardsHtml(renderPayload.totals);
   list.innerHTML = positionsListHtml(renderPayload, {
     collapsed: collapsedDepots,
     expanded: expandedPositions,
