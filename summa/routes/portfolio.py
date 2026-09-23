@@ -449,6 +449,11 @@ def _serialize_depot(view: portfolio.DepotView) -> dict[str, Any]:
     }
 
 
+def _serialize_depot_option(depot: portfolio.Depot) -> dict[str, Any]:
+    """Render one entry of the depot switcher."""
+    return {"id": depot.id, "name": depot.name}
+
+
 def _serialize_totals(totals: portfolio.PortfolioTotals) -> dict[str, Any]:
     """Render the grand total behind the three summary cards."""
     return {
@@ -551,8 +556,10 @@ def get_portfolio() -> ApiResponse:
     """Return the whole Portfolio screen: groups, totals, allocation, series.
 
     The depot filter narrows everything, because it changes which positions
-    exist for this request. The period token reaches only the chart: the list
-    always shows current values.
+    exist for this request. The one exception is ``depot_options``, the
+    switcher's list: narrowing it would hide every other depot from the very
+    control that switches to them. The period token reaches only the chart: the
+    list always shows current values.
     """
     range_token: str = _requested_range()
 
@@ -564,6 +571,9 @@ def get_portfolio() -> ApiResponse:
             # An id that matches no depot is a client bug, not an empty portfolio.
             if depot_id is not None and not depots:
                 raise ValidationError("Depot not found", field="depot")
+            every_depot: list[portfolio.Depot] = (
+                depots if depot_id is None else _load_depots(cursor, None)
+            )
             positions: list[portfolio.Position] = _load_positions(
                 cursor, [depot.id for depot in depots]
             )
@@ -601,6 +611,10 @@ def get_portfolio() -> ApiResponse:
             "range_end": window.end,
             "depot": depot_id,
             "depots": [_serialize_depot(view) for view in depot_views],
+            "depot_options": [
+                _serialize_depot_option(depot)
+                for depot in sorted(every_depot, key=portfolio.by_depot_order)
+            ],
             "totals": _serialize_totals(totals),
             "allocation": [
                 _serialize_slice(entry) for entry in portfolio.allocation(views)

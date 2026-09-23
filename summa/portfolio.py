@@ -678,7 +678,7 @@ def _by_sort_order(view: PositionView) -> tuple[int, str]:
     return view.sort_order, view.name
 
 
-def _by_depot_order(depot: Depot) -> tuple[int, str]:
+def by_depot_order(depot: Depot) -> tuple[int, str]:
     """Sort key for depots: explicit order first, then name."""
     return depot.sort_order, depot.name
 
@@ -698,7 +698,7 @@ def build_depot_views(
             grouped[view.depot_id].append(view)
 
     views: list[DepotView] = []
-    for depot in sorted(depots, key=_by_depot_order):
+    for depot in sorted(depots, key=by_depot_order):
         members: list[PositionView] = sorted(grouped[depot.id], key=_by_sort_order)
         depot_value: float = sum(member.value_eur for member in members)
         depot_invested: float = sum(member.invested_eur for member in members)

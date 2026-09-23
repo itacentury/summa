@@ -254,6 +254,25 @@ def test_get_portfolio_treats_all_as_no_depot_filter(
     payload = response.get_json()
     assert payload["depot"] is None
     assert len(payload["depots"]) == 2
+    assert payload["depot_options"] == [
+        {"id": depot["id"], "name": depot["name"]} for depot in payload["depots"]
+    ]
+
+
+def test_get_portfolio_depot_filter_keeps_every_depot_option(
+    client: FlaskClient, seed_depot: SeedDepot
+) -> None:
+    """The switcher still lists every depot while one of them is picked."""
+    later = seed_depot(name="Deka", sort_order=1)
+    first = seed_depot(name="Trade Republic", sort_order=0)
+
+    payload = client.get(f"/api/portfolio?depot={later}").get_json()
+
+    assert [depot["id"] for depot in payload["depots"]] == [later]
+    assert payload["depot_options"] == [
+        {"id": first, "name": "Trade Republic"},
+        {"id": later, "name": "Deka"},
+    ]
 
 
 def test_get_portfolio_treats_an_empty_depot_as_no_filter(
