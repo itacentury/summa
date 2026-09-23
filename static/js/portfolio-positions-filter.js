@@ -35,11 +35,9 @@ const limitHint = (hidden) =>
     ? `Max. ${PORTFOLIO_MAX_LINES} lines`
     : `Max. ${PORTFOLIO_MAX_LINES} lines · ${hidden} in other depots`;
 
-/**
- * The reset row's label. Always plural: the row only appears once the hidden
- * picks alone have spent the whole palette.
- */
-const resetLabel = (hidden) => `Clear ${hidden} picks in other depots`;
+/** The reset row's label. */
+export const resetLabel = (hidden) =>
+  `Clear ${hidden} pick${hidden === 1 ? "" : "s"} in other depots`;
 
 /**
  * Create the position filter bound to `root` (the `.portfolio-positions`

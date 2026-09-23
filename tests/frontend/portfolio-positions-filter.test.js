@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createPositionsFilter,
   POSITIONS_ALL,
+  resetLabel,
 } from "../../static/js/portfolio-positions-filter.js";
 import { PORTFOLIO_MAX_LINES } from "../../static/js/state.js";
 
@@ -387,6 +388,10 @@ describe("the reset row", () => {
         .slice(1)
         .every((row) => row.classList.contains("is-disabled")),
     ).toBe(true);
+  });
+
+  it("uses the singular for one hidden pick", () => {
+    expect(resetLabel(1)).toBe("Clear 1 pick in other depots");
   });
 
   it("sits above the hint, which has to stay the last row", () => {
