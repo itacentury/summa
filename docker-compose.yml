@@ -46,6 +46,10 @@ services:
             echo "BENCHMARK_INTERVAL_SECONDS='$$interval' is not a number of seconds, using 86400" >&2
             interval=86400
             ;;
+          ?????????*)
+            echo "BENCHMARK_INTERVAL_SECONDS=$$interval is too large, using 86400" >&2
+            interval=86400
+            ;;
         esac
         if [ "$$interval" -lt 3600 ]; then
           echo "BENCHMARK_INTERVAL_SECONDS=$$interval is below the 3600 s floor, using 3600" >&2
