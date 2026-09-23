@@ -63,6 +63,8 @@ export function middleTruncate(text, maxWidth, measure) {
 /**
  * Markup for a truncatable name, to be placed inside the element that carries
  * the width constraint (the one with `overflow: hidden`).
+ *
+ * Every carrier returned here must be the only truncatable thing inside its host.
  */
 export function truncatableHtml(text) {
   const escaped = escapeHtml(text);
@@ -195,8 +197,7 @@ const MAX_SETTLE_PASSES = 4;
  * window is being dragged.
  *
  * Measuring the set together is sound because a cut only ever feeds back into
- * the width of its own row: every carrier here is the only truncatable thing
- * inside its host. That feedback is what the settle passes are for — a host
+ * the width of its own row. That feedback is what the settle passes are for — a host
  * whose width comes from its own content (a flex item with an `auto` basis)
  * gets narrower once it no longer holds the full name, so the cut was made
  * against a width that no longer exists. Re-measuring only ever narrows, so the
