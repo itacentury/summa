@@ -22,7 +22,8 @@ Install the separately pinned screenshot tooling and Chromium once:
 npm run screenshots:setup
 ```
 
-Then import Playwright from `scripts/screenshots/node_modules` or use the
+Then import Playwright from `scripts/screenshots/node_modules` (after running
+`npm run screenshots:setup` to install its matching Chromium build) or use the
 repository's screenshot tooling. Useful widths: 1280 (desktop), 600 (just under
 the 640px sheet breakpoint), 390 and 320 (phones).
 
