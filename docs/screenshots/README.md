@@ -37,6 +37,7 @@ and CI job stay small. Set them up once, then regenerate the full set:
 
 ```bash
 npm run screenshots:setup
+npm test --prefix scripts/screenshots
 npm run screenshots
 ```
 
