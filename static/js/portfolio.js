@@ -300,7 +300,7 @@ export async function loadPortfolio(allowRetry = true) {
     return;
   }
 
-  if (depotFilter) depotFilter.setOptions(payload.depot_options);
+  if (depotFilter) depotFilter.setOptions(payload.depot_options ?? []);
   renderPortfolio(payload);
 }
 

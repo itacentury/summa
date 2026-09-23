@@ -1213,6 +1213,25 @@ describe("portfolio depot filter", () => {
     expect(options).toEqual(["All depots", "Trade Republic", "Deka"]);
   });
 
+  it("renders with only the all-depots row when depot options are omitted", async () => {
+    const payload = portfolioPayload();
+    delete payload.depot_options;
+    global.fetch = vi.fn(async () => jsonResponse(payload));
+    setupPortfolioListeners();
+
+    await loadPortfolio();
+
+    document
+      .querySelector(".portfolio-depot-trigger")
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    const options = [
+      ...document.querySelectorAll(".portfolio-depot-option"),
+    ].map((option) => option.textContent.trim());
+    expect(options).toEqual(["All depots"]);
+    expect(document.querySelectorAll(".portfolio-row")).toHaveLength(4);
+    expect(showErrorToast).not.toHaveBeenCalled();
+  });
+
   it("narrows the request and persists the pick", async () => {
     setupPortfolioListeners();
     await loadPortfolio();
