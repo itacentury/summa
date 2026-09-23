@@ -1,0 +1,249 @@
+<!-- Portfolio View -->
+<div class="portfolio-view is-hidden" data-el="portfolio-view">
+  <h2 class="visually-hidden">Portfolio</h2>
+  <!-- Toolbar -->
+  <div class="portfolio-toolbar">
+    {# Own listbox rather than a combobox instance: the filter commits a depot
+       id while the row shows a name, which combobox.js cannot express. #}
+    <div class="portfolio-depot" data-el="portfolio-depot">
+      <button
+        type="button"
+        class="portfolio-depot-trigger"
+        role="combobox"
+        aria-label="Depot"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+      >
+        <span class="portfolio-depot-label">All depots</span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      <ul class="portfolio-depot-menu" role="listbox" aria-label="Depot"></ul>
+    </div>
+
+    <div class="portfolio-toolbar-spacer"></div>
+
+    <button
+      type="button"
+      class="btn btn-primary portfolio-snapshot-btn"
+      data-action="open-snapshot"
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      New snapshot
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
+
+  {# The legend is hand-built markup rather than Chart.js' own, so it can sit in
+     the card header next to the title the way the stats cards do. #}
+  <div
+    class="chart-card portfolio-chart-card is-hidden"
+    data-el="portfolio-chart-card"
+  >
+    <div class="chart-header portfolio-chart-header">
+      <h3 class="chart-title">Value over time</h3>
+      {# The period governs this card alone: the summary cards, the positions list
+         and the bottom row always show current, all-time figures — the only thing
+         the window changes below is the `since` date in a position's meta line.
+         The invoice Week/Month/Year/All switcher in filters.html is deliberately
+         unrelated. #}
+      {# Multi-select rather than the depot filter's single-choice listbox: the
+         chart draws one line per checked position, and picking a second one is
+         the normal next step — so a toggle here never closes the menu. #}
+      <div class="portfolio-positions" data-el="portfolio-positions">
+        <button
+          type="button"
+          class="portfolio-positions-trigger"
+          role="combobox"
+          aria-label="Chart positions"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+        >
+          <span class="portfolio-positions-label">Total portfolio</span>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <ul
+          class="portfolio-positions-menu"
+          role="listbox"
+          aria-multiselectable="true"
+          aria-label="Chart positions"
+        ></ul>
+      </div>
+
+      <div
+        class="portfolio-period"
+        data-el="portfolio-period"
+        role="group"
+        aria-label="Chart period"
+      >
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="3m"
+          aria-pressed="false"
+        >
+          3M
+        </button>
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="1y"
+          aria-pressed="true"
+        >
+          1Y
+        </button>
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="ytd"
+          aria-pressed="false"
+        >
+          YTD
+        </button>
+        <button
+          type="button"
+          class="portfolio-period-btn"
+          data-range="max"
+          aria-pressed="false"
+        >
+          Max
+        </button>
+      </div>
+      {# Two legends, one visible at a time: the aggregate lines are fixed markup
+         whose colors are CSS tokens, while a per-position selection names lines
+         only the payload knows, so those swatches have to be painted at runtime. #}
+      <div class="portfolio-chart-legend" data-el="portfolio-legend-static">
+        <span class="portfolio-legend-item">
+          <span class="portfolio-legend-bar is-portfolio"></span>Portfolio
+        </span>
+        <span class="portfolio-legend-item">
+          <span class="portfolio-legend-bar is-invested"></span>Invested
+        </span>
+        <span
+          class="portfolio-legend-item"
+          data-el="portfolio-legend-benchmark"
+        >
+          <span class="portfolio-legend-bar is-benchmark"></span>Benchmark
+        </span>
+      </div>
+      <div
+        class="portfolio-chart-legend is-hidden"
+        data-el="portfolio-legend-series"
+      ></div>
+    </div>
+    <div class="chart-container portfolio-chart-body">
+      <canvas data-el="portfolio-chart"></canvas>
+    </div>
+    <div
+      class="portfolio-chart-empty is-hidden"
+      data-el="portfolio-chart-empty"
+    >
+      <div class="empty-state">
+        <div class="empty-title">No snapshots in this period</div>
+        <div class="empty-text">
+          Pick a longer period, or record a snapshot for this week.
+        </div>
+      </div>
+    </div>
+    <div class="portfolio-chart-note" data-el="portfolio-chart-note"></div>
+  </div>
+
+  <!-- Positions List -->
+  <div class="portfolio-list is-hidden" data-el="portfolio-list"></div>
+
+  <!-- Allocation and Biggest Changes -->
+  <div class="portfolio-bottom is-hidden" data-el="portfolio-bottom">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3 class="chart-title">Allocation</h3>
+      </div>
+      <div class="portfolio-alloc-body">
+        <div class="portfolio-donut">
+          <canvas
+            data-el="portfolio-allocation-chart"
+            aria-hidden="true"
+          ></canvas>
+        </div>
+        <div
+          class="portfolio-alloc-legend"
+          data-el="portfolio-allocation-legend"
+        ></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3 class="chart-title">Biggest changes · last week</h3>
+      </div>
+      <div class="portfolio-changes" data-el="portfolio-changes"></div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="portfolio-empty is-hidden" data-el="portfolio-empty">
+    <div class="empty-state">
+      <svg
+        class="portfolio-empty-icon"
+        width="32"
+        height="32"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+      >
+        <polyline points="3 17 9 11 13 15 21 7" />
+        <polyline points="21 12 21 7 16 7" />
+      </svg>
+      <div class="empty-title">No positions yet</div>
+      <div class="empty-text">
+        Add the positions you hold, then record one snapshot per week — value
+        and deposit per position.
+      </div>
+      <button type="button" class="btn btn-primary" data-action="add-position">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Add first position
+      </button>
+    </div>
+  </div>
+</div>

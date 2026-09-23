@@ -1,0 +1,88 @@
+{% from "partials/_macros.html" import modal_close_button %}
+<!-- Add Position Modal -->
+<div class="modal-overlay" data-el="portfolio-position-modal">
+  <div
+    class="modal modal-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="position-title"
+  >
+    <div class="modal-header">
+      <h3 class="modal-title" id="position-title">Add position</h3>
+      {{ modal_close_button() }}
+    </div>
+    <div class="modal-body">
+      {# The footer buttons sit outside this form, so it never submits and the
+         native validation never runs: savePosition() does the checking, and
+         `required` stays on the fields as the accessibility hint. #}
+      <form data-el="position-form" novalidate>
+        {# Fields are nested in their labels, so each control is named without
+           an id the rest of the app would have to keep unique. #}
+        <label class="form-group mb-1">
+          <span class="form-label">Name</span>
+          <input
+            type="text"
+            class="form-input"
+            data-el="position-name"
+            placeholder="e.g. MSCI World SRI"
+            data-autofocus
+            required
+          />
+        </label>
+        <div class="form-row">
+          <label class="form-group">
+            <span class="form-label">Type</span>
+            <select class="form-select" data-el="position-kind">
+              <option value="etf">ETF</option>
+              <option value="fund">Fund</option>
+              <option value="stock">Stock</option>
+            </select>
+          </label>
+          <label class="form-group">
+            <span class="form-label">Currency</span>
+            <input
+              type="text"
+              class="form-input"
+              data-el="position-currency"
+              value="EUR"
+              maxlength="3"
+              required
+            />
+          </label>
+        </div>
+        <label class="form-group mb-1">
+          <span class="form-label">Depot</span>
+          <select class="form-select" data-el="position-depot"></select>
+        </label>
+        {# Revealed by the "New depot…" option; on a first run it is the only
+           way to get a depot at all, since none exists yet. #}
+        <label class="form-group mb-1 is-hidden" data-el="position-depot-new">
+          <span class="form-label">New depot name</span>
+          <input
+            type="text"
+            class="form-input"
+            data-el="position-depot-name"
+            placeholder="e.g. Trade Republic"
+          />
+        </label>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button
+        class="btn btn-secondary"
+        data-action="cancel"
+        title="Cancel (Esc)"
+      >
+        Cancel
+      </button>
+      <button
+        class="btn btn-primary"
+        data-el="position-save"
+        data-action="save-position"
+        title="Save (Ctrl+Enter)"
+      >
+        Add position
+      </button>
+    </div>
+  </div>
+</div>

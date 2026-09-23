@@ -6,13 +6,11 @@
  * something the others don't. Adding a step here means adding a file to the
  * index in docs/screenshots/README.md.
  *
- * Playwright is deliberately not a dependency of this repo (CI's `frontend` job
- * installs from package.json and has no use for a browser). Install it once
- * somewhere outside the repo and point NODE_PATH at it:
+ * Browser and image tooling live in a separate package so CI's frontend job
+ * does not install them. Set it up once, then run the capture from the repo root:
  *
- *   mkdir -p /tmp/summa-pw && cd /tmp/summa-pw && npm init -y && npm i playwright
- *   npx playwright install chromium
- *   NODE_PATH=/tmp/summa-pw/node_modules node scripts/screenshots.mjs
+ *   npm run screenshots:setup
+ *   npm run screenshots
  *
  * The run starts its own dev server against a throwaway database, so the
  * repository's own invoices.db is never touched. It aborts up front if port 8000
@@ -26,10 +24,12 @@
 
 import { spawn } from "node:child_process";
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { compressScreenshots } from "./screenshots/compress.mjs";
+import { loadChromium } from "./screenshots/dependencies.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(REPO_ROOT, "docs", "screenshots");
@@ -37,6 +37,12 @@ const WORK_DIR = join(tmpdir(), "summa-screenshots");
 const SHOT_DIR = join(WORK_DIR, "shots");
 const BASE_URL = "http://127.0.0.1:8000";
 const DEMO_PASSWORD = "demo-password";
+
+// Pinned rather than left to the seeder's own defaults: its generator is pure
+// and keyed on these two, which is what makes a portfolio screenshot
+// reproducible across runs.
+const PORTFOLIO_WEEKS = 156;
+const PORTFOLIO_SEED = 20260921;
 
 const DESKTOP = { name: "desktop", width: 1280, height: 900 };
 const MOBILE = { name: "mobile", width: 390, height: 844 };
@@ -56,32 +62,16 @@ let captured = 0;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Resolve Playwright, which lives outside this repo (see the header comment).
+ * One GET against the app root, with the body drained.
+ *
+ * Draining is not optional: an undici response left unread crashes the process
+ * with an internal assertion once the server closes the connection, which the
+ * readiness loop below provokes on every attempt.
  */
-const loadPlaywright = async () => {
-  // A CommonJS package imported by file URL exposes its exports on `default`.
-  const unwrap = (module) => module.chromium ?? module.default?.chromium;
-
-  try {
-    const chromium = unwrap(await import("playwright"));
-    if (chromium) return chromium;
-  } catch {
-    // Not resolvable from the repo; fall back to NODE_PATH below.
-  }
-
-  const require = createRequire(import.meta.url);
-  for (const root of (process.env.NODE_PATH ?? "").split(":").filter(Boolean)) {
-    try {
-      const entry = require.resolve("playwright", { paths: [root] });
-      const chromium = unwrap(await import(pathToFileURL(entry).href));
-      if (chromium) return chromium;
-    } catch {
-      // Try the next NODE_PATH entry.
-    }
-  }
-  throw new Error(
-    "Playwright not found. See the header of this file for how to install it.",
-  );
+const probe = async () => {
+  const response = await fetch(`${BASE_URL}/`);
+  await response.body?.cancel();
+  return response;
 };
 
 /**
@@ -91,13 +81,52 @@ const loadPlaywright = async () => {
  */
 const assertPortFree = async () => {
   try {
-    await fetch(`${BASE_URL}/`);
+    await probe();
   } catch {
     return;
   }
   throw new Error(
     `Something is already listening on ${BASE_URL} — stop your dev server and re-run.`,
   );
+};
+
+/**
+ * Run a `uv` command in the repo and resolve with its stdout, rejecting on a
+ * non-zero exit so a failed helper stops the run instead of leaving a later
+ * surface to be captured against data that was never written.
+ */
+const runUv = async (args) =>
+  new Promise((resolve, reject) => {
+    const child = spawn("uv", args, {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let out = "";
+    child.stdout.on("data", (chunk) => (out += chunk));
+    child.on("error", reject);
+    child.on("exit", (code) =>
+      code === 0
+        ? resolve(out.trim())
+        : reject(new Error(`uv ${args.join(" ")} failed (exit ${code})`)),
+    );
+  });
+
+/**
+ * End the server and everything below it.
+ *
+ * `uv run` is a parent process, not a wrapper that execs: it forwards signals
+ * on POSIX, but on Windows there is nothing to forward and signalling it alone
+ * leaves the python it started holding port 8000 — which the next pass then
+ * takes for its own server, screenshotting the wrong configuration.
+ */
+const killTree = (child) => {
+  if (process.platform !== "win32") {
+    child.kill("SIGTERM");
+    return;
+  }
+  spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+    stdio: "ignore",
+  });
 };
 
 /**
@@ -118,19 +147,19 @@ const startServer = async (env) => {
       throw new Error(`Server exited early:\n${log}`);
     }
     try {
-      const response = await fetch(`${BASE_URL}/`);
+      const response = await probe();
       if (response.ok) return child;
     } catch {
       // Not listening yet.
     }
     await sleep(200);
   }
-  child.kill("SIGTERM");
+  killTree(child);
   throw new Error(`Server did not become ready:\n${log}`);
 };
 
 const stopServer = async (child) => {
-  child.kill("SIGTERM");
+  killTree(child);
   await new Promise((resolve) => child.once("exit", resolve));
   // The port lingers for a moment after the process is gone.
   await sleep(500);
@@ -204,6 +233,28 @@ const shiftDatesToToday = (invoices) => {
   });
 };
 
+/**
+ * Fill the portfolio tables, which have no import endpoint — the seeder writes
+ * the database file directly and brings its own schema. Run before the server
+ * starts, so the file never has two writers.
+ */
+const seedPortfolio = async (databasePath) => {
+  await runUv([
+    "run",
+    "python",
+    "-m",
+    "scripts.seed_portfolio",
+    "--db",
+    databasePath,
+    "--weeks",
+    String(PORTFOLIO_WEEKS),
+    "--seed",
+    String(PORTFOLIO_SEED),
+    "--reset",
+  ]);
+  console.log("  seeded the portfolio history");
+};
+
 const seed = async () => {
   // Second line of defence behind assertPortFree(): a throwaway database is
   // always empty, a server we accidentally adopted never is.
@@ -251,9 +302,15 @@ const waitForModal = async (page, selector) => {
   await page.waitForTimeout(500);
 };
 
-/** Reload back to the default view, so each step starts from a known state. */
+/**
+ * Navigate back to the default view, so each step starts from a known state.
+ *
+ * A plain reload would not do: views.js routes on the URL hash, so after a
+ * portfolio step the reload would land back in the portfolio and the wait below
+ * would never see an invoice row.
+ */
 const resetPage = async (page) => {
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".invoice-item", { timeout: 15000 });
   await page.waitForTimeout(400);
 };
@@ -262,6 +319,24 @@ const resetPage = async (page) => {
 const gotoView = async (page, view) => {
   await page.locator(`.nav-item[data-view="${view}"]`).click();
   await page.waitForTimeout(700);
+};
+
+/**
+ * Open a view through its URL, for phone width where the sidebar is off-canvas.
+ * views.js routes on the hash, so a load carrying one lands on that view — the
+ * same property that makes a reload stay where the user was.
+ */
+const gotoViewByUrl = async (page, view) => {
+  await page.goto(`${BASE_URL}/#${view}`, { waitUntil: "domcontentloaded" });
+};
+
+/**
+ * Wait for the portfolio view to be drawn: the positions list is rendered from
+ * the same payload as the chart, so a row on screen means the data arrived.
+ */
+const waitForPortfolio = async (page) => {
+  await page.waitForSelector(".portfolio-row", { timeout: 15000 });
+  await page.waitForTimeout(900);
 };
 
 /**
@@ -453,6 +528,39 @@ const captureDesktop = async (context) => {
   );
 
   await step(
+    "portfolio-overview",
+    viewport,
+    async (file) => {
+      await gotoView(page, "portfolio");
+      await waitForPortfolio(page);
+      await page.screenshot({ path: file });
+    },
+    opts,
+  );
+
+  await step(
+    "portfolio-positions",
+    viewport,
+    async (file) => {
+      await gotoView(page, "portfolio");
+      await waitForPortfolio(page);
+      // A foreign-currency position, whose detail carries the original amount
+      // and the FX rate — and one far enough down the list to stay in frame
+      // once the bottom row is scrolled into view.
+      await page.locator(".portfolio-row", { hasText: "DKK" }).click();
+      await page.waitForSelector(".portfolio-detail.is-open");
+      // Anchored on the bottom row so the list, the allocation donut and the
+      // movers share one frame — the summary and chart have their own shot.
+      await page
+        .locator('[data-el="portfolio-bottom"]')
+        .scrollIntoViewIfNeeded();
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: file });
+    },
+    opts,
+  );
+
+  await step(
     "bulk-selection",
     viewport,
     async (file) => {
@@ -548,6 +656,18 @@ const captureMobile = async (context) => {
   );
 
   await step(
+    "portfolio",
+    viewport,
+    async (file) => {
+      await gotoViewByUrl(page, "portfolio");
+      await waitForPortfolio(page);
+      await page.screenshot({ path: file });
+    },
+    // The navigation above is its own reset, so no reload is needed first.
+    { page, fresh: false },
+  );
+
+  await step(
     "drawer",
     viewport,
     async (file) => {
@@ -579,11 +699,7 @@ const captureLogin = async (browser) => {
 };
 
 /**
- * Shrink the captured PNGs. The UI is flat-coloured, so quantizing to a
- * 256-colour palette is visually identical at roughly a third of the size,
- * which is worth having for images living in git; oxipng only recompresses
- * losslessly, so it is the last resort. Skipped, with a note, when none of the
- * tools is installed.
+ * Shrink the captured PNGs before publishing them to the repository.
  */
 const compress = async () => {
   const files = (await readdir(SHOT_DIR))
@@ -591,30 +707,9 @@ const compress = async () => {
     .map((name) => join(SHOT_DIR, name));
   if (files.length === 0) return;
 
-  // pngquant exits 98 when --skip-if-larger skips a file: it ran, it just left
-  // that one alone, so treat it as done rather than falling through.
-  const attempts = [
-    [
-      "pngquant",
-      ["--force", "--skip-if-larger", "--ext", ".png", "--", ...files],
-      [0, 98],
-    ],
-    ["magick", ["mogrify", "-colors", "256", ...files], [0]],
-    ["oxipng", ["-o", "4", "--strip", "safe", "-q", ...files], [0]],
-  ];
-  for (const [tool, args, okCodes] of attempts) {
-    const succeeded = await new Promise((resolve) => {
-      const child = spawn(tool, args, { stdio: "ignore" });
-      child.on("error", () => resolve(false));
-      child.on("exit", (code) => resolve(okCodes.includes(code)));
-    });
-    if (succeeded) {
-      console.log(`\ncompressed with ${tool}`);
-      return;
-    }
-  }
+  const { processed, replaced } = await compressScreenshots(files);
   console.log(
-    "\nnote: install pngquant, oxipng or ImageMagick to shrink the PNGs",
+    `\ncompressed with sharp (${replaced}/${processed} files became smaller)`,
   );
 };
 
@@ -652,19 +747,21 @@ const newContext = async (browser, viewport) =>
   });
 
 const main = async () => {
-  const chromium = await loadPlaywright();
+  const chromium = await loadChromium();
   await assertPortFree();
 
   await rm(WORK_DIR, { recursive: true, force: true });
   await mkdir(SHOT_DIR, { recursive: true });
 
   const browser = await chromium.launch();
+  const databasePath = join(WORK_DIR, "invoices.db");
 
   // Pass A: unauthenticated, with the AI UI rendered (no key — the suggestion
   // endpoint is stubbed per page).
   console.log("Pass A — main application");
+  await seedPortfolio(databasePath);
   let server = await startServer({
-    DATABASE_PATH: join(WORK_DIR, "invoices.db"),
+    DATABASE_PATH: databasePath,
     ENABLE_AI_SUGGESTIONS: "1",
     AUTH_ENABLED: "0",
   });
@@ -691,25 +788,18 @@ const main = async () => {
 
   // Pass B: the password gate, which only exists with AUTH_ENABLED.
   console.log("\nPass B — login gate");
-  const hash = await new Promise((resolve, reject) => {
-    const child = spawn(
-      "uv",
-      ["run", "python", "-m", "summa.hashpw", DEMO_PASSWORD],
-      {
-        cwd: REPO_ROOT,
-        stdio: ["ignore", "pipe", "inherit"],
-      },
-    );
-    let out = "";
-    child.stdout.on("data", (chunk) => (out += chunk));
-    child.on("exit", (code) =>
-      code === 0 ? resolve(out.trim()) : reject(new Error("hashpw failed")),
-    );
-  });
+  const hash = await runUv([
+    "run",
+    "python",
+    "-m",
+    "summa.hashpw",
+    DEMO_PASSWORD,
+  ]);
 
+  await assertPortFree();
   server = await startServer({
     // Same database as pass A, so the gate guards the demo data.
-    DATABASE_PATH: join(WORK_DIR, "invoices.db"),
+    DATABASE_PATH: databasePath,
     AUTH_ENABLED: "1",
     AUTH_PASSWORD_HASH: hash,
     SESSION_SECRET: "screenshot-run-secret",

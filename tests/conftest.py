@@ -16,6 +16,9 @@ from werkzeug.security import generate_password_hash
 from summa import config, create_app, db, ratelimit
 
 SeedInvoice = Callable[..., int]
+SeedDepot = Callable[..., int]
+SeedPosition = Callable[..., int]
+SeedSnapshot = Callable[..., int]
 BuildClient = Callable[..., FlaskClient]
 
 TEST_PASSWORD: Final[str] = "test-password"
@@ -24,7 +27,7 @@ ALLOWED_ORIGIN: Final[str] = "https://app.example"
 # would otherwise pay for it again.
 TEST_PASSWORD_HASH: Final[str] = generate_password_hash(TEST_PASSWORD)
 
-_AUTH_ENV_VARS: Final[tuple[str, ...]] = (
+_CONFIG_ENV_VARS: Final[tuple[str, ...]] = (
     config.AUTH_ENABLED_ENV,
     config.PASSWORD_HASH_ENV,
     config.SESSION_SECRET_ENV,
@@ -32,17 +35,21 @@ _AUTH_ENV_VARS: Final[tuple[str, ...]] = (
     config.COOKIE_SECURE_ENV,
     config.COOKIE_SAMESITE_ENV,
     config.CORS_ORIGINS_ENV,
+    config.BENCHMARK_SYMBOL_ENV,
 )
 
 
 @pytest.fixture(autouse=True)
-def isolated_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the operator's own auth/CORS environment out of every test.
+def isolated_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the operator's own configuration out of every test.
 
     Autouse, so it is applied before the fixtures below: the suite must behave
-    identically whether or not the developer has the gate enabled locally.
+    identically whether or not the developer has the gate enabled locally, or
+    follows a different benchmark. Every variable :mod:`summa.config` reads
+    belongs in ``_CONFIG_ENV_VARS`` — one that is missing lets the developer's
+    shell decide the outcome of a test.
     """
-    for name in _AUTH_ENV_VARS:
+    for name in _CONFIG_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -150,6 +157,92 @@ def seed_invoice(client: FlaskClient) -> SeedInvoice:
         conn.commit()
         conn.close()
         return invoice_id
+
+    return _seed
+
+
+@pytest.fixture
+def seed_depot(client: FlaskClient) -> SeedDepot:
+    """Return a helper that inserts a portfolio depot straight into the DB."""
+
+    def _seed(name: str = "Trade Republic", sort_order: int = 0) -> int:
+        conn = db.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO portfolio_depots (name, sort_order) VALUES (?, ?)",
+            (name, sort_order),
+        )
+        depot_id: int | None = cursor.lastrowid
+        assert depot_id is not None  # AUTOINCREMENT always yields a rowid
+        conn.commit()
+        conn.close()
+        return depot_id
+
+    return _seed
+
+
+@pytest.fixture
+def seed_position(client: FlaskClient) -> SeedPosition:
+    """Return a helper that inserts a portfolio position straight into the DB."""
+
+    def _seed(
+        depot_id: int,
+        name: str = "MSCI World SRI",
+        kind: str = "etf",
+        currency: str = "EUR",
+        is_benchmark_fallback: bool = False,
+        closed_at: str | None = None,
+        sort_order: int = 0,
+    ) -> int:
+        conn = db.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO portfolio_positions (depot_id, name, kind, currency, "
+            "is_benchmark_fallback, closed_at, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                depot_id,
+                name,
+                kind,
+                currency,
+                int(is_benchmark_fallback),
+                closed_at,
+                sort_order,
+            ),
+        )
+        position_id: int | None = cursor.lastrowid
+        assert position_id is not None
+        conn.commit()
+        conn.close()
+        return position_id
+
+    return _seed
+
+
+@pytest.fixture
+def seed_snapshot(client: FlaskClient) -> SeedSnapshot:
+    """Return a helper that inserts one weekly snapshot straight into the DB."""
+
+    def _seed(
+        position_id: int,
+        date: str,
+        value: float,
+        deposit: float = 0.0,
+        fx_rate: float = 1.0,
+        carried: bool = False,
+    ) -> int:
+        conn = db.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO portfolio_snapshots "
+            "(position_id, date, value, deposit, fx_rate, carried) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (position_id, date, value, deposit, fx_rate, int(carried)),
+        )
+        snapshot_id: int | None = cursor.lastrowid
+        assert snapshot_id is not None
+        conn.commit()
+        conn.close()
+        return snapshot_id
 
     return _seed
 

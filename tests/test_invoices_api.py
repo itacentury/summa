@@ -60,12 +60,15 @@ _FIELD_VALIDATION_CASES: list[tuple[str, Any, str]] = [
     ("store", None, "Field 'store' must be a string"),
     ("total", "abc", "Field 'total' must be a number"),
     ("total", None, "Field 'total' must be a number"),
+    ("total", float("inf"), "Field 'total' must be a finite number"),
+    ("total", float("nan"), "Field 'total' must be a finite number"),
     ("items", "bad", "Field 'items' must be a list"),
     ("item_name", "", "Field 'item_name' cannot be empty"),
     ("item_name", "   ", "Field 'item_name' cannot be empty"),
     ("item_name", None, "Field 'item_name' must be a string"),
     ("item_price", "abc", "Field 'item_price' must be a number"),
     ("item_price", None, "Field 'item_price' must be a number"),
+    ("item_price", float("-inf"), "Field 'item_price' must be a finite number"),
     ("category", ["bad"], "Field 'category' must be a string"),
 ]
 

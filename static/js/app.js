@@ -14,6 +14,7 @@ import {
 } from "./filters.js";
 import {
   loadInvoices,
+  loadLookups,
   refreshAllData,
   setupPaginationListeners,
 } from "./api.js";
@@ -21,6 +22,11 @@ import { setupModalListeners } from "./modals.js";
 import { setupInvoiceListListeners } from "./render.js";
 import { setupBulkListeners } from "./bulk.js";
 import { setupStatsListeners } from "./stats.js";
+import { applyViewFromHash, setupViewListeners } from "./views.js";
+import { restorePortfolioPrefs, setupPortfolioListeners } from "./portfolio.js";
+import { setupSnapshotListeners } from "./portfolio-snapshot.js";
+import { setupPositionListeners } from "./portfolio-position.js";
+import { setupHistoryListeners } from "./portfolio-history.js";
 import { setupImportListeners } from "./import.js";
 import { setupCategorizeListeners } from "./categorize.js";
 import { setupComboboxes } from "./combobox.js";
@@ -28,6 +34,7 @@ import { initToastListeners } from "./toast.js";
 import { setupKeyboardListeners } from "./keyboard.js";
 import { setupDrawerListeners } from "./drawer.js";
 import { setupSettingsListeners } from "./settings.js";
+import { setupManageListeners } from "./portfolio-manage.js";
 import { setupSheetGestures } from "./sheet.js";
 import { setupViewportListeners } from "./viewport.js";
 import { setupPageSizeListeners } from "./pagesize.js";
@@ -92,6 +99,7 @@ function runStep(label, step) {
 
 function init() {
   runStep("restorePageSize", restorePageSize);
+  runStep("restorePortfolioPrefs", restorePortfolioPrefs);
 
   // Instantiate the comboboxes before the first data load, so loadStores() and
   // loadCategories() have live instances to feed options into.
@@ -107,7 +115,7 @@ function init() {
   );
 
   runStep("applyFilter", () => applyFilter("month"));
-  runStep("refreshAllData", refreshAllData);
+  runStep("loadLookups", loadLookups);
 
   // Listed rather than called in sequence so a new step cannot be added without
   // the isolation guard. `step.name` labels the failure; there is no build step
@@ -124,6 +132,12 @@ function init() {
     setupPageSizeListeners,
     setupBulkListeners,
     setupStatsListeners,
+    setupViewListeners,
+    setupPortfolioListeners,
+    setupSnapshotListeners,
+    setupPositionListeners,
+    setupHistoryListeners,
+    setupManageListeners,
     setupImportListeners,
     setupCategorizeListeners,
     initToastListeners,
@@ -133,6 +147,13 @@ function init() {
     setupViewportListeners,
   ];
   for (const step of wiringSteps) runStep(step.name, step);
+
+  // Last, because entering a view loads its data: stats reads the filter inputs
+  // applyFilter() just populated, and the portfolio feeds options into the
+  // comboboxes setupPortfolioListeners() created above. The invoice list is
+  // part of what the router loads too, which is why booting into another view
+  // no longer fetches a list it would not show.
+  runStep("applyViewFromHash", applyViewFromHash);
 }
 
 let started = false;

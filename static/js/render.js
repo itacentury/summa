@@ -17,6 +17,7 @@ import {
   formatDate,
   formatDateShort,
   applyCategoryBadge,
+  withEuro,
 } from "./dom.js";
 import { editInvoice } from "./modals.js";
 import { deleteInvoice } from "./invoices.js";
@@ -35,8 +36,8 @@ export function itemRowsHtml(items) {
       (item) => `
             <div class="item-row">
                 <span class="item-name">${escapeHtml(item.item_name)}</span>
-                <span class="item-price">€${formatCurrency(
-                  item.item_price,
+                <span class="item-price">${withEuro(
+                  formatCurrency(item.item_price),
                 )}</span>
             </div>
         `,

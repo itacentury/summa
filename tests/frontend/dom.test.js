@@ -12,6 +12,7 @@ import {
   formatDateShort,
   isFutureIsoDate,
   todayIso,
+  withEuro,
 } from "../../static/js/dom.js";
 import { dayOffset } from "./helpers.js";
 
@@ -180,6 +181,12 @@ describe("formatCurrency", () => {
   it("handles zero and negatives", () => {
     expect(formatCurrency(0)).toBe("0.00");
     expect(formatCurrency(-4.2)).toBe("-4.20");
+  });
+});
+
+describe("withEuro", () => {
+  it("puts the symbol behind the amount, joined by a non-breaking space", () => {
+    expect(withEuro(formatCurrency(3.5))).toBe("3.50 €");
   });
 });
 

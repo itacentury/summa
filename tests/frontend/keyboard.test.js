@@ -1,14 +1,29 @@
 /**
- * Frontend unit tests for the modal focus management in keyboard.js. Initial
- * focus follows the explicit `[data-autofocus]` marker rather than DOM order —
- * that is what keeps the settings dialog off its destructive "Sign out" row —
- * so these cases drive the real path: the MutationObserver on the overlay's
- * `active` class, wired by setupKeyboardListeners().
+ * Frontend unit tests for keyboard.js: the modal focus management and the
+ * view-dependent shortcuts. Initial focus follows the explicit
+ * `[data-autofocus]` marker rather than DOM order — that is what keeps the
+ * settings dialog off its destructive "Sign out" row — so these cases drive the
+ * real path: the MutationObserver on the overlay's `active` class, wired by
+ * setupKeyboardListeners().
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupKeyboardListeners } from "../../static/js/keyboard.js";
+import { openAddModal } from "../../static/js/modals.js";
+import { openSnapshotModal } from "../../static/js/portfolio-snapshot.js";
+import { state } from "../../static/js/state.js";
+
+vi.mock("../../static/js/modals.js", () => ({
+  openAddModal: vi.fn(),
+  openImportModal: vi.fn(),
+  lockScroll: vi.fn(),
+  unlockScroll: vi.fn(),
+}));
+vi.mock("../../static/js/settings.js", () => ({ openSettingsModal: vi.fn() }));
+vi.mock("../../static/js/portfolio-snapshot.js", () => ({
+  openSnapshotModal: vi.fn(),
+}));
 
 function mountFocusFixture() {
   document.body.innerHTML = `
@@ -93,5 +108,35 @@ describe("modal focus management", () => {
     await closeModal();
 
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("the N shortcut", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    setupKeyboardListeners();
+    vi.mocked(openAddModal).mockClear();
+    vi.mocked(openSnapshotModal).mockClear();
+  });
+
+  const pressN = () =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "n" }));
+
+  it("opens the new-invoice dialog on the invoice view", () => {
+    state.currentView = "invoices";
+    pressN();
+
+    expect(openAddModal).toHaveBeenCalled();
+    expect(openSnapshotModal).not.toHaveBeenCalled();
+  });
+
+  it("opens the snapshot form on the portfolio view", () => {
+    // One key, dispatched on the active view — not a second listener that would
+    // have both dialogs racing for the same keystroke.
+    state.currentView = "portfolio";
+    pressN();
+
+    expect(openSnapshotModal).toHaveBeenCalled();
+    expect(openAddModal).not.toHaveBeenCalled();
   });
 });

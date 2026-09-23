@@ -23,6 +23,7 @@ const steps = vi.hoisted(() => {
   const names = [
     "setupComboboxes",
     "applyFilter",
+    "loadLookups",
     "refreshAllData",
     "setupFilterListeners",
     "setupModalListeners",
@@ -32,6 +33,12 @@ const steps = vi.hoisted(() => {
     "setupPageSizeListeners",
     "setupBulkListeners",
     "setupStatsListeners",
+    "setupViewListeners",
+    "applyViewFromHash",
+    "restorePortfolioPrefs",
+    "setupPortfolioListeners",
+    "setupSnapshotListeners",
+    "setupPositionListeners",
     "setupImportListeners",
     "setupCategorizeListeners",
     "initToastListeners",
@@ -54,6 +61,7 @@ vi.mock("../../static/js/filters.js", () => ({
 }));
 vi.mock("../../static/js/api.js", () => ({
   loadInvoices: steps.loadInvoices,
+  loadLookups: steps.loadLookups,
   refreshAllData: steps.refreshAllData,
   setupPaginationListeners: steps.setupPaginationListeners,
 }));
@@ -71,6 +79,20 @@ vi.mock("../../static/js/bulk.js", () => ({
 }));
 vi.mock("../../static/js/stats.js", () => ({
   setupStatsListeners: steps.setupStatsListeners,
+}));
+vi.mock("../../static/js/views.js", () => ({
+  applyViewFromHash: steps.applyViewFromHash,
+  setupViewListeners: steps.setupViewListeners,
+}));
+vi.mock("../../static/js/portfolio.js", () => ({
+  restorePortfolioPrefs: steps.restorePortfolioPrefs,
+  setupPortfolioListeners: steps.setupPortfolioListeners,
+}));
+vi.mock("../../static/js/portfolio-snapshot.js", () => ({
+  setupSnapshotListeners: steps.setupSnapshotListeners,
+}));
+vi.mock("../../static/js/portfolio-position.js", () => ({
+  setupPositionListeners: steps.setupPositionListeners,
 }));
 vi.mock("../../static/js/import.js", () => ({
   setupImportListeners: steps.setupImportListeners,
@@ -111,8 +133,10 @@ vi.mock("../../static/js/auth.js", () => ({
   setupSignOut: steps.setupSignOut,
 }));
 
-// Ordered as init() runs them: the pre-load block first, then the wiring loop.
-const PRE_LOAD_STEPS = ["setupComboboxes", "applyFilter", "refreshAllData"];
+// Ordered as init() runs them: the pre-load block first, then the wiring loop,
+// then the view restore — which sits outside the loop because it has to run
+// after every wiring step, not merely among them.
+const PRE_LOAD_STEPS = ["setupComboboxes", "applyFilter", "loadLookups"];
 const WIRING_STEPS = [
   "setupFilterListeners",
   "setupModalListeners",
@@ -122,6 +146,10 @@ const WIRING_STEPS = [
   "setupPageSizeListeners",
   "setupBulkListeners",
   "setupStatsListeners",
+  "setupViewListeners",
+  "setupPortfolioListeners",
+  "setupSnapshotListeners",
+  "setupPositionListeners",
   "setupImportListeners",
   "setupCategorizeListeners",
   "initToastListeners",
@@ -130,7 +158,8 @@ const WIRING_STEPS = [
   "setupSheetGestures",
   "setupViewportListeners",
 ];
-const ALL_STEPS = [...PRE_LOAD_STEPS, ...WIRING_STEPS];
+const POST_WIRING_STEPS = ["applyViewFromHash"];
+const ALL_STEPS = [...PRE_LOAD_STEPS, ...WIRING_STEPS, ...POST_WIRING_STEPS];
 
 let consoleError;
 
@@ -187,15 +216,27 @@ describe("init", () => {
   });
 
   it("instantiates the comboboxes before the first data load", async () => {
-    // Load-bearing, not incidental: refreshAllData() fans out to loadStores()
+    // Load-bearing, not incidental: loadLookups() fans out to loadStores()
     // and loadCategories(), which feed their options into the combobox
     // instances via getCombobox() — and skip that silently when none exists
     // yet. stepsThatRan() reports the declared order of ALL_STEPS, not the
     // observed one, so only the invocation order catches a reordering.
     await runInit();
 
-    expect(callOrder("setupComboboxes")).toBeLessThan(
-      callOrder("refreshAllData"),
+    expect(callOrder("setupComboboxes")).toBeLessThan(callOrder("loadLookups"));
+  });
+
+  it("restores the hashed view after every wiring step", async () => {
+    // Load-bearing: entering a view loads its data, and both loaders depend on
+    // earlier steps — stats on the inputs applyFilter() fills, the portfolio on
+    // the comboboxes setupPortfolioListeners() creates.
+    await runInit();
+
+    expect(callOrder("applyViewFromHash")).toBeGreaterThan(
+      callOrder("setupPortfolioListeners"),
+    );
+    expect(callOrder("applyViewFromHash")).toBeGreaterThan(
+      callOrder("applyFilter"),
     );
   });
 
@@ -351,7 +392,7 @@ describe("session expiry", () => {
 
     logBackIn();
 
-    expect(steps.refreshAllData).toHaveBeenCalledTimes(2);
+    expect(steps.refreshAllData).toHaveBeenCalledTimes(1);
     for (const name of WIRING_STEPS) {
       expect(steps[name], name).toHaveBeenCalledTimes(1);
     }

@@ -139,6 +139,12 @@
   display: block;
 }
 
+/* Opened upward: the shadow turns with the panel, otherwise it sits between
+   panel and trigger instead of below the panel. */
+.model-picker.is-open-up .model-picker-menu {
+  box-shadow: 0 -14px 36px rgb(58 51 42 / 20%);
+}
+
 .model-picker-section-label {
   display: block;
   padding: 6px 10px 4px;

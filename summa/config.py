@@ -16,6 +16,7 @@ SESSION_DAYS_ENV: Final[str] = "SESSION_DAYS"
 COOKIE_SECURE_ENV: Final[str] = "COOKIE_SECURE"
 COOKIE_SAMESITE_ENV: Final[str] = "COOKIE_SAMESITE"
 CORS_ORIGINS_ENV: Final[str] = "CORS_ALLOWED_ORIGINS"
+BENCHMARK_SYMBOL_ENV: Final[str] = "BENCHMARK_SYMBOL"
 
 # Spellings that read as "off" for a boolean switch. Matches summa.ai so the
 # whole app answers to the same vocabulary.
@@ -33,6 +34,9 @@ MAX_SESSION_DAYS: Final[int] = 3650
 # loudly, so it falls back to the default.
 _VALID_SAMESITE: Final[frozenset[str]] = frozenset({"lax", "strict", "none"})
 DEFAULT_COOKIE_SAMESITE: Final[str] = "Lax"
+
+# iShares Core MSCI World UCITS ETF, Xetra -- the EUR-quoted MSCI World.
+DEFAULT_BENCHMARK_SYMBOL: Final[str] = "EUNL.DE"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -98,3 +102,14 @@ def cors_origins() -> str | list[str]:
     if raw_value == "*":
         return "*"
     return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
+
+
+def benchmark_symbol() -> str:
+    """Return the ticker whose closes are the benchmark line.
+
+    Both the chart and ``scripts/fetch_benchmark.py`` resolve the symbol here, so
+    a deployment that follows a different index switches the two together and a
+    one-off fetch of some other ticker cannot take the chart over.
+    """
+    raw_value: str = os.environ.get(BENCHMARK_SYMBOL_ENV, "").strip()
+    return raw_value or DEFAULT_BENCHMARK_SYMBOL

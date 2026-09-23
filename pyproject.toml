@@ -15,6 +15,7 @@ dev = [
     "ruff>=0.14.0,<1",
     "mypy>=1.13.0,<2",
     "types-flask-cors>=6.0.0.20250809,<7",
+    "openpyxl>=3.1.5,<4",
     {include-group = "test"},
 ]
 test = ["pytest>=8.3,<9"]
@@ -34,5 +35,10 @@ testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["summa", "tests"]
+files = ["summa", "scripts", "tests"]
 strict = true
+
+# openpyxl ships no py.typed, so a strict run would reject the import outright.
+[[tool.mypy.overrides]]
+module = ["openpyxl.*"]
+ignore_missing_imports = true

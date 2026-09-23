@@ -235,6 +235,18 @@ export function formatCurrency(amount) {
 }
 
 /**
+ * Append the euro symbol to an already formatted amount.
+ *
+ * The separator is a non-breaking space, so a narrow cell can never wrap the
+ * symbol onto its own line. This is the only place the symbol is written in
+ * JavaScript — the CSS `::after` rules on the invoice and stats totals are its
+ * markup-side counterpart.
+ */
+export function withEuro(amount) {
+  return `${amount}\u00a0€`;
+}
+
+/**
  * Get the current search value from the search input.
  */
 export function getSearchValue() {

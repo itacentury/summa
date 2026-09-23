@@ -16,13 +16,39 @@ import { apiFetch } from "./http.js";
 // on rapid filter/search/sort/pagination changes).
 let inFlightController = null;
 
+// Whether the invoice list has been loaded at least once, so entering its view
+// again does not refetch. Set on a successful fetch only: a first load that
+// failed must stay retryable.
+let invoicesLoaded = false;
+
 /**
  * Reload the invoice list plus the store and category lookups in one call.
  */
 export function refreshAllData() {
   loadInvoices();
+  loadLookups();
+}
+
+/**
+ * Load the store and category lookups that feed the filter comboboxes and the
+ * invoice dialogs. Needed in every view, so boot loads them unconditionally.
+ */
+export function loadLookups() {
   loadStores();
   loadCategories();
+}
+
+/**
+ * Load the invoice list on first entry into its view.
+ *
+ * Unlike the stats and portfolio loaders, this one is idempotent: the invoices
+ * view keeps its page and selection, and loadInvoices() resets both — so a
+ * reload on every return from another view would throw the user's position
+ * away.
+ */
+export async function loadInvoicesOnce() {
+  if (invoicesLoaded) return;
+  await loadInvoices();
 }
 
 /**
@@ -132,6 +158,7 @@ async function fetchInvoices() {
     state.totalCount = data.total_count;
     state.totalSum = data.total_sum;
     state.uncategorizedCount = data.uncategorized_count;
+    invoicesLoaded = true;
     renderInvoices();
 
     // Also refresh stats if in stats view

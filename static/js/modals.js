@@ -10,6 +10,7 @@ import {
   todayIso,
   isFutureIsoDate,
   capAtToday,
+  withEuro,
 } from "./dom.js";
 import { showErrorToast } from "./toast.js";
 import { saveInvoice } from "./invoices.js";
@@ -210,8 +211,9 @@ export function calculateTotal() {
   prices.forEach((input) => {
     total += parseFloat(input.value) || 0;
   });
-  document.querySelector('[data-el="calculated-total"]').textContent =
-    `€${formatCurrency(total)}`;
+  document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
+    formatCurrency(total),
+  );
 }
 
 /**

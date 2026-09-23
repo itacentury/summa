@@ -175,6 +175,9 @@ def test_security_headers_present_on_every_response(client: FlaskClient) -> None
         ("categorize-modal", "button", "class", "modal-close"),
         # Read-only overlay: nothing in its body is focusable.
         ("shortcuts-help", "button", "class", "modal-close"),
+        # Read-only too: the filter pills stay one Tab away rather than taking
+        # the focus the moment the dialog opens.
+        ("portfolio-history-modal", "button", "class", "modal-close"),
     ],
 )
 def test_modal_marks_its_initial_focus_target(

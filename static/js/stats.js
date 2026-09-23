@@ -1,13 +1,18 @@
 /**
- * View switching (invoices/stats), the mobile advanced-filters toggle, and the
- * statistics rendering with Chart.js (the global `Chart` UMD from the CDN).
+ * The mobile advanced-filters toggle and the statistics rendering with Chart.js
+ * (the global `Chart` UMD from the CDN). View switching lives in views.js.
  */
 
 import { state, chartColors } from "./state.js";
-import { els, escapeHtml, formatCurrency, mobileViewport } from "./dom.js";
+import {
+  els,
+  escapeHtml,
+  formatCurrency,
+  mobileViewport,
+  withEuro,
+} from "./dom.js";
 import { showErrorToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
-import { closeMobileSearch } from "./drawer.js";
 import { apiFetch } from "./http.js";
 
 /**
@@ -46,57 +51,9 @@ export function toggleAdvancedFilters() {
 }
 
 /**
- * Switch to the invoices list view.
- */
-export function showInvoicesView() {
-  state.currentView = "invoices";
-  document.body.classList.remove("stats-mode");
-  document
-    .querySelector('[data-el="invoices-view"]')
-    .classList.remove("is-hidden");
-  document.querySelector('[data-el="stats-view"]').classList.add("is-hidden");
-  document.querySelector('[data-el="topbar-title"]').textContent = "Invoices";
-
-  // Update sidebar nav items
-  document.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.view === "invoices");
-  });
-}
-
-/**
- * Switch to the statistics view and load stats data.
- */
-export function showStatsView() {
-  state.currentView = "stats";
-  document.body.classList.add("stats-mode");
-  document
-    .querySelector('[data-el="invoices-view"]')
-    .classList.add("is-hidden");
-  document
-    .querySelector('[data-el="stats-view"]')
-    .classList.remove("is-hidden");
-  document.querySelector('[data-el="topbar-title"]').textContent = "Statistics";
-  closeMobileSearch();
-
-  // Update sidebar nav items
-  document.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.view === "stats");
-  });
-
-  loadStats();
-}
-
-/**
- * Wire the invoices/stats view toggle and the mobile advanced-filters toggle.
+ * Wire the mobile advanced-filters toggle and its sheet chrome.
  */
 export function setupStatsListeners() {
-  document.querySelector(".sidebar-nav").addEventListener("click", (event) => {
-    const button = event.target.closest(".nav-item");
-    if (!button) return;
-    if (button.dataset.view === "stats") showStatsView();
-    else showInvoicesView();
-  });
-
   document
     .querySelector('[data-el="filters-toggle"]')
     .addEventListener("click", toggleAdvancedFilters);
@@ -205,7 +162,7 @@ function renderCategoryChart(data) {
         <div class="legend-item">
           <span class="legend-color"></span>
           <span class="legend-label">${escapeHtml(item.category)}</span>
-          <span class="legend-value">€${formatCurrency(item.amount)}</span>
+          <span class="legend-value">${withEuro(formatCurrency(item.amount))}</span>
           <span class="legend-percent">${percent}%</span>
         </div>
       `;
@@ -252,7 +209,7 @@ function renderCategoryChart(data) {
               const value = context.raw;
               const percent =
                 total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-              return `€${formatCurrency(value)} (${percent}%)`;
+              return `${withEuro(formatCurrency(value))} (${percent}%)`;
             },
           },
         },
@@ -306,7 +263,7 @@ function renderStoreChart(data) {
           borderWidth: 1,
           padding: 12,
           callbacks: {
-            label: (context) => `€${formatCurrency(context.raw)}`,
+            label: (context) => withEuro(formatCurrency(context.raw)),
           },
         },
       },
@@ -321,7 +278,7 @@ function renderStoreChart(data) {
             font: mobile
               ? { size: 10.5, family: "'JetBrains Mono', monospace" }
               : undefined,
-            callback: (value) => `€${value}`,
+            callback: (value) => withEuro(value),
           },
         },
         y: {

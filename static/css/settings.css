@@ -37,9 +37,58 @@
   border-color: var(--danger);
 }
 
-.settings-empty {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  text-align: center;
+/* A titled block of rows, separated from what stands above it. */
+.settings-section {
+  margin-top: 18px;
+}
+
+.settings-section-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+/* Grows into whatever the control leaves, so a sub-line only ever clips when a
+   depot list genuinely outruns the dialog. */
+.settings-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-row-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Wraps rather than clips: each of these lines answers what its row does, and a
+   truncated depot list is the one the user opened the dialog to check. */
+.settings-row-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Kept off the label's line length: a long position name would otherwise push
+   the whole row past the dialog. */
+.settings-row-control {
+  flex: none;
+  max-width: 160px;
 }

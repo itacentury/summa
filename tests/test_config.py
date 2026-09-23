@@ -103,3 +103,21 @@ def test_an_overflowing_session_days_still_boots(build_client: BuildClient) -> N
 
     reported: int = client.get("/api/auth/me").get_json()["session_days"]
     assert reported == config.DEFAULT_SESSION_DAYS
+
+
+def test_benchmark_symbol_defaults_to_the_eur_quoted_msci_world() -> None:
+    """Unset means the symbol the feed job fetches out of the box."""
+    assert config.benchmark_symbol() == config.DEFAULT_BENCHMARK_SYMBOL
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [("URTH", "URTH"), ("  SPY  ", "SPY"), ("", config.DEFAULT_BENCHMARK_SYMBOL)],
+)
+def test_benchmark_symbol_follows_the_environment(
+    monkeypatch: pytest.MonkeyPatch, configured: str, expected: str
+) -> None:
+    """A deployment following another index names it once, for chart and job alike."""
+    monkeypatch.setenv(config.BENCHMARK_SYMBOL_ENV, configured)
+
+    assert config.benchmark_symbol() == expected

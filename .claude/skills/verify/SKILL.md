@@ -16,15 +16,18 @@ Uses a throwaway DB so the user's `invoices.db` stays untouched. Ready when
 
 ## Drive (browser)
 
-Playwright is not in the repo's `node_modules`. In a scratch dir:
+Install the separately pinned screenshot tooling and Chromium once:
 
 ```bash
-npm init -y && npm i playwright && npx playwright install chromium
+npm run screenshots:setup
 ```
 
-Then drive with a small `.mjs` script (`chromium.launch()`, one page per
-viewport). Useful widths: 1280 (desktop), 600 (just under the 640px sheet
-breakpoint), 390 and 320 (phones).
+Then import Playwright from `scripts/screenshots/node_modules` or use the
+repository's screenshot tooling. If Chromium is already present under
+`$PLAYWRIGHT_BROWSERS_PATH`, or in Playwright's own browser cache, pass its
+executable path to Playwright via `executablePath` to skip the ~170 MB Chromium,
+headless shell and ffmpeg download. Useful widths: 1280 (desktop), 600 (just
+under the 640px sheet breakpoint), 390 and 320 (phones).
 
 Gotchas:
 

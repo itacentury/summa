@@ -25,6 +25,45 @@ uv run mypy                             # strict type check (files set in pyproj
 uv run pytest                           # backend test suite (tests/)
 ```
 
+Three operational CLIs live under `scripts/` and are not part of the served app:
+
+```bash
+uv run python -m scripts.import_portfolio_xlsx book.xlsx --fx USD=1.08  # load depot history
+uv run python -m scripts.fetch_benchmark --symbol EUNL.DE --range 2y    # refresh the benchmark (cron)
+uv run python -m scripts.seed_portfolio --reset                         # fake depot history for UI checks
+```
+
+All three take `--db` (default `$DATABASE_PATH`, else `invoices.db`), create the
+portfolio schema when it is missing and are safe to re-run. All three also take
+`--dry-run`, which writes nothing at all: the importer and the seeder run against
+an in-memory copy of the database (`connect_mirror()` in
+`scripts/portfolio_db.py`), so a dry run neither creates the file nor touches an
+existing one. `openpyxl` is a **dev-only** dependency, so the runtime image never
+carries it — the importer is a workstation tool. `scripts` is in
+`[tool.mypy] files`, so all three are strict-checked.
+
+`seed_portfolio.py` is a workstation tool too, for looking at the Portfolio
+screen against something: it generates three depots and eleven positions (one
+of them sold, two in a foreign currency) over `--weeks` of weekly snapshots plus
+a matching benchmark series, so the depot switcher, allocation pooling, both
+mover lists and all four range filters have data. Generation is pure and keyed
+on `--seed`, so a screenshot is reproducible; `--reset` clears the four
+portfolio tables first and never touches the invoice side, while a re-run
+without it keeps every week already recorded.
+
+`docs/screenshots/` is a **generated** artifact of the UI, produced in full by
+`scripts/screenshots.mjs` (a fourth workstation tool; it seeds both sides of the
+database, drives Playwright and replaces every PNG at once). Never add or edit a
+screenshot by hand. **When a change alters a captured surface, regenerate the set
+once before the branch is merged** — once per branch, not per commit, because
+each run is a binary diff over the whole folder. A surface worth showing that no
+existing shot covers means three edits together: a step in `screenshots.mjs`, a
+row in the index in `docs/screenshots/README.md`, and a cell in the root
+`README.md` table if it belongs in the shop window. Playwright and Sharp live
+outside the root frontend toolchain in the separately locked
+`scripts/screenshots/` package; `docs/screenshots/README.md` documents its setup
+and the run.
+
 `.env` — copied from `.env.example` — is what decides whether a local run is behind
 the login gate (`AUTH_ENABLED`), and `uv` fails outright when that file is missing. The
 VS Code task `Run: Start Server` (`summa.code-workspace`) loads it the same way, through
@@ -64,11 +103,14 @@ and calls `init_db()`. Importing the `summa` package itself has no side effects;
 the eager WSGI/CLI instance `app = create_app()` lives in `summa/wsgi.py`
 (`FLASK_APP=summa.wsgi`, gunicorn `summa.wsgi:app`). Routes are split into blueprints under
 `summa/routes/` (`web.py` → `/`, `auth.py` → `/api/auth/*`, `invoices.py` →
-`/api/invoices*` + `/stores` + `/categories`, `stats.py` → `/api/stats`); the DB layer lives in `summa/db.py`
+`/api/invoices*` + `/stores` + `/categories`, `stats.py` → `/api/stats`,
+`portfolio.py` → `/api/portfolio*`); the DB layer lives in `summa/db.py`
 and shared types/helpers in `summa/helpers.py`. Key conventions:
 
-- **SQLite with two tables:** `invoices` and `invoice_items` (FK with
-  `ON DELETE CASCADE`). Connections come from `get_db()` (`summa/db.py`), which
+- **SQLite:** `invoices` and `invoice_items` (FK with `ON DELETE CASCADE`), plus
+  the four portfolio tables `portfolio_depots`, `portfolio_positions`,
+  `portfolio_snapshots` and `benchmark_prices`, created by
+  `create_portfolio_schema()`. Connections come from `get_db()` (`summa/db.py`), which
   sets `row_factory` and enables WAL mode. `DATABASE_PATH` env var overrides the
   default `invoices.db`.
 - **Schema + migrations live in `init_db()`** (`summa/db.py`), which runs inside
@@ -76,9 +118,14 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   are done inline by
   inspecting `PRAGMA table_info` and conditionally `ALTER TABLE`-ing new columns
   (e.g. `deleted_at`, `category`). Add future column migrations the same way.
-- **Soft deletes:** rows are never physically deleted. Delete endpoints set
-  `deleted_at = CURRENT_TIMESTAMP`, and every read query filters
-  `WHERE deleted_at IS NULL`. Preserve this filter in any new query.
+- **Soft deletes (invoice side only):** invoice rows are never physically deleted.
+  Delete endpoints set `deleted_at = CURRENT_TIMESTAMP`, and every read query on
+  `invoices` filters `WHERE deleted_at IS NULL` — preserve this filter in any new
+  invoice query. The column lives on `invoices` alone; its child rows
+  (`invoice_items`, `invoice_category_suggestions`) are excluded by joining against
+  it. The portfolio tables have no `deleted_at` at all: a sold position is recorded
+  through `closed_at` (see _Portfolio_ below), so portfolio queries have no such
+  filter.
 - **Optional password gate** (`summa/config.py`, `summa/auth.py`,
   `summa/ratelimit.py`): off unless `AUTH_ENABLED` is set. A single
   `before_request` hook in `create_app()` denies by default; `is_public()` in
@@ -102,6 +149,31 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   try/commit/except-rollback/finally-close. `strip_text()` normalizes input
   (empty string -> `None`). CORS is enabled globally for native mobile clients.
 
+**Portfolio — a second area on the same database.** Depots hold positions, a
+position holds weekly snapshots, and a snapshot stores only raw facts: a value, a
+signed deposit and an FX rate, all in the position's own currency (`fx_rate` =
+units of that currency per EUR, so `value_eur = value / fx_rate`). Everything
+shown — EUR sums, invested, gains, the weekly delta, the chart series, allocation
+and the biggest movers — is derived on read by the **pure** module
+`summa/portfolio.py` (no Flask, no SQL), which is why `tests/test_portfolio.py`
+can prove the rules without HTTP; `summa/routes/portfolio.py` only queries and
+calls into it. Two invariants: **a sale is recorded, not flagged** (`closed_at`
+plus a closing row derived by `with_sale_recorded()`, never stored), and
+`carried = 1` marks a value copied forward from the previous week rather than
+entered. History is loaded by `scripts/import_portfolio_xlsx.py`, which reads the
+wide workbook (row 1 depot bands, row 2 a `name · Einzahlung · Delta` triple per
+position, row 3+ one row per week), recomputes Delta instead of importing it, and
+is idempotent via `INSERT OR IGNORE` on `(position_id, date)` — a re-run never
+rewrites a week you corrected in the UI. `scripts/fetch_benchmark.py` keeps
+`benchmark_prices` fresh from a public chart feed and exits non-zero so cron can
+report. Which symbol the chart draws is configuration, not freshness:
+`config.benchmark_symbol()` (`BENCHMARK_SYMBOL`, default `EUNL.DE`) names it for
+both the job's `--symbol` default and `_feed_points()`, so an exploratory fetch
+of another ticker writes rows nothing reads. Only when the configured symbol has
+no rows at all does the freshest symbol on record stand in, and when neither
+yields points inside the window the API falls back to the
+`is_benchmark_fallback` position — so a failed run costs only the chart footnote.
+
 **Frontend — `static/js/app.js` + `templates/index.html`.** Plain JS (no
 framework, no bundler) talking to the API. `app.js` boots behind the login gate:
 `getAuthStatus()` (`static/js/auth.js`) decides whether `init()` runs or the
@@ -111,9 +183,28 @@ latches the first 401 and re-raises the gate, so a new call site must use it
 rather than bare `fetch` — except the auth endpoints themselves, whose 401s are
 answers, not expiries: `auth.js` calls `/api/auth/*` with bare `fetch` on
 purpose, because latching a wrong password would re-enter the login view
-mid-submit and then swallow every genuine expiry. Styling is split per
+mid-submit and then swallow every genuine expiry. **Which of the three views is
+shown is driven by the URL hash** (`/#portfolio`), so a reload stays where the
+user was and back/forward step between views: `static/js/views.js` switches only
+on `hashchange` plus one `applyViewFromHash()` at the end of `init()` (last,
+because entering a view loads its data), and a nav click merely assigns
+`location.hash`. `setView()` therefore must never write to the URL — that would
+re-enter the router through its own event. Because `init()` only runs once the
+auth check has answered, that switch would land well after the first paint, so
+`static/js/boot-view.js` — a blocking classic script, the only non-module under
+`static/js/` — applies the same shell state while the page is still parsing.
+**It is the first thing in `<body>` for a reason:** a parser-blocking script
+only holds back what follows it, so from any later position the browser may
+already have painted the invoices view. That position costs it the DOM, hence
+two phases — the view-mode class goes on `document.body` immediately (which is
+what the `body.stats-mode .invoices-section` rule in `invoices.css` turns into a
+hidden section), and the view roots, topbar title and nav item follow on
+`readystatechange`, i.e. as soon as parsing ends and still long before the auth
+check answers. It deliberately loads no data, and beyond the mode class it
+copies no view table: it reads the tokens and titles off the nav items, so
+`views.js` stays the single authority. Styling is split per
 component under `static/css/` (`variables`, `base`, `header`, `filters`,
-`invoices`, `modals`, `components`, `stats`), loaded via ordered `<link>` tags
+`invoices`, `modals`, `components`, `stats`, `portfolio`), loaded via ordered `<link>` tags
 in `index.html` — the order is cascade-significant, and each file co-locates
 its own responsive `@media` rules.
 

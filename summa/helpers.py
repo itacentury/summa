@@ -1,5 +1,6 @@
 """Shared types and helper functions for the Summa backend."""
 
+import math
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -126,14 +127,19 @@ def _require(data: dict[str, Any], key: str) -> Any:
     return data[key]
 
 
-def _parse_float(value: Any, field: str) -> float:
-    """Convert value to float, raising ValidationError if it is not numeric."""
+def parse_float(value: Any, field: str) -> float:
+    """Convert value to a finite float, raising ValidationError otherwise."""
     try:
-        return float(value)
+        parsed: float = float(value)
     except (TypeError, ValueError):
         raise ValidationError(
             f"Field '{field}' must be a number", field=field
         ) from None
+    # JSON's Infinity/NaN literals parse fine but cannot be serialised back, so a
+    # stored one breaks every later GET.
+    if not math.isfinite(parsed):
+        raise ValidationError(f"Field '{field}' must be a finite number", field=field)
+    return parsed
 
 
 def _reject_future_date(date_value: str) -> None:
@@ -167,7 +173,7 @@ def parse_invoice(data: Any) -> Invoice:
     category: str | None = strip_text(
         require_optional_str(data.get("category"), "category")
     )
-    total: float = _parse_float(_require(data, "total"), "total")
+    total: float = parse_float(_require(data, "total"), "total")
 
     items: list[InvoiceItem] = []
     raw_items: Any = data.get("items", [])
@@ -177,7 +183,7 @@ def parse_invoice(data: Any) -> Invoice:
         if not isinstance(raw_item, dict):
             raise ValidationError("Each item must be a JSON object")
         name: str = require_non_empty_str(_require(raw_item, "item_name"), "item_name")
-        price: float = _parse_float(_require(raw_item, "item_price"), "item_price")
+        price: float = parse_float(_require(raw_item, "item_price"), "item_price")
         items.append(InvoiceItem(item_name=name, item_price=price))
 
     if not items:

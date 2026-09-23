@@ -16,6 +16,7 @@ import {
   PAGE_SIZE_STORAGE_KEY,
 } from "./state.js";
 import { goToPage } from "./api.js";
+import { createFloatingMenu } from "./floating-menu.js";
 
 const ALL_VALUE = "all";
 
@@ -60,6 +61,7 @@ export function renderPageSizeControl() {
   return `
     <div class="page-size" data-el="page-size">
       <button type="button" class="page-size-button" data-el="page-size-button"
+          role="combobox" aria-label="Invoices per page"
           aria-haspopup="listbox" aria-controls="page-size-menu"
           aria-expanded="false">
         <span class="page-size-value">${buttonLabel}</span>
@@ -102,30 +104,15 @@ function setHighlight(options, index) {
   }
 }
 
-/**
- * Anchor the fixed panel right-aligned to the button, opening downward by
- * default and flipping upward only when the full panel would not fit below.
- * Fixed positioning is viewport-relative, hence the window dimensions rather
- * than an offset parent.
- */
-function positionMenu(parts) {
-  const rect = parts.button.getBoundingClientRect();
-  const gap = 6;
-  parts.menu.style.right = `${window.innerWidth - rect.right}px`;
+// The pagination markup is rebuilt on every list render, so the panel this
+// anchors is a different element each time the menu opens — hence an instance
+// per open rather than one for the module.
+let floating = null;
 
-  // top/bottom are mutually exclusive under position:fixed, so the unused one is
-  // reset to auto. offsetHeight is meaningful here because openMenu() has
-  // already made the panel display:block before calling this.
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const fitsBelow = spaceBelow >= parts.menu.offsetHeight + gap;
-
-  if (fitsBelow) {
-    parts.menu.style.top = `${rect.bottom + gap}px`;
-    parts.menu.style.bottom = "auto";
-  } else {
-    parts.menu.style.bottom = `${window.innerHeight - rect.top + gap}px`;
-    parts.menu.style.top = "auto";
-  }
+function releaseMenu() {
+  if (!floating) return;
+  floating.release();
+  floating = null;
 }
 
 function openMenu() {
@@ -133,7 +120,10 @@ function openMenu() {
   if (!parts) return;
   parts.root.classList.add("is-open");
   parts.button.setAttribute("aria-expanded", "true");
-  positionMenu(parts);
+  releaseMenu();
+  floating = createFloatingMenu(parts.button, parts.menu, { align: "right" });
+  floating.place();
+  floating.bind();
   // Start the highlight on the active option so keyboard use has a cursor.
   const activeIndex = parts.options.findIndex((option) =>
     option.classList.contains("is-active"),
@@ -142,6 +132,7 @@ function openMenu() {
 }
 
 function closeMenu({ focusButton = false } = {}) {
+  releaseMenu();
   const parts = controlParts();
   if (!parts) return;
   parts.root.classList.remove("is-open");
@@ -157,6 +148,8 @@ function closeMenu({ focusButton = false } = {}) {
  * preserved because it uses `goToPage`, not `loadInvoices`.
  */
 function selectValue(value) {
+  // goToPage replaces the markup this was anchored to, closed.
+  releaseMenu();
   state.pageSize = value === ALL_VALUE ? ALL_PAGE_SIZE : parseInt(value, 10);
   localStorage.setItem(PAGE_SIZE_STORAGE_KEY, value);
   goToPage(1);
@@ -248,17 +241,4 @@ export function setupPageSizeListeners() {
   document.addEventListener("click", (event) => {
     if (isOpen() && !event.target.closest('[data-el="page-size"]')) closeMenu();
   });
-
-  // A fixed panel does not track the button when the viewport shifts, so close
-  // it rather than reposition. Capture phase catches the .invoice-list scroller.
-  window.addEventListener("resize", () => {
-    if (isOpen()) closeMenu();
-  });
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (isOpen()) closeMenu();
-    },
-    true,
-  );
 }

@@ -33,6 +33,15 @@ def test_writes_are_gated_too(gated_client: FlaskClient) -> None:
     assert response.status_code == 401
 
 
+def test_portfolio_routes_are_gated(gated_client: FlaskClient) -> None:
+    """A blueprint registered after the gate is protected without touching is_public."""
+    assert gated_client.get("/api/portfolio").status_code == 401
+    assert (
+        gated_client.post("/api/portfolio/depots", json={"name": "x"}).status_code
+        == 401
+    )
+
+
 def test_unknown_api_route_is_gated_before_routing(gated_client: FlaskClient) -> None:
     """A path that does not exist is rejected as 401, not disclosed as 404."""
     assert gated_client.get("/api/does-not-exist").status_code == 401

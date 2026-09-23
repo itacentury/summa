@@ -32,10 +32,11 @@
   font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
-.stat-value.currency::before {
-  margin-right: 0.25rem;
+.stat-value.currency::after {
+  margin-left: 0.25rem;
   font-size: 1.25rem;
   color: var(--text-secondary);
   content: "€";
@@ -167,8 +168,8 @@
   letter-spacing: -0.02em;
 }
 
-.stats-view .stat-value.currency::before {
-  margin-right: 0.25rem;
+.stats-view .stat-value.currency::after {
+  margin-left: 0.25rem;
   font-size: 1.25rem;
   color: inherit;
   content: "€";
@@ -204,10 +205,12 @@
   color: var(--text-muted);
 }
 
-/* Stats Charts */
+/* Stats Charts — same intrinsic rule as the portfolio pair: the sidebar takes
+   233px, so a viewport threshold says nothing about how wide a card actually
+   is. */
 .stats-charts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(470px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -296,13 +299,6 @@
    STATISTICS RESPONSIVE
    ======================================== */
 
-/* Icon-rail band (Design 7b): charts stack; two up again above 960px. */
-@media (width <= 960px) {
-  .stats-charts {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Mobile (Design 6a): Total full width, Invoices + Average side by side,
    charts stacked with the donut centered above its legend. */
 @media (width <= 640px) {
@@ -333,8 +329,10 @@
     gap: 14px;
   }
 
-  /* Donut centered at 150px; the legend renders below it full width. */
-  .chart-container {
+  /* Donut centered at 150px; the legend renders below it full width. The cap is
+     on the modifier, not on `.chart-container`: the portfolio value chart reuses
+     the base class and must keep the card's full width. */
+  .chart-container-donut {
     max-width: 190px;
     height: 150px;
     padding: 20px 18px 0;
@@ -346,9 +344,7 @@
   }
 
   .chart-container-bar {
-    max-width: none;
     height: 250px;
     padding: 18px;
-    margin: 0;
   }
 }
