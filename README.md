@@ -14,6 +14,8 @@ Invoice management and expense tracking web application.
 | The same list as an installed PWA on a phone.                                 | The optional password gate.                                                      |
 | ![Portfolio](docs/screenshots/portfolio-overview-desktop.png)                 | ![Positions and allocation](docs/screenshots/portfolio-positions-desktop.png)    |
 | Depot value over time, against the benchmark.                                 | Positions, allocation and the biggest movers of the week.                        |
+| ![Portfolio on a phone](docs/screenshots/portfolio-mobile.png)                | ![Navigation drawer](docs/screenshots/drawer-mobile.png)                         |
+| The portfolio at phone width, with its snapshot FAB.                          | The navigation drawer on a phone.                                                |
 
 The full set lives in [`docs/screenshots/`](docs/screenshots/), which also
 documents how to regenerate it.
