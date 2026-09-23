@@ -3,14 +3,17 @@
 const SETUP_COMMAND = "npm run screenshots:setup";
 
 /**
- * Load the Chromium API from the locally pinned Playwright package.
+ * Load a screenshot tool and select its public API.
  *
- * @returns {Promise<import("playwright").BrowserType>}
+ * @template Tool
+ * @param {string} name - Package specifier to import.
+ * @param {(module: Record<string, unknown>) => Tool} pick - Export selector.
+ * @returns {Promise<Tool>}
  */
-export const loadChromium = async () => {
+const loadTool = async (name, pick) => {
   try {
-    const { chromium } = await import("playwright");
-    return chromium;
+    const module = await import(name);
+    return pick(module);
   } catch (error) {
     throw new Error(
       `Screenshot tooling is not installed. Run \`${SETUP_COMMAND}\` first.`,
@@ -20,18 +23,17 @@ export const loadChromium = async () => {
 };
 
 /**
+ * Load the Chromium API from the locally pinned Playwright package.
+ *
+ * @returns {Promise<import("playwright").BrowserType>}
+ */
+export const loadChromium = async () =>
+  loadTool("playwright", ({ chromium }) => chromium);
+
+/**
  * Load Sharp from the isolated screenshot tooling package.
  *
  * @returns {Promise<typeof import("sharp").default>}
  */
-export const loadSharp = async () => {
-  try {
-    const { default: sharp } = await import("sharp");
-    return sharp;
-  } catch (error) {
-    throw new Error(
-      `Screenshot tooling is not installed. Run \`${SETUP_COMMAND}\` first.`,
-      { cause: error },
-    );
-  }
-};
+export const loadSharp = async () =>
+  loadTool("sharp", ({ default: sharp }) => sharp);

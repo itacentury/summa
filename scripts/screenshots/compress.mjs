@@ -17,7 +17,7 @@ export const compressScreenshots = async (files) => {
   for (const file of files) {
     const source = await readFile(file);
     const compressed = await sharp(source)
-      .png({ palette: true, colours: 256, effort: 10 })
+      .png({ palette: true, effort: 10 })
       .toBuffer();
     if (compressed.length >= source.length) continue;
 
