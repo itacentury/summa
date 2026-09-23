@@ -184,15 +184,17 @@ function showSections({ hasPositions }) {
  */
 function renderPortfolio(payload) {
   const { summary, list } = portfolioElements();
+  const depots = payload.depots ?? [];
+  const renderPayload = { ...payload, depots };
 
   positionIds.clear();
-  payload.depots.forEach((depot) => {
+  depots.forEach((depot) => {
     depot.positions.forEach((position) => positionIds.add(position.id));
   });
 
   // A depot or position that disappeared (filter change, sale) must not keep a
   // stale id alive in either set, where it would silently re-open later.
-  const depotIds = new Set(payload.depots.map((depot) => depot.id));
+  const depotIds = new Set(depots.map((depot) => depot.id));
   collapsedDepots.forEach((id) => {
     if (!depotIds.has(id)) collapsedDepots.delete(id);
   });
@@ -204,26 +206,26 @@ function renderPortfolio(payload) {
   // fully sold portfolio would hide its own rows and realized gain behind the
   // first-run empty state.
   showSections({
-    hasPositions: payload.depots.some((depot) => depot.positions.length > 0),
+    hasPositions: depots.some((depot) => depot.positions.length > 0),
   });
   summary.innerHTML = summaryCardsHtml(payload.totals);
-  list.innerHTML = positionsListHtml(payload, {
+  list.innerHTML = positionsListHtml(renderPayload, {
     collapsed: collapsedDepots,
     expanded: expandedPositions,
   });
   refreshTruncation(list);
 
-  lastPayload = payload;
+  lastPayload = renderPayload;
   // Options before value: a single pick's label is the position's name, which
   // can only be resolved once the control knows this payload's positions.
   if (positionsFilter) {
-    positionsFilter.setOptions(payload.series?.positions ?? []);
-    positionsFilter.setValue(visiblePositionSelection(payload), {
-      hidden: hiddenPositionSelection(payload).length,
+    positionsFilter.setOptions(renderPayload.series?.positions ?? []);
+    positionsFilter.setValue(visiblePositionSelection(renderPayload), {
+      hidden: hiddenPositionSelection(renderPayload).length,
     });
   }
 
-  renderPortfolioCharts(payload);
+  renderPortfolioCharts(renderPayload);
   hasRendered = true;
 }
 
@@ -235,7 +237,7 @@ function renderPortfolio(payload) {
  */
 function depotFilterIsStale(payload) {
   if (state.depotFilter === DEPOT_ALL) return false;
-  return !payload.depots.some(
+  return !(payload.depots ?? []).some(
     (depot) => String(depot.id) === state.depotFilter,
   );
 }

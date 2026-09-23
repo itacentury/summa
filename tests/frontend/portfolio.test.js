@@ -685,6 +685,22 @@ describe("portfolio rendering", () => {
     );
   });
 
+  it("treats a missing depots collection as empty", async () => {
+    const payload = emptyPayload();
+    delete payload.depots;
+    state.depotFilter = "99";
+    global.fetch = vi.fn(async () => jsonResponse(payload));
+
+    await loadPortfolio();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(state.depotFilter).toBe("all");
+    expect(
+      document.querySelector('[data-el="portfolio-empty"]').classList,
+    ).not.toContain("is-hidden");
+    expect(showErrorToast).not.toHaveBeenCalled();
+  });
+
   it("keeps a fully sold portfolio visible instead of falling back to the empty state", async () => {
     // Everything sold: `position_count` counts only what is still held and is 0
     // here, but the depot, its row and the realized gain are still worth showing.
