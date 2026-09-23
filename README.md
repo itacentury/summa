@@ -212,6 +212,44 @@ per client (ten failures per five minutes).
   it logs `AUTH_PASSWORD_HASH is not a readable hash` at startup, so it shows up
   in the container log rather than only as a login that never works.
 
+## Portfolio Import
+
+Depot history is loaded from a workbook by `scripts/import_portfolio_xlsx.py`. It
+does **not** run inside the container: the image ships neither `scripts/` nor
+`openpyxl` (a dev-only dependency). Run it from a local checkout against the
+production database file instead — no checkout is needed on the server:
+
+```bash
+# Stop the app so nothing writes concurrently and the WAL is checkpointed
+ssh server 'cd ~/docker/summa && docker compose stop summa'
+scp server:~/docker/summa/data/invoices.db ./prod.db
+cp prod.db prod.db.bak
+
+uv sync
+uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db --dry-run
+uv run python -m scripts.import_portfolio_xlsx portfolio.xlsx --db prod.db
+
+scp prod.db server:~/docker/summa/data/invoices.db
+ssh server 'cd ~/docker/summa && docker compose start summa'
+```
+
+Before copying the file back, make sure no `invoices.db-wal` / `invoices.db-shm`
+is left next to it on the server — SQLite would replay a stale WAL onto the
+replaced database. File ownership needs no fixing: the entrypoint re-owns `/data`
+on every start.
+
+- `--fx CODE=RATE` sets the rate for each foreign-currency position, in units of
+  that currency per EUR (e.g. `--fx USD=1.08`); a currency without one is stored
+  at `1.0`.
+- `--sheet NAME` picks the worksheet (default `Übersicht`).
+- Re-running is safe: a week already in the database is kept as it is, so values
+  corrected in the UI survive a later import.
+
+The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`
+(`--symbol`, default `BENCHMARK_SYMBOL`). It needs no dev dependencies but, like
+the importer, is not part of the image — schedule it via cron from a checkout
+next to the database. Without it the chart falls back and says so in its footnote.
+
 ## Configuration
 
 Copy [`.env.example`](.env.example) to `.env` and fill in the values you need. The
