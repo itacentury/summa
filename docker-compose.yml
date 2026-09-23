@@ -17,3 +17,23 @@ services:
     env_file:
       - path: .env
         required: false
+
+  # Refreshes the chart's benchmark series from the same image. A failed fetch
+  # only logs and is retried on the next pass, so the loop never exits.
+  benchmark:
+    build: .
+    restart: unless-stopped
+    # tini forwards SIGTERM, so a stop does not wait out the sleep
+    init: true
+    # The image's healthcheck probes the web server, which this service lacks
+    healthcheck:
+      disable: true
+    volumes:
+      - ./data:/data
+    env_file:
+      - path: .env
+        required: false
+    command:
+      - sh
+      - -c
+      - while true; do python -m scripts.fetch_benchmark; sleep "$${BENCHMARK_INTERVAL_SECONDS:-86400}"; done

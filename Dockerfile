@@ -38,6 +38,8 @@ COPY --from=builder /app/.venv /app/.venv
 COPY summa/ summa/
 COPY templates/ templates/
 COPY static/ static/
+# Only the benchmark refresh (.dockerignore whitelists its three files)
+COPY scripts/ scripts/
 
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 

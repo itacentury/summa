@@ -215,7 +215,7 @@ per client (ten failures per five minutes).
 ## Portfolio Import
 
 Depot history is loaded from a workbook by `scripts/import_portfolio_xlsx.py`. It
-does **not** run inside the container: the image ships neither `scripts/` nor
+does **not** run inside the container: the image ships neither the importer nor
 `openpyxl` (a dev-only dependency). Run it from a local checkout against the
 production database file instead — no checkout is needed on the server:
 
@@ -245,10 +245,15 @@ on every start.
 - Re-running is safe: a week already in the database is kept as it is, so values
   corrected in the UI survive a later import.
 
-The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`
-(`--symbol`, default `BENCHMARK_SYMBOL`). It needs no dev dependencies but, like
-the importer, is not part of the image — schedule it via cron from a checkout
-next to the database. Without it the chart falls back and says so in its footnote.
+The benchmark line in the chart is refreshed by `scripts/fetch_benchmark.py`,
+which, unlike the importer, ships in the image: the `benchmark` service in
+[`docker-compose.yml`](docker-compose.yml) runs it from the same image once a day
+(`BENCHMARK_INTERVAL_SECONDS` overrides that) for the symbol in
+`BENCHMARK_SYMBOL`, writing to the same `./data` database while the app keeps
+running. A deployment with its own compose file copies that service block,
+swapping `build: .` for the `image:` it pulls. Check a run with
+`docker compose logs benchmark`; a failed fetch is retried on the next pass, and
+until one succeeds the chart falls back and says so in its footnote.
 
 ## Configuration
 

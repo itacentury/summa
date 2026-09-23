@@ -39,7 +39,11 @@ portfolio schema when it is missing and are safe to re-run. All three also take
 an in-memory copy of the database (`connect_mirror()` in
 `scripts/portfolio_db.py`), so a dry run neither creates the file nor touches an
 existing one. `openpyxl` is a **dev-only** dependency, so the runtime image never
-carries it — the importer is a workstation tool. `scripts` is in
+carries it — the importer is a workstation tool. `fetch_benchmark` is the
+exception: `.dockerignore` whitelists it (plus `__init__.py` and
+`portfolio_db.py`) into the image, where the `benchmark` compose service runs it
+in a sleep loop (`BENCHMARK_INTERVAL_SECONDS`, default daily), so keep its
+imports to the stdlib and `summa`. `scripts` is in
 `[tool.mypy] files`, so all three are strict-checked.
 
 `seed_portfolio.py` is a workstation tool too, for looking at the Portfolio
@@ -228,7 +232,8 @@ and the app together with the pre-generated PWA icons committed under
 `static/icons/` (no build-time icon generation). Runs `gunicorn` (2 workers,
 4 threads) as a non-root `appuser`. `entrypoint.sh` fixes `/data` volume
 ownership via `setpriv` before dropping privileges. In the container the DB lives at
-`/data/invoices.db`.
+`/data/invoices.db`. `docker-compose.yml` runs a second service, `benchmark`, from
+the same image to refresh `benchmark_prices` (see _Commands_).
 
 Image build, vulnerability scan and push live in a separate
 [`docker` workflow](.github/workflows/docker.yml) (distinct from CI's three
