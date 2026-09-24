@@ -524,6 +524,54 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
+  it("looks a created depot up on retry when neither its body nor the reload could be read", async () => {
+    // A second post would hit the duplicate-name conflict: the depot exists.
+    await openPositionForm(prefill({ depots: [] }));
+    document.querySelector('[data-el="position-name"]').value =
+      "MSCI World SRI";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => {
+          throw new SyntaxError("bad json");
+        },
+      })
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Server error" },
+          { ok: false, status: 500 },
+        ),
+      );
+
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(showErrorToast).toHaveBeenCalledWith("Failed to add position");
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(
+        jsonResponse(
+          prefill({
+            depots: [{ id: 7, name: "Trade Republic", positions: [] }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/positions",
+    ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
   it("keeps a created depot selected when the position is refused", async () => {
     // A retry must not post the depot a second time: its name is taken now.
     await openPositionForm(prefill({ depots: [] }));

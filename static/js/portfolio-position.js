@@ -16,6 +16,10 @@ const NEW_DEPOT = "new";
 // The snapshot form sets its own, so a new position appears in the open form.
 let onSaved = null;
 
+// A depot the server created but whose id is still unknown, so a retry looks
+// it up by name instead of posting it again.
+let unresolvedDepotName = null;
+
 function positionElements() {
   const overlay = document.querySelector(
     '[data-el="portfolio-position-modal"]',
@@ -59,6 +63,7 @@ function resetForm() {
   kind.value = "etf";
   currency.value = "EUR";
   depotName.value = "";
+  unresolvedDepotName = null;
 }
 
 async function fetchDepots() {
@@ -113,17 +118,19 @@ export async function postDepot(name) {
   return (await requestDepot(name)) !== null;
 }
 
-/**
- * The id of a depot the server just created. An unreadable body falls back to
- * the depot list by name, which is unique, since the depot exists either way.
- */
-async function createdDepotId(response, name) {
+/** The id in a create response, or `null` when its body is unreadable. */
+async function readDepotId(response) {
   try {
     const { id } = await response.json();
     if (Number.isInteger(id)) return id;
   } catch (error) {
     console.error("Unreadable depot response:", error);
   }
+  return null;
+}
+
+/** Find a created depot in the depot list by its name, which is unique. */
+async function findDepotId(name) {
   const created = (await fetchDepots()).find((entry) => entry.name === name);
   if (!created) throw new Error(`Created depot '${name}' not found`);
   return created.id;
@@ -142,9 +149,15 @@ function selectCreatedDepot(id, name) {
 
 /** Create a depot and return its id, or `null` after reporting a refusal. */
 async function createDepot(name) {
-  const response = await requestDepot(name);
-  if (response === null) return null;
-  const id = await createdDepotId(response, name);
+  let id = null;
+  if (name !== unresolvedDepotName) {
+    const response = await requestDepot(name);
+    if (response === null) return null;
+    unresolvedDepotName = name;
+    id = await readDepotId(response);
+  }
+  id ??= await findDepotId(name);
+  unresolvedDepotName = null;
   selectCreatedDepot(id, name);
   return id;
 }
