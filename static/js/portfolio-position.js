@@ -21,6 +21,10 @@ let onSaved = null;
 // of posting it again, and renames it if the name changed.
 let unresolvedDepotName = null;
 
+// A created depot whose id is known but whose name may not match the form: a
+// rename was refused or its response lost. A retry renames it again by id.
+let unresolvedDepotId = null;
+
 function positionElements() {
   const overlay = document.querySelector(
     '[data-el="portfolio-position-modal"]',
@@ -65,6 +69,7 @@ function resetForm() {
   currency.value = "EUR";
   depotName.value = "";
   unresolvedDepotName = null;
+  unresolvedDepotId = null;
 }
 
 async function fetchDepots() {
@@ -183,7 +188,8 @@ function selectCreatedDepot(id, name) {
 
 /** Create a depot and return its id, or `null` after reporting a refusal. */
 async function createDepot(name) {
-  let id = await findUnresolvedDepotId();
+  const knownId = unresolvedDepotId;
+  let id = knownId ?? (await findUnresolvedDepotId());
   if (id === null) {
     // Recorded before sending: a lost response may still mean a created depot.
     unresolvedDepotName = name;
@@ -194,10 +200,13 @@ async function createDepot(name) {
     }
     id = (await readDepotId(response)) ?? (await findDepotId(name));
   }
-  if (name !== unresolvedDepotName && !(await renameDepot(id, name))) {
-    return null;
-  }
+  // Recorded before renaming: a lost rename leaves the depot's name unknown,
+  // so a retry renames it unconditionally, which is idempotent by id.
+  unresolvedDepotId = id;
+  const needsRename = knownId !== null || name !== unresolvedDepotName;
+  if (needsRename && !(await renameDepot(id, name))) return null;
   unresolvedDepotName = null;
+  unresolvedDepotId = null;
   selectCreatedDepot(id, name);
   return id;
 }

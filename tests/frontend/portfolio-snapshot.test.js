@@ -627,6 +627,58 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
+  // The rename to "TR" never answers; whether the server applied it is unknown.
+  async function loseRenameResponse() {
+    await failFirstDepotAttempt();
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+    global.fetch
+      .mockResolvedValueOnce(createdDepotPrefill())
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+  }
+
+  it("renames again by id when the rename response was lost", async () => {
+    // Looking "Trade Republic" up would miss it and post "TR" into a 409.
+    await loseRenameResponse();
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/depots/7",
+      "/api/portfolio/positions",
+    ]);
+    const [, renameInit] = retryCalls[0];
+    expect(renameInit.method).toBe("PATCH");
+    expect(JSON.parse(renameInit.body)).toEqual({ name: "TR" });
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("renames back when the name reverts after a lost rename", async () => {
+    // The server may hold "TR" now, even though the form matches the create.
+    await loseRenameResponse();
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const [[url, renameInit]] = global.fetch.mock.calls.slice(callsBefore);
+    expect(url).toBe("/api/portfolio/depots/7");
+    expect(JSON.parse(renameInit.body)).toEqual({ name: "Trade Republic" });
+    expect(lastBody().depot_id).toBe(7);
+  });
+
   it("reports a refused rename and adds no position", async () => {
     await failFirstDepotAttempt();
     document.querySelector('[data-el="position-depot-name"]').value = "TR";
