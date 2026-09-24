@@ -1070,6 +1070,31 @@ def _assignment(column: str, value: Any) -> str:
     return f"{column} = ?"
 
 
+def _apply_patch(
+    cursor: sqlite3.Cursor,
+    table: str,
+    row_id: int,
+    updates: dict[str, Any],
+    allowed: tuple[str, ...],
+) -> bool:
+    """Write a validated PATCH to one row and return whether that row exists.
+
+    The column names come from the parser's own keys, never from the request
+    body, so interpolating them carries no injection surface. Checked rather than
+    asserted, because an assert would vanish under `python -O`.
+    """
+    unknown_columns: set[str] = set(updates) - set(allowed)
+    if unknown_columns:
+        raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
+    assignments: str = ", ".join(
+        _assignment(column, value) for column, value in updates.items()
+    )
+    cursor.execute(
+        f"UPDATE {table} SET {assignments} WHERE id = ?", [*updates.values(), row_id]
+    )
+    return cursor.rowcount > 0
+
+
 @portfolio_bp.route("/api/portfolio/positions/<int:position_id>", methods=["PATCH"])
 def update_position(position_id: int) -> ApiResponse:
     """Rename, reclassify, move or close a position.
@@ -1087,25 +1112,13 @@ def update_position(position_id: int) -> ApiResponse:
     except ValidationError as e:
         return error_response(e.message, 400)
 
-    # The column names come from _parse_position_patch's own keys, never from the
-    # request body, so interpolating them carries no injection surface. Checked
-    # rather than asserted, because an assert would vanish under `python -O`.
-    unknown_columns: set[str] = set(updates) - set(_PATCHABLE_COLUMNS)
-    if unknown_columns:
-        raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
-    assignments: str = ", ".join(
-        _assignment(column, value) for column, value in updates.items()
-    )
-
     try:
         with db_cursor() as cursor:
             if "depot_id" in updates:
                 _require_existing_depot(cursor, updates["depot_id"])
-            cursor.execute(
-                f"UPDATE portfolio_positions SET {assignments} WHERE id = ?",
-                [*updates.values(), position_id],
-            )
-            if cursor.rowcount == 0:
+            if not _apply_patch(
+                cursor, "portfolio_positions", position_id, updates, _PATCHABLE_COLUMNS
+            ):
                 return error_response("Position not found", 404)
             if updates.get("is_benchmark_fallback"):
                 _clear_other_fallbacks(cursor, position_id)
@@ -1185,21 +1198,11 @@ def update_depot(depot_id: int) -> ApiResponse:
     except ValidationError as e:
         return error_response(e.message, 400)
 
-    # The column names come from _parse_depot_patch's own keys, never from the
-    # request body, so interpolating them carries no injection surface. Checked
-    # rather than asserted, because an assert would vanish under `python -O`.
-    unknown_columns: set[str] = set(updates) - set(_PATCHABLE_DEPOT_COLUMNS)
-    if unknown_columns:
-        raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
-    assignments: str = ", ".join(f"{column} = ?" for column in updates)
-
     try:
         with db_cursor() as cursor:
-            cursor.execute(
-                f"UPDATE portfolio_depots SET {assignments} WHERE id = ?",
-                [*updates.values(), depot_id],
-            )
-            if cursor.rowcount == 0:
+            if not _apply_patch(
+                cursor, "portfolio_depots", depot_id, updates, _PATCHABLE_DEPOT_COLUMNS
+            ):
                 return error_response("Depot not found", 404)
     except sqlite3.IntegrityError:
         return error_response(
