@@ -112,6 +112,19 @@ export function closePositionModal() {
 }
 
 /**
+ * Create a depot and return its id, or `null` after reporting a refusal.
+ * Network errors propagate, so each caller keeps its own failure wording.
+ */
+export async function createDepot(name) {
+  const response = await sendJson("/api/portfolio/depots", "POST", { name });
+  if (!response.ok) {
+    showErrorToast(await errorMessage(response, "Failed to create depot"));
+    return null;
+  }
+  return (await response.json()).id;
+}
+
+/**
  * Create the depot the form asks for, or return the selected one.
  *
  * Returns `null` when the server refused, after reporting why — the caller must
@@ -127,13 +140,7 @@ async function resolveDepotId() {
     depotName.focus();
     return null;
   }
-
-  const response = await sendJson("/api/portfolio/depots", "POST", { name });
-  if (!response.ok) {
-    showErrorToast(await errorMessage(response, "Failed to create depot"));
-    return null;
-  }
-  return (await response.json()).id;
+  return createDepot(name);
 }
 
 async function savePosition() {

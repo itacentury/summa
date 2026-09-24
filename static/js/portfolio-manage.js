@@ -18,7 +18,7 @@ import {
   isCurrencyCode,
 } from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
-import { openPositionModal } from "./portfolio-position.js";
+import { createDepot, openPositionModal } from "./portfolio-position.js";
 
 // Which editor is open, what to tell the caller afterwards, and the payload the
 // rows are built from.
@@ -316,11 +316,7 @@ async function toggleClosed(id) {
 /** Create a depot from the name the footer's form asks for. */
 async function addDepot(name) {
   try {
-    const response = await sendJson("/api/portfolio/depots", "POST", { name });
-    if (!response.ok) {
-      showErrorToast(await errorMessage(response, "Failed to create depot"));
-      return;
-    }
+    if ((await createDepot(name)) === null) return;
   } catch (error) {
     console.error("Error creating depot:", error);
     showErrorToast("Failed to create depot");

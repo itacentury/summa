@@ -21,7 +21,8 @@ import { flushUi, jsonResponse } from "./helpers.js";
 vi.mock("../../static/js/portfolio.js", () => ({
   loadPortfolio: vi.fn(async () => {}),
 }));
-vi.mock("../../static/js/portfolio-position.js", () => ({
+vi.mock("../../static/js/portfolio-position.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   openPositionModal: vi.fn(),
 }));
 vi.mock("../../static/js/toast.js", () => ({
