@@ -28,6 +28,13 @@ DEFAULT_RANGE: Final[str] = "1y"
 ALLOCATION_TOP_N: Final[int] = 5
 BIGGEST_CHANGES_COUNT: Final[int] = 3
 
+DEFAULT_CURRENCY: Final[str] = "EUR"
+CURRENCY_CODE_LENGTH: Final[int] = 3
+DEFAULT_FX_RATE: Final[float] = 1.0
+# The precision writers and the JSON boundary round to; this module never rounds.
+AMOUNT_DIGITS: Final[int] = 2
+CLOSE_DIGITS: Final[int] = 4
+
 
 @dataclass(frozen=True)
 class Snapshot:

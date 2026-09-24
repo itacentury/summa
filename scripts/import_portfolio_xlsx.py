@@ -38,6 +38,12 @@ from scripts.portfolio_db import (
     resolve_depot,
     resolve_position,
 )
+from summa.portfolio import (
+    AMOUNT_DIGITS,
+    CURRENCY_CODE_LENGTH,
+    DEFAULT_CURRENCY,
+    DEFAULT_FX_RATE,
+)
 
 BAND_ROW: Final[int] = 1
 HEADER_ROW: Final[int] = 2
@@ -49,10 +55,6 @@ BAND_SUFFIX: Final[str] = "Depot"
 IGNORED_BANDS: Final[frozenset[str]] = frozenset({"Gesamt", "Insgesamt", "Total"})
 DEFAULT_SHEET: Final[str] = "Übersicht"
 
-DEFAULT_CURRENCY: Final[str] = "EUR"
-CURRENCY_CODE_LENGTH: Final[int] = 3
-DEFAULT_FX_RATE: Final[float] = 1.0
-MONEY_DIGITS: Final[int] = 2
 # Not the ISO table, just what a depot sheet plausibly quotes in. A header's last
 # token is only read as a currency when it appears here, which is what keeps a
 # position named "AMD" from being stripped down to nothing.
@@ -144,7 +146,7 @@ def parse_number(raw: object) -> float | None:
     if raw is None or isinstance(raw, bool):
         return None
     if isinstance(raw, (int, float)):
-        return round(float(raw), MONEY_DIGITS)
+        return round(float(raw), AMOUNT_DIGITS)
     if not isinstance(raw, str):
         return None
 
@@ -155,7 +157,7 @@ def parse_number(raw: object) -> float | None:
         text = text.replace(".", "").replace(",", ".")
     text = text.replace(" ", "")
     try:
-        return round(float(text), MONEY_DIGITS)
+        return round(float(text), AMOUNT_DIGITS)
     except ValueError:
         return None
 

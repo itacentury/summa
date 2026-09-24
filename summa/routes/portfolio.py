@@ -24,6 +24,7 @@ from summa.helpers import (
     parse_float,
     require_non_empty_str,
 )
+from summa.portfolio import AMOUNT_DIGITS, CURRENCY_CODE_LENGTH, DEFAULT_CURRENCY
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -32,13 +33,10 @@ portfolio_bp: Blueprint = Blueprint("portfolio", __name__)
 # The same allowlist the schema's CHECK holds. Validating it here too turns a
 # constraint violation (a 500) into a 400 naming the accepted values.
 POSITION_KINDS: Final[tuple[str, ...]] = ("etf", "fund", "stock")
-DEFAULT_CURRENCY: Final[str] = "EUR"
 # The explicit "no filter" token, so ?depot=all is intended behaviour rather than
 # a side effect of int() failing.
 DEPOT_ALL: Final[str] = "all"
-CURRENCY_CODE_LENGTH: Final[int] = 3
 SNAPSHOT_INTERVAL_DAYS: Final[int] = 7
-AMOUNT_DIGITS: Final[int] = 2
 PERCENT_DIGITS: Final[int] = 1
 
 # Columns a PATCH may set. The keys are ours, never the client's strings, which

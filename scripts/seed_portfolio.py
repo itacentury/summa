@@ -40,6 +40,7 @@ from scripts.portfolio_db import (
     resolve_position,
 )
 from summa import config
+from summa.portfolio import AMOUNT_DIGITS, CLOSE_DIGITS
 
 DEFAULT_WEEKS: Final[int] = 156
 DEFAULT_SEED: Final[int] = 20260921
@@ -51,8 +52,6 @@ MIN_WEEKS: Final[int] = 8
 # point inside the window and start off the portfolio's value.
 BENCHMARK_PREROLL: Final[int] = 12
 
-MONEY_DIGITS: Final[int] = 2
-CLOSE_DIGITS: Final[int] = 4
 MONTHLY: Final[int] = 4
 QUARTERLY: Final[int] = 13
 
@@ -493,8 +492,8 @@ def _build_snapshots(
         snapshots.append(
             SeedSnapshot(
                 date=grid[week],
-                value=round(value, MONEY_DIGITS),
-                deposit=round(deposit, MONEY_DIGITS),
+                value=round(value, AMOUNT_DIGITS),
+                deposit=round(deposit, AMOUNT_DIGITS),
                 fx_rate=rates[week],
                 carried=carried,
             )

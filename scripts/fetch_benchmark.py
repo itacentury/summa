@@ -29,6 +29,7 @@ from urllib.request import Request, urlopen
 
 from scripts.portfolio_db import default_database_path, open_database
 from summa import config
+from summa.portfolio import CLOSE_DIGITS
 
 CHART_URL: Final[str] = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 DEFAULT_RANGE: Final[str] = "2y"
@@ -39,7 +40,6 @@ INTERVAL_TOKENS: Final[tuple[str, ...]] = ("1d", "1wk")
 # urllib's default agent is rejected by the feed often enough to be worth setting.
 USER_AGENT: Final[str] = "summa-fetch-benchmark/1.0"
 EXPECTED_CURRENCY: Final[str] = "EUR"
-CLOSE_DIGITS: Final[int] = 4
 
 EXIT_OK: Final[int] = 0
 EXIT_ERROR: Final[int] = 1
