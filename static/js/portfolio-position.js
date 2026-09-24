@@ -259,7 +259,15 @@ async function createDepot(name) {
  */
 async function resolveDepotId() {
   const { depot, depotName } = positionElements();
-  if (depot.value !== NEW_DEPOT) return Number(depot.value);
+  if (depot.value !== NEW_DEPOT) {
+    const id = Number(depot.value);
+    // Picking the created depot accepts it under the name the server kept.
+    if (id === unresolvedDepotId) {
+      unresolvedDepotId = null;
+      unresolvedDepotName = null;
+    }
+    return id;
+  }
 
   const name = depotName.value.trim();
   if (!name) {

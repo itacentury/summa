@@ -679,10 +679,11 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
-  it("reports a refused rename and adds no position", async () => {
+  // The rename of created depot 7 to "TR" is refused, so the depots re-list.
+  // Returns the call count before the retry, to slice off its requests.
+  async function refuseRename() {
     await failFirstDepotAttempt();
     document.querySelector('[data-el="position-depot-name"]').value = "TR";
-
     const callsBefore = global.fetch.mock.calls.length;
     global.fetch
       .mockResolvedValueOnce(createdDepotPrefill())
@@ -704,6 +705,11 @@ describe("add position", () => {
       );
     document.querySelector('[data-el="position-save"]').click();
     await flushUi();
+    return callsBefore;
+  }
+
+  it("reports a refused rename and adds no position", async () => {
+    const callsBefore = await refuseRename();
 
     expect(showErrorToast).toHaveBeenCalledWith(
       "A depot named 'TR' already exists",
@@ -727,6 +733,38 @@ describe("add position", () => {
 
     expect(lastRequest()[0]).toBe("/api/portfolio/positions");
     expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("creates a second depot after the offered one was picked", async () => {
+    // Renaming depot 7 instead would drop the depot the user chose.
+    await refuseRename();
+    depotSelect().value = "7";
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse(
+        { success: false, error: "Server error" },
+        { ok: false, status: 500 },
+      ),
+    );
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    depotSelect().value = "new";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Scalable";
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 8 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(JSON.parse(retryCalls[0][1].body)).toEqual({ name: "Scalable" });
+    expect(lastBody().depot_id).toBe(8);
   });
 
   it("creates the depot again when the one being renamed was deleted", async () => {
