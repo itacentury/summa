@@ -403,7 +403,11 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
 
 
 def _plain_assignment(column: str, value: Any) -> str:
-    """Return one SET assignment that overwrites the column."""
+    """Return one SET assignment that overwrites the column.
+
+    `value` goes unused; it is there to match `_position_assignment`, which
+    `_set_clause` may be handed in its place.
+    """
     return f"{column} = ?"
 
 
