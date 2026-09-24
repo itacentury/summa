@@ -61,12 +61,15 @@ function resetForm() {
   depotName.value = "";
 }
 
+async function fetchDepots() {
+  const response = await apiFetch("/api/portfolio/snapshot/new");
+  if (!response.ok) throw new Error(`Depot list failed: ${response.status}`);
+  return (await response.json()).depots;
+}
+
 async function loadDepots() {
   try {
-    const response = await apiFetch("/api/portfolio/snapshot/new");
-    if (!response.ok) throw new Error(`Depot list failed: ${response.status}`);
-    const payload = await response.json();
-    renderDepotOptions(payload.depots);
+    renderDepotOptions(await fetchDepots());
   } catch (error) {
     console.error("Error loading depots:", error);
     renderDepotOptions([]);
@@ -110,11 +113,40 @@ export async function postDepot(name) {
   return (await sendDepot(name)) !== null;
 }
 
+/**
+ * The id of a depot the server just created. An unreadable body falls back to
+ * the depot list by name, which is unique, since the depot exists either way.
+ */
+async function createdDepotId(response, name) {
+  try {
+    const { id } = await response.json();
+    if (Number.isInteger(id)) return id;
+  } catch (error) {
+    console.error("Unreadable depot response:", error);
+  }
+  const created = (await fetchDepots()).find((entry) => entry.name === name);
+  if (!created) throw new Error(`Created depot '${name}' not found`);
+  return created.id;
+}
+
+/** Point the form at a created depot, so a retry never creates it again. */
+function selectCreatedDepot(id, name) {
+  const { depot } = positionElements();
+  const option = document.createElement("option");
+  option.value = String(id);
+  option.textContent = name;
+  depot.querySelector(`option[value="${NEW_DEPOT}"]`).before(option);
+  depot.value = String(id);
+  syncDepotChoice();
+}
+
 /** Create a depot and return its id, or `null` after reporting a refusal. */
 async function createDepot(name) {
   const response = await sendDepot(name);
   if (response === null) return null;
-  return (await response.json()).id;
+  const id = await createdDepotId(response, name);
+  selectCreatedDepot(id, name);
+  return id;
 }
 
 /**

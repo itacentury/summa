@@ -493,6 +493,75 @@ describe("add position", () => {
     expect(JSON.parse(positionCall[1].body).depot_id).toBe(7);
   });
 
+  it("finds a created depot by name when its response has no readable body", async () => {
+    await openPositionForm(prefill({ depots: [] }));
+    document.querySelector('[data-el="position-name"]').value =
+      "MSCI World SRI";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => {
+          throw new SyntaxError("bad json");
+        },
+      })
+      .mockResolvedValueOnce(
+        jsonResponse(
+          prefill({
+            depots: [{ id: 7, name: "Trade Republic", positions: [] }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(showErrorToast).not.toHaveBeenCalled();
+    expect(lastRequest()[0]).toBe("/api/portfolio/positions");
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("keeps a created depot selected when the position is refused", async () => {
+    // A retry must not post the depot a second time: its name is taken now.
+    await openPositionForm(prefill({ depots: [] }));
+    document.querySelector('[data-el="position-name"]').value =
+      "MSCI World SRI";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 7 }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Failed to add position" },
+          { ok: false, status: 500 },
+        ),
+      );
+
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(depotSelect().value).toBe("7");
+    expect(
+      document
+        .querySelector('[data-el="position-depot-new"]')
+        .classList.contains("is-hidden"),
+    ).toBe(true);
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/positions",
+    ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
   it("reports a duplicate name instead of adding a second one", async () => {
     await openPositionForm();
     document.querySelector('[data-el="position-name"]').value =
