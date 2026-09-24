@@ -14,7 +14,7 @@ import {
   isCurrencyCode,
 } from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
-import { createDepot, openPositionModal } from "./portfolio-position.js";
+import { openPositionModal, postDepot } from "./portfolio-position.js";
 
 let mode = "depots";
 let onChanged = null;
@@ -298,7 +298,7 @@ async function toggleClosed(id) {
 
 async function addDepot(name) {
   try {
-    if ((await createDepot(name)) === null) return;
+    if (!(await postDepot(name))) return;
   } catch (error) {
     console.error("Error creating depot:", error);
     showErrorToast("Failed to create depot");

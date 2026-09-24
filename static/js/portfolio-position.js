@@ -90,15 +90,30 @@ export function closePositionModal() {
 }
 
 /**
- * Create a depot and return its id, or `null` after reporting a refusal.
- * Network errors propagate, so each caller keeps its own failure wording.
+ * Send the create request, returning the response or `null` after reporting a
+ * refusal. Network errors propagate, so each caller keeps its own failure wording.
  */
-export async function createDepot(name) {
+async function sendDepot(name) {
   const response = await sendJson("/api/portfolio/depots", "POST", { name });
   if (!response.ok) {
     showErrorToast(await errorMessage(response, "Failed to create depot"));
     return null;
   }
+  return response;
+}
+
+/**
+ * Create a depot, or return `false` after reporting a refusal. The body is left
+ * unread, so a caller that needs no id cannot fail on it after the depot exists.
+ */
+export async function postDepot(name) {
+  return (await sendDepot(name)) !== null;
+}
+
+/** Create a depot and return its id, or `null` after reporting a refusal. */
+async function createDepot(name) {
+  const response = await sendDepot(name);
+  if (response === null) return null;
   return (await response.json()).id;
 }
 
