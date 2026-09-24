@@ -93,6 +93,22 @@ async function loadDepots() {
   }
 }
 
+/**
+ * Re-list the depots with "New depot…" still chosen, so a created depot whose
+ * rename was refused can be picked under the name the server kept.
+ */
+async function offerCreatedDepot() {
+  try {
+    renderDepotOptions(await fetchDepots());
+    depotListLoaded = true;
+  } catch (error) {
+    console.error("Error reloading depots:", error);
+    return;
+  }
+  positionElements().depot.value = NEW_DEPOT;
+  syncDepotChoice();
+}
+
 /** Open the dialog; `onSaved` replaces the default view reload after a save. */
 export function openPositionModal({ onSaved: handler = null } = {}) {
   const elements = positionElements();
@@ -184,10 +200,14 @@ async function findUnresolvedDepotId() {
 /** Point the form at a created depot, so a retry never creates it again. */
 function selectCreatedDepot(id, name) {
   const { depot } = positionElements();
-  const option = document.createElement("option");
-  option.value = String(id);
+  // Already listed when a refused rename re-listed the depots.
+  let option = depot.querySelector(`option[value="${id}"]`);
+  if (!option) {
+    option = document.createElement("option");
+    option.value = String(id);
+    depot.querySelector(`option[value="${NEW_DEPOT}"]`).before(option);
+  }
   option.textContent = name;
-  depot.querySelector(`option[value="${NEW_DEPOT}"]`).before(option);
   depot.value = String(id);
   syncDepotChoice();
 }
@@ -210,7 +230,10 @@ async function createDepot(name) {
   // so a retry renames it unconditionally, which is idempotent by id.
   unresolvedDepotId = id;
   const needsRename = knownId !== null || name !== unresolvedDepotName;
-  if (needsRename && !(await renameDepot(id, name))) return null;
+  if (needsRename && !(await renameDepot(id, name))) {
+    await offerCreatedDepot();
+    return null;
+  }
   unresolvedDepotName = null;
   unresolvedDepotId = null;
   selectCreatedDepot(id, name);
