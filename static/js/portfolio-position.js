@@ -97,6 +97,7 @@ async function loadDepots() {
   } catch (error) {
     console.error("Error loading depots:", error);
     renderDepotOptions([]);
+    depotListLoaded = false;
   }
 }
 
