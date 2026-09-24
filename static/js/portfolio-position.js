@@ -16,8 +16,9 @@ const NEW_DEPOT = "new";
 // The snapshot form sets its own, so a new position appears in the open form.
 let onSaved = null;
 
-// A depot the server created but whose id is still unknown, so a retry looks
-// it up by name instead of posting it again, and renames it if the name changed.
+// A depot the server may have created without the client learning its id: the
+// response was unreadable or never arrived. A retry looks it up by name instead
+// of posting it again, and renames it if the name changed.
 let unresolvedDepotName = null;
 
 function positionElements() {
@@ -147,6 +148,23 @@ async function findDepotId(name) {
   return created.id;
 }
 
+/**
+ * The depot an earlier attempt may have created, or `null` when it never landed.
+ * A depot already offered in the select existed before, so it is never adopted.
+ */
+async function findUnresolvedDepotId() {
+  if (unresolvedDepotName === null) return null;
+  const { depot } = positionElements();
+  const found = (await fetchDepots()).find(
+    (entry) => entry.name === unresolvedDepotName,
+  );
+  if (found && !depot.querySelector(`option[value="${found.id}"]`)) {
+    return found.id;
+  }
+  unresolvedDepotName = null;
+  return null;
+}
+
 /** Point the form at a created depot, so a retry never creates it again. */
 function selectCreatedDepot(id, name) {
   const { depot } = positionElements();
@@ -160,14 +178,17 @@ function selectCreatedDepot(id, name) {
 
 /** Create a depot and return its id, or `null` after reporting a refusal. */
 async function createDepot(name) {
-  let id = null;
-  if (unresolvedDepotName === null) {
-    const response = await requestDepot(name);
-    if (response === null) return null;
+  let id = await findUnresolvedDepotId();
+  if (id === null) {
+    // Recorded before sending: a lost response may still mean a created depot.
     unresolvedDepotName = name;
-    id = await readDepotId(response);
+    const response = await requestDepot(name);
+    if (response === null) {
+      unresolvedDepotName = null;
+      return null;
+    }
+    id = (await readDepotId(response)) ?? (await findDepotId(name));
   }
-  id ??= await findDepotId(unresolvedDepotName);
   if (name !== unresolvedDepotName && !(await renameDepot(id, name))) {
     return null;
   }

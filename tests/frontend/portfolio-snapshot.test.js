@@ -653,6 +653,80 @@ describe("add position", () => {
     ]);
   });
 
+  // The depot request never answers; whether the server wrote it is unknown.
+  async function loseDepotResponse(payload = prefill({ depots: [] })) {
+    await openPositionForm(payload);
+    depotSelect().value = "new";
+    document.querySelector('[data-el="position-name"]').value =
+      "MSCI World SRI";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+    global.fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+  }
+
+  it("adopts a depot created by a request whose response was lost", async () => {
+    // Posting it again would only hit the duplicate-name error.
+    await loseDepotResponse();
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(createdDepotPrefill())
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/positions",
+    ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("posts the depot again when the lost request never created it", async () => {
+    await loseDepotResponse();
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse(prefill({ depots: [] })))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 7 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("never adopts a depot that existed before the lost request", async () => {
+    // Depot 1 is already named "Trade Republic", so the lost create was refused.
+    await loseDepotResponse(prefill());
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse(prefill()))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 7 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
   it("keeps a created depot selected when the position is refused", async () => {
     // A retry must not post the depot a second time: its name is taken now.
     await openPositionForm(prefill({ depots: [] }));
