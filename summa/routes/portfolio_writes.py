@@ -207,7 +207,7 @@ def _stored_snapshot(
 def _previous_snapshot(
     cursor: sqlite3.Cursor, position_id: int, before: str
 ) -> Any | None:
-    """Return the position's most recent snapshot strictly before `before`."""
+    """Return the position's most recent snapshot strictly before ``before``."""
     cursor.execute(
         "SELECT value, deposit, fx_rate, carried FROM portfolio_snapshots "
         "WHERE position_id = ? AND date < ? ORDER BY date DESC LIMIT 1",
@@ -405,8 +405,8 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
 def _plain_assignment(column: str, value: Any) -> str:
     """Return one SET assignment that overwrites the column.
 
-    `value` goes unused; it is there to match `_position_assignment`, which
-    `_set_clause` may be handed in its place.
+    ``value`` goes unused; it is there to match ``_position_assignment``,
+    which ``_set_clause`` may be handed in its place.
     """
     return f"{column} = ?"
 
@@ -429,7 +429,7 @@ def _set_clause(
     """Build the SET clause for a validated PATCH.
 
     Column names come from the parser's own keys, so interpolating them is safe.
-    Checked rather than asserted, because an assert would vanish under `python -O`.
+    Checked rather than asserted, because an assert would vanish under ``python -O``.
     """
     unknown_columns: set[str] = set(updates) - set(allowed)
     if unknown_columns:
