@@ -33,10 +33,9 @@ from typing import Final
 
 from scripts.portfolio_db import (
     SnapshotWrite,
-    connect,
-    connect_mirror,
     default_database_path,
     insert_snapshots,
+    open_database,
     resolve_depot,
     resolve_position,
 )
@@ -732,19 +731,8 @@ def seed_database(
     data: SeedData, database_path: Path, reset: bool, dry_run: bool
 ) -> SeedSummary:
     """Open the database and write the generated data to it."""
-    conn: sqlite3.Connection = (
-        connect_mirror(database_path) if dry_run else connect(database_path)
-    )
-    try:
-        summary: SeedSummary = write_seed_data(conn.cursor(), data, reset)
-        # A dry run commits into its in-memory mirror, which close() discards.
-        conn.commit()
-        return summary
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with open_database(database_path, dry_run) as cursor:
+        return write_seed_data(cursor, data, reset)
 
 
 # --- Command line -----------------------------------------------------------

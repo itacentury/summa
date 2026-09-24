@@ -32,10 +32,9 @@ from openpyxl.utils import get_column_letter
 
 from scripts.portfolio_db import (
     SnapshotWrite,
-    connect,
-    connect_mirror,
     default_database_path,
     insert_snapshots,
+    open_database,
     resolve_depot,
     resolve_position,
 )
@@ -592,19 +591,8 @@ def import_workbook(
     dates, values, deposits = read_grid(worksheet, columns)
     rows, rows_skipped = build_snapshot_rows(columns, dates, values, deposits, fx_rates)
 
-    conn: sqlite3.Connection = (
-        connect_mirror(database_path) if dry_run else connect(database_path)
-    )
-    try:
-        summary: ImportSummary = run_import(conn.cursor(), columns, rows, rows_skipped)
-        # A dry run commits into its in-memory mirror, which close() discards.
-        conn.commit()
-        return summary
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with open_database(database_path, dry_run) as cursor:
+        return run_import(cursor, columns, rows, rows_skipped)
 
 
 def build_parser() -> argparse.ArgumentParser:

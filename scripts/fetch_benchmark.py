@@ -27,7 +27,7 @@ from typing import Any, Final
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from scripts.portfolio_db import connect, default_database_path
+from scripts.portfolio_db import default_database_path, open_database
 from summa import config
 
 CHART_URL: Final[str] = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -291,16 +291,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Dry run — nothing written")
         return EXIT_OK
 
-    conn: sqlite3.Connection = connect(args.db)
     try:
-        inserted, updated = upsert_prices(conn.cursor(), args.symbol, prices)
-        conn.commit()
+        with open_database(args.db, dry_run=False) as cursor:
+            inserted, updated = upsert_prices(cursor, args.symbol, prices)
     except sqlite3.Error as error:
-        conn.rollback()
         print(f"error: {error}", file=sys.stderr)
         return EXIT_ERROR
-    finally:
-        conn.close()
 
     print(f"Wrote benchmark_prices: {inserted} inserted, {updated} updated")
     return EXIT_OK

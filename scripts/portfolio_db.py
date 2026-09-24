@@ -2,7 +2,8 @@
 
 import os
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol
@@ -94,6 +95,28 @@ def connect_mirror(database_path: Path) -> sqlite3.Connection:
     create_portfolio_schema(mirror.cursor())
     mirror.commit()
     return mirror
+
+
+@contextmanager
+def open_database(database_path: Path, dry_run: bool) -> Iterator[sqlite3.Cursor]:
+    """Yield a cursor inside one transaction, committed only when the body succeeds.
+
+    A dry run commits into its in-memory mirror, which closing discards.
+
+    :param database_path: the SQLite file to write, or to copy on a dry run.
+    :param dry_run: work on a :func:`connect_mirror` copy instead of the file.
+    """
+    conn: sqlite3.Connection = (
+        connect_mirror(database_path) if dry_run else connect(database_path)
+    )
+    try:
+        yield conn.cursor()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def resolve_depot(
