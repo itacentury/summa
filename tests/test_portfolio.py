@@ -24,6 +24,7 @@ from summa.portfolio import (
     growth_points,
     history_rows,
     invested_eur,
+    is_currency_code,
     range_start,
     rebase_to_grid,
     snapshot_dates,
@@ -216,6 +217,21 @@ def _view(
 def test_value_eur(value: float, fx_rate: float, expected: float) -> None:
     """value_eur divides by the units-per-EUR rate."""
     assert value_eur(value, fx_rate) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("USD", True),
+        ("EURO", False),
+        ("E1", False),
+        ("E1R", False),
+        ("ÄÖÜ", False),
+    ],
+)
+def test_is_currency_code(code: str, expected: bool) -> None:
+    """is_currency_code accepts exactly three ASCII letters."""
+    assert is_currency_code(code) is expected
 
 
 @pytest.mark.parametrize(

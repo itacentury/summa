@@ -237,6 +237,11 @@ def recorded_weeks(snapshots: Sequence[Snapshot]) -> list[Snapshot]:
     return [snapshot for snapshot in snapshots if not snapshot.derived]
 
 
+def is_currency_code(code: str) -> bool:
+    """Return whether ``code`` is three ASCII letters; callers upper-case it first."""
+    return len(code) == CURRENCY_CODE_LENGTH and code.isascii() and code.isalpha()
+
+
 def value_eur(value: float, fx_rate: float) -> float:
     """Convert a native-currency amount to EUR.
 

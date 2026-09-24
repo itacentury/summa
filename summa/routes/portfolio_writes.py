@@ -19,7 +19,7 @@ from summa.helpers import (
     parse_float,
     require_non_empty_str,
 )
-from summa.portfolio import CURRENCY_CODE_LENGTH, DEFAULT_CURRENCY, DEFAULT_FX_RATE
+from summa.portfolio import DEFAULT_CURRENCY, DEFAULT_FX_RATE, is_currency_code
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def _require_currency(value: Any) -> str:
     No defaulting here: in a PATCH an explicit ``null`` must not be swallowed.
     """
     code: str = require_non_empty_str(value, "currency").upper()
-    if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
+    if not is_currency_code(code):
         raise ValidationError(
             "Field 'currency' must be a three-letter ISO code", field="currency"
         )

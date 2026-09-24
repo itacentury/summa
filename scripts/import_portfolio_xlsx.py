@@ -36,9 +36,9 @@ from scripts.portfolio_db import (
 )
 from summa.portfolio import (
     AMOUNT_DIGITS,
-    CURRENCY_CODE_LENGTH,
     DEFAULT_CURRENCY,
     DEFAULT_FX_RATE,
+    is_currency_code,
 )
 
 BAND_ROW: Final[int] = 1
@@ -347,7 +347,7 @@ def parse_fx_overrides(pairs: Sequence[str]) -> dict[str, float]:
             raise ValueError(f"--fx expects CODE=RATE, got {pair!r}")
 
         code: str = raw_code.strip().upper()
-        if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
+        if not is_currency_code(code):
             raise ValueError(
                 f"--fx needs a three-letter currency code, got {raw_code!r}"
             )
