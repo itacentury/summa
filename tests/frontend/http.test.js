@@ -110,3 +110,47 @@ describe("apiFetch", () => {
     expect(expired).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("sendJson", () => {
+  it("serializes the body and merges extra options", async () => {
+    const { sendJson } = await loadHttp();
+    global.fetch.mockResolvedValue(jsonResponse({}));
+
+    await sendJson("/api/invoices", "PUT", { id: 1 }, { keepalive: true });
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/invoices", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: '{"id":1}',
+      keepalive: true,
+    });
+  });
+});
+
+describe("errorMessage", () => {
+  it("prefers the error the server named", async () => {
+    const { errorMessage } = await loadHttp();
+    const response = jsonResponse({ error: "Duplicate" }, { ok: false });
+
+    await expect(errorMessage(response, "Failed")).resolves.toBe("Duplicate");
+  });
+
+  it("falls back when the body is not JSON", async () => {
+    const { errorMessage } = await loadHttp();
+    const response = {
+      ok: false,
+      json: async () => {
+        throw new SyntaxError("bad json");
+      },
+    };
+
+    await expect(errorMessage(response, "Failed")).resolves.toBe("Failed");
+  });
+
+  it("falls back when the body is JSON null", async () => {
+    const { errorMessage } = await loadHttp();
+    const response = jsonResponse(null, { ok: false });
+
+    await expect(errorMessage(response, "Failed")).resolves.toBe("Failed");
+  });
+});

@@ -48,13 +48,9 @@
   transform: rotate(180deg);
 }
 
-.portfolio-depot-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 20;
-  min-width: 100%;
-  max-height: 240px;
+/* Shared panel look; each dropdown positions it in its own rule. */
+.portfolio-depot-menu,
+.portfolio-positions-menu {
   padding: 4px;
   overflow-y: auto;
   list-style: none;
@@ -62,6 +58,15 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-dropdown);
+}
+
+.portfolio-depot-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  max-height: 240px;
 }
 
 /* Closed is the default; the control adds .is-open only while the menu shows. */
@@ -91,7 +96,7 @@
   flex: 1;
 }
 
-/* The one action in the toolbar; sized to match the depot select next to it. */
+/* Sized to match the depot trigger next to it. */
 .portfolio-snapshot-btn {
   flex: none;
   gap: 7px;
@@ -104,8 +109,7 @@
   border-radius: 12px;
 }
 
-/* Hidden while the empty state owns the screen: there is nothing to snapshot
-   yet, and "Add first position" already offers the only useful first step. */
+/* Nothing to snapshot yet; "Add first position" is the only useful step. */
 body.portfolio-no-positions .portfolio-snapshot-btn {
   display: none;
 }
@@ -125,8 +129,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-radius: var(--radius-lg);
 }
 
-/* The hero reuses the filled tone the invoice total card already carries, so
-   both areas read as the same kind of "headline" surface. */
+/* Same filled tone as the invoice total card: both are headline surfaces. */
 .portfolio-card-hero {
   background: var(--bg-hero);
   border-color: transparent;
@@ -142,7 +145,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-hero-value {
   margin-top: 9px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -157,7 +160,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-chip {
   padding: 4px 9px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   border-radius: 7px;
@@ -175,7 +178,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-card-value {
   margin-top: 9px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 24px;
   font-weight: 600;
 }
@@ -196,8 +199,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== GAIN / LOSS TONE ====== */
 
-/* One pair of classes for every signed figure on the screen, so the palette
-   never has to be repeated per component. */
+/* Shared by every signed figure, so no component repeats the palette. */
 .is-gain {
   color: var(--success-subtle-text);
 }
@@ -253,9 +255,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transform: rotate(-90deg);
 }
 
-/* Animated collapse: the body is a one-track grid whose row shrinks to zero,
-   which needs no height measurement (same pattern as `.filters-collapsible`).
-   The inner wrapper is what clips the rows while the track closes. */
+/* One-track grid collapsing to 0fr: no height measurement needed (as in
+   `.filters-collapsible`); the inner wrapper clips the rows. */
 .portfolio-group-body {
   display: grid;
   grid-template-rows: 1fr;
@@ -284,7 +285,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 .portfolio-group-value {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
@@ -292,7 +293,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-group-gain {
   min-width: 92px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   text-align: right;
@@ -328,8 +329,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: var(--bg-hover);
 }
 
-/* A sold position keeps its row — its realized gain is part of the grand total
-   below, so removing it would leave a list that does not sum to its own footer. */
+/* A sold row stays: its realized gain is in the grand total below. */
 .portfolio-row.is-closed .portfolio-row-name,
 .portfolio-row.is-closed .portfolio-row-value {
   color: var(--text-muted);
@@ -371,7 +371,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-row-invested {
   min-width: 88px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-muted);
   text-align: right;
@@ -379,7 +379,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-row-value {
   min-width: 96px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   text-align: right;
 }
@@ -387,7 +387,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .portfolio-row-gain {
   min-width: 92px;
   margin-left: 12px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   text-align: right;
@@ -402,12 +402,9 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== EXPANDED DETAIL STRIP ====== */
 
-/* A sibling of the row, never a child: expanding must not move a single cell
-   of the row itself (the same rule the invoice list follows). Always in the DOM
-   so the row's aria-controls target always resolves, and collapsed through the
-   same grid-track trick as the depot body above. Every visual property lives on
-   the inner element: its overflow is what clips the strip's own bottom border
-   away while the strip is closed. */
+/* A sibling of the row, so expanding never moves a row cell; always rendered so
+   aria-controls resolves. Visuals live on the inner box, whose clipper hides
+   the strip's bottom border while closed. */
 .portfolio-detail {
   display: grid;
   grid-template-rows: 0fr;
@@ -422,10 +419,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   opacity: 1;
 }
 
-/* Three elements, like `.filters-collapsible`: the grid track above, this
-   clipper, and the padded box below. The clipper carries no padding of its own
-   on purpose — padding is part of a grid item's minimum contribution and would
-   floor the closed track at its own height. */
+/* No padding here: a grid item's padding would floor the closed track. */
 .portfolio-detail-inner {
   overflow: hidden;
 }
@@ -439,8 +433,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-bottom: 1px solid var(--bg-primary);
 }
 
-/* Hidden wherever the row itself carries the figure; the mobile block below is
-   the only place this item has a job. */
+/* Only the mobile layout needs it; elsewhere the row shows the figure. */
 .portfolio-detail-item.is-mobile-only {
   display: none;
 }
@@ -455,7 +448,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 .portfolio-detail-value {
   margin-top: 3px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
 }
 
@@ -477,8 +470,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   min-width: 0;
 }
 
-/* Its own box rather than two footer columns: the footer's own 12px gap is too
-   wide for the marker to read as part of the amount it qualifies. */
+/* Own box: the footer's 12px gap would detach the marker from its amount. */
 .portfolio-list-net {
   display: flex;
   gap: 4px;
@@ -486,13 +478,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 .portfolio-list-invested {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 .portfolio-list-total {
   min-width: 96px;
   margin-left: 12px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
@@ -542,8 +534,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== CHARTS ====== */
 
-/* The card chrome (.chart-card / .chart-header / .chart-title / .chart-container)
-   comes from stats.css, which is linked first; only the deltas live here. */
+/* Card chrome comes from stats.css (linked first); only deltas live here. */
 
 .portfolio-chart-header {
   display: flex;
@@ -552,9 +543,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   align-items: center;
 }
 
-/* Position filter. Shares the depot dropdown's mechanics but not its size: it
-   sits inside the chart card next to the period pills, so it is scaled to them
-   rather than to the view toolbar. */
+/* Position filter: depot dropdown mechanics, scaled to the period pills. */
 .portfolio-positions {
   position: relative;
   flex: none;
@@ -598,21 +587,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transform: rotate(180deg);
 }
 
-/* Fixed, and anchored from JS (floating-menu.js): .chart-card is overflow:hidden
-   and would clip an absolute menu against its own bottom edge. Leaving the card
-   also leaves its stacking context, hence the z-index of the floating panels
-   rather than the local one. Position and height come from the script. */
+/* Fixed and anchored by floating-menu.js: .chart-card's overflow:hidden would
+   clip an absolute menu. Outside the card's stacking context, hence the
+   floating-panel z-index. */
 .portfolio-positions-menu {
   position: fixed;
   z-index: 700;
   min-width: 190px;
-  padding: 4px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-dropdown);
 }
 
 /* Closed is the default; the control adds .is-open only while the menu shows. */
@@ -636,8 +617,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: var(--bg-hover);
 }
 
-/* The palette is spent: the row stays readable (it may be checked again once
-   another line is unchecked) but stops offering itself. */
+/* Palette spent: readable (re-checkable later) but no longer on offer. */
 .portfolio-positions-option.is-disabled {
   color: var(--text-muted);
   cursor: default;
@@ -648,10 +628,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: none;
 }
 
-/* The way out of a fully greyed-out list. The "all" row above does the same
-   thing, but with nothing checked it reads as the state already in force rather
-   than as an action. It commands rather than selects, so it carries the accent
-   in place of a checkbox. */
+/* The way out of a greyed-out list; the "all" row reads as a state, not an
+   action. It commands rather than selects, hence accent instead of a check. */
 .portfolio-positions-reset {
   padding: 6px 9px;
   font-size: 12.5px;
@@ -665,9 +643,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: var(--bg-hover);
 }
 
-/* Why those rows are greyed out. Sticky, because the menu scrolls once the
-   depot holds more positions than it can show — a footer below the fold would
-   explain nothing. */
+/* Sticky: the menu scrolls, and a hint below the fold explains nothing. */
 .portfolio-positions-hint {
   position: sticky;
   bottom: -4px;
@@ -684,9 +660,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   color: var(--text-primary);
 }
 
-/* The box is drawn rather than being a real input: the rows are listbox
-   options, and a focusable input inside them would fight the trigger for
-   focus. The look follows .checkbox-mark in invoices.css. */
+/* Drawn, not an input: a focusable input in an option would fight the trigger
+   for focus. Look follows .checkbox-mark (invoices.css). */
 .portfolio-positions-check {
   display: flex;
   flex: none;
@@ -715,22 +690,24 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transform: rotate(45deg);
 }
 
-/* Period pills. They live in this header, not the view toolbar, because the
-   period reaches the chart alone — every other figure on the screen is
-   all-time. Deliberately its own control, not .quick-filters: the portfolio
-   period is independent of the invoice one and neither may inherit the other.
-   Sized against the header's own padding, and tracked rather than carded, so it
-   does not read as a second card inside .chart-card. */
-.portfolio-period {
+/* Period pills: in the chart header because only the chart is period-bound.
+   Deliberately not .quick-filters, so portfolio and invoice periods never
+   inherit each other. Shared with the history dialog's filter. */
+.portfolio-period,
+.portfolio-history-filter {
   display: flex;
-  flex: none;
   gap: 2px;
   padding: 3px;
   background: var(--bg-hover);
   border-radius: 9px;
 }
 
-.portfolio-period-btn {
+.portfolio-period {
+  flex: none;
+}
+
+.portfolio-period-btn,
+.portfolio-history-filter-btn {
   padding: 5px 11px;
   font: inherit;
   font-size: 11.5px;
@@ -743,11 +720,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transition: all var(--transition);
 }
 
-.portfolio-period-btn:hover {
+.portfolio-period-btn:hover,
+.portfolio-history-filter-btn:hover {
   color: var(--text-primary);
 }
 
-.portfolio-period-btn[aria-pressed="true"] {
+.portfolio-period-btn[aria-pressed="true"],
+.portfolio-history-filter-btn[aria-pressed="true"] {
   font-weight: 600;
   color: var(--accent-text-on);
   background: var(--accent);
@@ -776,14 +755,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-radius: 2px;
 }
 
-/* Fixed markup, not data — so these three read the tokens directly, unlike the
-   series in portfolio-charts.js, which Canvas forces into literal hex. */
+/* Fixed markup reads tokens directly; Canvas forces the series into hex. */
 .portfolio-legend-bar.is-portfolio {
   background: var(--accent);
 }
 
-/* Mirrors the `borderDash: [5, 5]` of the invested series in
-   portfolio-charts.js, so the swatch reads as the same stroke. Square caps:
+/* Mirrors the invested series' `borderDash: [5, 5]`; square caps, since
    rounded ones read as dots at this dash length. */
 .portfolio-legend-bar.is-invested {
   background: repeating-linear-gradient(
@@ -798,14 +775,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   background: var(--chart-7);
 }
 
-/* Painted by portfolio-charts.js from the payload's position order; the token
-   here only keeps the swatch visible if that write ever fails. */
+/* Painted by portfolio-charts.js; this token is only a fallback. */
 .portfolio-legend-bar.is-series {
   background: var(--text-faint);
 }
 
-/* A fixed pixel height, never a viewport unit: the card sits below the summary
-   and the axis has to stay readable regardless of how tall the page is. */
+/* Pixel height, not a viewport unit: the axis must stay readable whatever the
+   page height. */
 .portfolio-chart-body {
   height: 200px;
   padding: 14px 20px 8px;
@@ -823,10 +799,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== ALLOCATION ====== */
 
-/* The break belongs to the card's width, not to a viewport number: the sidebar
-   takes 233px of it, so the viewport says nothing about how wide a card
-   actually is. 470px is the width at which a row of name, track and amount
-   stops cutting the name harder than it has to. */
+/* Breaks on card width, not viewport (the sidebar takes 233px); below 470px a
+   name/track/amount row truncates the name harder than it has to. */
 .portfolio-bottom {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(470px, 100%), 1fr));
@@ -847,9 +821,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   aspect-ratio: 1;
 }
 
-/* Taken out of the flow so the box keeps the square `aspect-ratio` gives it:
-   Chart.js sizes the canvas from the box, so a canvas that counts towards the
-   box's own height would settle on the library's 300px default instead. */
+/* Out of flow so the box stays square: Chart.js sizes the canvas from the box,
+   and an in-flow canvas would settle on its 300px default. */
 .portfolio-donut canvas {
   position: absolute;
   inset: 0;
@@ -886,8 +859,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   white-space: nowrap;
 }
 
-/* The pooled "N more" row names a group, not a position, so its label is muted
-   against the named slices above it. */
+/* The pooled "N more" row names a group, not a position. */
 .portfolio-alloc-item.is-aggregated .portfolio-alloc-label {
   color: var(--text-muted);
 }
@@ -918,9 +890,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   align-items: center;
 }
 
-/* Basis 0, never `auto`: a host sized from its own text gets narrower the moment
-   the middle-ellipsis shortens it, which puts `truncate.js` in the settle
-   feedback its docstring warns about and ratchets the name down. */
+/* Basis 0, never `auto`: a text-sized host shrinks as truncate.js ellipsizes
+   it, a feedback loop that ratchets the name down. */
 .portfolio-change-name {
   flex: 1;
   min-width: 0;
@@ -931,8 +902,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   white-space: nowrap;
 }
 
-/* Proportional rather than shrinkable: with the name on a zero basis the row
-   never runs a deficit, so a shrinkable track would in practice stay rigid. */
+/* Not shrinkable: with a zero-basis name the row never runs a deficit. */
 .portfolio-bar-track {
   display: flex;
   flex: none;
@@ -943,8 +913,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-radius: 999px;
 }
 
-/* Width is set from the payload through the CSSOM (portfolio-charts.js); only
-   the fill colour and the side it grows from are decided here. */
+/* Width is set via the CSSOM by portfolio-charts.js. */
 .portfolio-bar-fill {
   height: 100%;
   border-radius: 999px;
@@ -963,7 +932,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .portfolio-change-amount {
   flex: none;
   min-width: 72px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   text-align: right;
@@ -976,8 +945,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== SNAPSHOT MODAL ====== */
 
-/* Wider than the default dialog: a row carries three number columns next to the
-   position name. */
+/* Wider than default: three number columns sit next to the name. */
 .snapshot-modal {
   max-width: 680px;
 }
@@ -986,8 +954,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   gap: 12px;
 }
 
-/* The rows carry their own side padding, so the column strip and the depot
-   labels can span the full width of the dialog. */
+/* Rows pad themselves, so the column strip and depot labels span full width. */
 .snapshot-modal .modal-body {
   padding: 0;
 }
@@ -1022,7 +989,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 .snapshot-date input {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--text-primary);
   background: none;
@@ -1080,8 +1047,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   color: var(--text-faint);
 }
 
-/* The previous reading was itself a copy, so the placeholder and the delta
-   below compare against a number nobody entered. */
+/* The previous reading was itself a copy, not an entered number. */
 .snapshot-row-stale {
   font-size: 11.5px;
   font-weight: 400;
@@ -1101,7 +1067,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .snapshot-cell-delta {
   flex: none;
   width: 84px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   text-align: right;
@@ -1143,7 +1109,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .snapshot-input input {
   width: 100%;
   min-width: 0;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--text-primary);
   text-align: right;
@@ -1180,7 +1146,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 .snapshot-total b {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--text-primary);
 }
 
@@ -1199,8 +1165,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-bottom: 0;
 }
 
-/* A sold position stays in the list — reopening it is the whole reason the
-   editor shows it at all. */
+/* Sold positions stay listed so they can be reopened. */
 .manage-row.is-closed .manage-row-name {
   color: var(--text-muted);
 }
@@ -1223,7 +1188,6 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   color: var(--text-faint);
 }
 
-/* The inline editor, rendered under the row it belongs to. */
 .manage-form {
   padding: 12px;
   margin-bottom: 10px;
@@ -1238,8 +1202,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   margin-top: 10px;
 }
 
-/* Away from Save, so closing a position is never the button next to the one the
-   hand is already heading for. */
+/* Away from Save, so closing a position is never a slip of the hand. */
 .manage-close-btn {
   margin-right: auto;
 }
@@ -1253,17 +1216,14 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== HISTORY MODAL ====== */
 
-/* The button that opens it sits in the detail strip's own flex row, pushed to
-   the far end so it never reads as one more figure. */
+/* History trigger: at the strip's far end so it never reads as a figure. */
 .portfolio-detail-action {
   align-self: center;
   margin-left: auto;
 }
 
-/* The list scrolls, not the body: this dialog has no footer, so a scrolling
-   body would put the scrollbar against the bottom rounded corner. One level
-   further in, it sits inside the body's own padding and touches nothing —
-   and the subtitle and filter pills stay put above it. */
+/* The list scrolls, not the body: with no footer, a body scrollbar would hit
+   the rounded corner, and the subtitle and pills stay put. */
 .portfolio-history-dialog .modal-body {
   display: flex;
   flex-direction: column;
@@ -1291,41 +1251,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   font-weight: 600;
 }
 
-/* Deliberately not .portfolio-period: those pills switch a date range, these
-   switch which weeks are listed, and neither may inherit the other's rules. */
-.portfolio-history-filter {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  background: var(--bg-hover);
-  border-radius: 9px;
-}
-
-.portfolio-history-filter-btn {
-  padding: 5px 11px;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-}
-
-.portfolio-history-filter-btn:hover {
-  color: var(--text-primary);
-}
-
-.portfolio-history-filter-btn[aria-pressed="true"] {
-  font-weight: 600;
-  color: var(--accent-text-on);
-  background: var(--accent);
-}
-
-/* One grid per row rather than a table: the rows are rendered as a flat string
-   list, and a shared column template keeps them aligned without one. */
+/* A shared grid template aligns the flat row list without a table. */
 .portfolio-history-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -1339,8 +1265,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   border-bottom: 0;
 }
 
-/* Labels rather than figures, so the header drops the mono face and the second
-   row the money columns hang under. */
+/* Labels, not figures: the header drops the mono face of the money columns. */
 .portfolio-history-header {
   position: sticky;
   top: 0;
@@ -1369,7 +1294,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 .portfolio-history-value,
 .portfolio-history-deposit,
 .portfolio-history-change {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   text-align: right;
 }
@@ -1381,8 +1306,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   text-align: left;
 }
 
-/* The native amount trails the EUR one, so an FX-driven move stays readable.
-   Never wrapped mid-amount: the code and its number are one reading. */
+/* Trails the EUR amount so FX-driven moves stay readable; code and number
+   never wrap apart. */
 .portfolio-history-native {
   margin-left: 8px;
   color: var(--text-faint);
@@ -1404,9 +1329,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
 /* ====== PORTFOLIO RESPONSIVE ====== */
 
-/* Mobile (Design 18b): the same content in the same order, stacked — hero above
-   two small cards, a compact chart carrying its own period switcher, and one card
-   per depot whose rows carry their figures on two lines. */
+/* Mobile (Design 18b): same content and order, stacked. */
 @media (width <= 640px) {
   .portfolio-summary {
     grid-template-columns: 1fr 1fr;
@@ -1429,8 +1352,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     font-size: 21px;
   }
 
-  /* The snapshot FAB sits over this screen already, and with the button gone
-     there is nothing left for the spacer to push apart. */
+  /* The snapshot FAB takes over; without the button the spacer has no job. */
   .portfolio-snapshot-btn,
   .portfolio-toolbar-spacer {
     display: none;
@@ -1440,35 +1362,32 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     padding: 32px 20px;
   }
 
-  /* The chart header stacks so the title keeps one line, the bottom row goes
-     single column, and the donut sits above its legend rather than being
-     squeezed below its fixed 132px. */
+  /* Stacked so the title keeps one line. */
   .portfolio-chart-header {
     flex-wrap: wrap;
     gap: 8px;
   }
 
-  /* The header already wraps, so a full-width pill row slots between the title
-     and the legend instead of squeezing all three onto one line. */
-  .portfolio-period {
+  /* A full-width pill row rather than squeezing title, pills and legend. */
+  .portfolio-period,
+  .portfolio-history-filter {
     flex: 1 0 100%;
   }
 
-  /* Full width too, and above the pills: the menu it drops is the widest thing
-     in the header, so it needs the row to itself. */
+  /* Its own row: the menu it drops is the widest thing in the header. */
   .portfolio-positions {
     flex: 1 0 100%;
   }
 
-  /* Stretched to the full row, the label and the chevron would otherwise sit
-     bunched at the left edge of an otherwise empty pill. */
+  /* Otherwise label and chevron bunch at the left of the full-width pill. */
   .portfolio-positions-trigger {
     justify-content: space-between;
     width: 100%;
     max-width: none;
   }
 
-  .portfolio-period-btn {
+  .portfolio-period-btn,
+  .portfolio-history-filter-btn {
     flex: 1;
   }
 
@@ -1477,7 +1396,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     margin-left: 0;
   }
 
-  /* A pixel height, never a viewport unit: the card has to keep its proportions
+  /* Pixel height, not a viewport unit: the card must keep its proportions
      while the sheet above it opens. */
   .portfolio-chart-body {
     height: 180px;
@@ -1493,15 +1412,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     align-items: stretch;
   }
 
-  /* Stacked above the legend, the percentage would resolve against the card's
-     full width instead of the space left beside it. */
+  /* Stacked, a percentage would resolve against the full card width. */
   .portfolio-donut {
     align-self: center;
     width: 132px;
   }
 
-  /* Each depot becomes its own card and the list is only their stack, so the
-     screen scrolls vertically past groups instead of sideways past columns. */
+  /* One card per depot: the screen scrolls past groups, not sideways. */
   .portfolio-list {
     display: flex;
     flex-direction: column;
@@ -1519,9 +1436,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     border-radius: var(--radius-lg);
   }
 
-  /* Name and subtotal only: the three fixed amount columns of the desktop
-     header leave the depot name a handful of pixels at this width, and the gain
-     it would show is repeated on every row below it anyway. */
+  /* Name and subtotal only: the amount columns would starve the name, and
+     every row repeats the gain anyway. */
   .portfolio-group-header {
     padding: 11px 16px;
   }
@@ -1535,13 +1451,9 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     min-width: 0;
   }
 
-  /* The card's own border closes the group, so whatever renders last inside it
-     must not draw a second line. Which element that is depends on the state:
-     the detail strip when the last row is open, the row itself when the strip
-     next to it is closed — every row is followed by its always-rendered strip,
-     so the row is never the group's last child. The strip's own border sits two
-     levels down, on `.portfolio-detail-items`, where the inner wrapper's
-     overflow can clip it while closed — hence the descendant selector. */
+  /* The card border closes the group, so the last line must not double it: the
+     open last strip, or the last row when its strip (always rendered) is closed.
+     The strip's border sits on `.portfolio-detail-items`, hence the descendant. */
   .portfolio-group-rows > :last-child,
   .portfolio-group-rows > :last-child .portfolio-detail-items,
   .portfolio-group-rows
@@ -1549,15 +1461,12 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     border-bottom: 0;
   }
 
-  /* The legend names columns that no longer exist and the total repeats the hero
-     card; net invested survives in the Invested card and in the strip below. */
+  /* Its legend names gone columns and its total repeats the hero card. */
   .portfolio-list-footer {
     display: none;
   }
 
-  /* Two lines: name over invested-or-meta on the left, value over gain and
-     percent on the right. `display: contents` dissolves the row's wrapper span
-     so the name and the meta line can take grid cells of their own. */
+  /* Two lines; `display: contents` lets name and meta take their own cells. */
   .portfolio-row {
     display: grid;
     grid-template-columns: 1fr auto auto;
@@ -1581,8 +1490,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     min-width: 0;
   }
 
-  /* One cell, two occupants: the invested figure while the row is collapsed, the
-     meta line once it is open (where the strip takes the figure over). */
+  /* One cell: invested while collapsed, the meta line once open. */
   .portfolio-row-meta,
   .portfolio-row-invested {
     display: block;
@@ -1600,21 +1508,18 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     display: none;
   }
 
-  /* A label rather than markup: the row is a <button>, so this would have to be
-     a span that means nothing on desktop. It earns being read aloud — it names a
-     figure the mobile row has no column header for. */
+  /* Generated, since a span in the <button> would mean nothing on desktop; read
+     aloud on purpose, as the mobile row has no column header for it. */
   .portfolio-row-invested::after {
     content: " invested";
   }
 
-  /* The open row's meta line may wrap: ellipsizing it would eat the affordance
-     that closes the row again. */
+  /* May wrap: an ellipsis would eat the "Show less" affordance. */
   .portfolio-row[aria-expanded="true"] .portfolio-row-meta {
     white-space: normal;
   }
 
-  /* Wraps as a whole or not at all: with the fallback badge ahead of it the
-     line is tight enough that the two words would otherwise split across it. */
+  /* Next to the fallback badge the two words would otherwise split. */
   .portfolio-row[aria-expanded="true"] .portfolio-row-meta::after {
     font-weight: 600;
     color: var(--accent);
@@ -1646,9 +1551,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     display: block;
   }
 
-  /* Snapshot sheet: the column legend gives way to a stacked block per position,
-     with the two fields side by side under the name and inputs tall enough to
-     hit. The footer keeps its own line for the running total. */
+  /* Snapshot sheet: one stacked block per position, fields under the name. */
   .snapshot-columns {
     display: none;
   }
@@ -1668,8 +1571,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     width: auto;
   }
 
-  /* min-height rather than padding alone: the field has to clear the 44px
-     touch target whatever the mono font's line box measures. */
+  /* min-height clears the 44px touch target whatever the mono line box. */
   .snapshot-input {
     min-height: 44px;
     padding: 11px 12px;
@@ -1687,23 +1589,14 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     flex: 1 0 100%;
   }
 
-  /* The figures already wrap on a narrow strip; a full-width trigger below them
-     keeps it off a line of its own halfway through them. */
+  /* Below the figures rather than on a line of its own halfway through them. */
   .portfolio-detail-action {
     flex: 1 0 100%;
     margin-left: 0;
   }
 
-  .portfolio-history-filter {
-    flex: 1 0 100%;
-  }
-
-  .portfolio-history-filter-btn {
-    flex: 1;
-  }
-
-  /* The desktop minimums add up past a phone's width, and the value line has to
-     stop sharing its row with them or it wraps mid-amount. */
+  /* Desktop minimums exceed a phone's width; the value line gets its own row
+     or it wraps mid-amount. */
   .portfolio-history-row {
     gap: 2px 8px;
   }

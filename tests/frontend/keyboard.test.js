@@ -17,6 +17,7 @@ import { state } from "../../static/js/state.js";
 vi.mock("../../static/js/modals.js", () => ({
   openAddModal: vi.fn(),
   openImportModal: vi.fn(),
+  hideOverlay: (overlay) => overlay.classList.remove("active"),
   lockScroll: vi.fn(),
   unlockScroll: vi.fn(),
 }));

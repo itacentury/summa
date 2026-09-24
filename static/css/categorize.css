@@ -265,7 +265,7 @@
 
 .categorize-banner code {
   padding: 1px 5px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125em;
   background: var(--bg-inset);
   border-radius: 5px;
@@ -438,7 +438,7 @@
   display: none;
   flex: none;
   margin-left: auto;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   color: var(--amount);
 }
@@ -508,7 +508,7 @@
 
 .categorize-item-line-price {
   flex: none;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   color: #8a7c62;
   text-align: right;
 }

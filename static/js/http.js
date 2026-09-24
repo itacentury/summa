@@ -51,3 +51,33 @@ export async function apiFetch(url, options = {}) {
   }
   return response;
 }
+
+/**
+ * Send a JSON body through `apiFetch`.
+ *
+ * @param {string} url - Request URL.
+ * @param {string} method - HTTP method.
+ * @param {unknown} body - Serialized with `JSON.stringify`.
+ * @param {RequestInit} [options] - Extra fetch options (`signal`, `keepalive`).
+ * @returns {Promise<Response>}
+ */
+export function sendJson(url, method, body, options = {}) {
+  return apiFetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...options,
+  });
+}
+
+/**
+ * Read the `error` a refused request carries, falling back when it has none.
+ *
+ * @param {Response} response - A response that is not `ok`.
+ * @param {string} fallback - Shown when the body names no error.
+ * @returns {Promise<string>}
+ */
+export async function errorMessage(response, fallback) {
+  const payload = await response.json().catch(() => ({}));
+  return payload?.error ?? fallback;
+}

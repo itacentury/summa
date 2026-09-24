@@ -1,17 +1,13 @@
 """Import a depot workbook into Summa's portfolio tables.
 
-The workbook is wide: row 1 carries merged depot bands, row 2 the headers, and
-from row 3 every row is one week. Each position occupies a triple of columns --
-its value, its ``Einzahlung`` and a ``Delta`` that this importer recomputes
-rather than reads, because :func:`summa.portfolio.week_delta` derives it from
-the stored snapshots anyway.
+Layout: row 1 merged depot bands, row 2 headers, row 3+ one week per row. Each
+position is a ``value · Einzahlung · Delta`` column triple; Delta is not read,
+since :func:`summa.portfolio.week_delta` derives it from the snapshots.
 
-Re-running is safe: snapshots are written with ``INSERT OR IGNORE`` on
-``(position_id, date)``, so a week already in the database is left exactly as it
-is -- including one corrected by hand in the UI.
-
-``--dry-run`` runs the whole import against an in-memory copy of the database, so
-it reports real counts while never creating or modifying the file behind ``--db``.
+Re-running is safe: snapshots use ``INSERT OR IGNORE`` on ``(position_id, date)``,
+so a week already stored -- including one corrected in the UI -- is never
+rewritten. ``--dry-run`` imports into an in-memory copy and never creates or
+modifies the ``--db`` file.
 """
 
 import argparse
@@ -30,7 +26,20 @@ from typing import Any, Final
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
-from scripts.portfolio_db import connect, connect_mirror, default_database_path
+from scripts.portfolio_db import (
+    SnapshotWrite,
+    default_database_path,
+    insert_snapshots,
+    open_database,
+    resolve_depot,
+    resolve_position,
+)
+from summa.portfolio import (
+    AMOUNT_DIGITS,
+    DEFAULT_CURRENCY,
+    DEFAULT_FX_RATE,
+    is_currency_code,
+)
 
 BAND_ROW: Final[int] = 1
 HEADER_ROW: Final[int] = 2
@@ -42,13 +51,8 @@ BAND_SUFFIX: Final[str] = "Depot"
 IGNORED_BANDS: Final[frozenset[str]] = frozenset({"Gesamt", "Insgesamt", "Total"})
 DEFAULT_SHEET: Final[str] = "Übersicht"
 
-DEFAULT_CURRENCY: Final[str] = "EUR"
-CURRENCY_CODE_LENGTH: Final[int] = 3
-DEFAULT_FX_RATE: Final[float] = 1.0
-MONEY_DIGITS: Final[int] = 2
-# Not the ISO table, just what a depot sheet plausibly quotes in. A header's last
-# token is only read as a currency when it appears here, which is what keeps a
-# position named "AMD" from being stripped down to nothing.
+# Not the ISO table, just what a depot sheet plausibly quotes in: a trailing
+# header token outside it stays part of the name, so "AMD" is not stripped.
 CURRENCY_CODES: Final[frozenset[str]] = frozenset(
     {"EUR", "USD", "GBP", "CHF", "JPY", "SEK", "NOK", "DKK", "CAD", "AUD"}
 )
@@ -120,24 +124,20 @@ class ImportSummary:
 
 
 def strip_style_extensions(styles_xml: bytes) -> bytes:
-    """Remove every ``extLst`` element from a stylesheet.
-
-    :param styles_xml: the raw ``xl/styles.xml`` part.
-    """
+    """Remove every ``extLst`` element from a stylesheet."""
     return STYLE_EXTENSIONS.sub(b"", styles_xml)
 
 
 def parse_number(raw: object) -> float | None:
     """Coerce a cell value to an amount in cents precision, or None when empty.
 
-    A repaired workbook hands over real floats, so the German text branch only
-    catches a sheet whose amounts were saved as strings. The rounding is what
-    turns a stored ``510.769999999999982`` back into ``510.77``.
+    The German text branch only catches amounts saved as strings. Rounding turns
+    a stored ``510.769999999999982`` back into ``510.77``.
     """
     if raw is None or isinstance(raw, bool):
         return None
     if isinstance(raw, (int, float)):
-        return round(float(raw), MONEY_DIGITS)
+        return round(float(raw), AMOUNT_DIGITS)
     if not isinstance(raw, str):
         return None
 
@@ -148,7 +148,7 @@ def parse_number(raw: object) -> float | None:
         text = text.replace(".", "").replace(",", ".")
     text = text.replace(" ", "")
     try:
-        return round(float(text), MONEY_DIGITS)
+        return round(float(text), AMOUNT_DIGITS)
     except ValueError:
         return None
 
@@ -174,8 +174,7 @@ def parse_date_cell(raw: object) -> str | None:
 def split_header(header: str) -> tuple[str, str]:
     """Split a row-2 header into a position name and its currency.
 
-    The trailing token is only taken as a currency when the header has more than
-    one token, so a position literally named ``AMD`` or ``USD`` keeps its name.
+    A single token is always the name, so a position named ``USD`` keeps it.
     """
     tokens: list[str] = header.split()
     if len(tokens) > 1 and tokens[-1].upper() in CURRENCY_CODES:
@@ -192,11 +191,7 @@ def normalize_depot_name(band: str) -> str:
 
 
 def infer_kind(name: str) -> str:
-    """Guess a position's kind from its name.
-
-    ETF markers win over fund markers, so a hypothetical "Deka MSCI World" reads
-    as an ETF. The user can correct either one in Settings afterwards.
-    """
+    """Guess a position's kind from its name; ETF markers win over fund markers."""
     folded: str = name.casefold()
     if any(marker in folded for marker in ETF_MARKERS):
         return KIND_ETF
@@ -212,9 +207,8 @@ def fill_band_map(
 ) -> dict[int, str]:
     """Map every column to the depot band above it.
 
-    Merged ranges carry their label in the top-left cell only. Columns no merge
-    covers inherit the nearest label to their left, so a sheet that repeats the
-    label instead of merging maps identically.
+    Unmerged columns inherit the nearest label to their left, so a sheet that
+    repeats labels instead of merging maps identically.
 
     :param merges: ``(min_col, max_col)`` pairs of the row-1 merged ranges.
     """
@@ -241,11 +235,9 @@ def find_position_columns(
 ) -> list[PositionColumn]:
     """Find the value column of every position in the sheet.
 
-    A column starts a position exactly when the column beside it is headed
-    ``Einzahlung``. That single test also rejects the ``Datum`` column, every
-    ``Delta`` column and the sheet's own total band, whose deposit column is
-    headed ``Einzahlung gesamt`` -- which is why the comparison is equality and
-    not a prefix match.
+    A position starts where the next column is headed exactly ``Einzahlung``.
+    Equality, not a prefix match, also rejects ``Datum``, every ``Delta`` and
+    the total band's ``Einzahlung gesamt``.
 
     :raises ImportAbort: a position sits under no depot band.
     """
@@ -285,13 +277,9 @@ def find_position_columns(
 def _position_started(value: float | None, deposit: float | None) -> bool:
     """Decide whether a position is already held in this row.
 
-    A blank cell is the usual way the sheet says "not bought yet", but a column
-    pre-filled with formulas says it with a literal 0 instead. Importing those
-    weeks would predate the position's first snapshot and, worse, hand the chart
-    a zero first grid point -- which makes
-    :func:`summa.portfolio.rebase_to_grid` return nothing and silently drop the
-    benchmark line. A deposit without a value still starts the position: the
-    money moved, so the week is real.
+    A formula-prefilled literal 0 counts as "not bought yet" like a blank: a zero
+    first grid point makes :func:`summa.portfolio.rebase_to_grid` drop the
+    benchmark line. A deposit alone does start it -- the money moved.
     """
     if value is not None and value > 0:
         return True
@@ -307,15 +295,9 @@ def build_snapshot_rows(
 ) -> tuple[list[SnapshotRow], int]:
     """Turn the parsed grid into snapshot rows.
 
-    Once a position has started, every remaining week yields a row: a blank value
-    is carried forward from the previous week and flagged ``carried``. The flag
-    describes the value alone -- a deposit on such a week is real money and is
-    recorded at its own date, because dropping it would distort ``invested_eur``
-    and moving it would misdate the cash flow.
-
-    A week before the position's first real value is not carried: there is nothing
-    to carry. A deposit-only start therefore records ``carried=False``, the same as
-    the literal-zero spelling of that week.
+    After a position starts, a blank value is carried forward and flagged
+    ``carried``. The flag covers the value only: a deposit that week is still
+    recorded at its own date. Nothing is carried before the first real value.
 
     :return: the rows plus the number of pre-start rows skipped.
     """
@@ -365,7 +347,7 @@ def parse_fx_overrides(pairs: Sequence[str]) -> dict[str, float]:
             raise ValueError(f"--fx expects CODE=RATE, got {pair!r}")
 
         code: str = raw_code.strip().upper()
-        if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
+        if not is_currency_code(code):
             raise ValueError(
                 f"--fx needs a three-letter currency code, got {raw_code!r}"
             )
@@ -402,8 +384,8 @@ def format_summary(summary: ImportSummary) -> str:
 def load_repaired_workbook(path: Path) -> Any:
     """Load a workbook, repacking it in memory so openpyxl accepts its styles.
 
-    The file on disk is never touched. ``read_only`` is deliberately off: it
-    hides ``merged_cells.ranges``, which is where the depot bands live.
+    ``read_only`` stays off: it hides ``merged_cells.ranges``, where the depot
+    bands live.
     """
     buffer: io.BytesIO = io.BytesIO()
     with zipfile.ZipFile(path) as source:
@@ -443,8 +425,7 @@ def read_grid(
 ) -> tuple[list[str], list[dict[int, float | None]], list[dict[int, float | None]]]:
     """Read the data rows into dates plus per-column values and deposits.
 
-    Rows whose date cell does not parse are skipped, which is how a trailing
-    note or a blank spacer row below the data stays out of the import.
+    Rows without a parseable date (trailing notes, spacers) are skipped.
     """
     dates: list[str] = []
     values: list[dict[int, float | None]] = []
@@ -474,83 +455,6 @@ def read_grid(
 # --- Writing ----------------------------------------------------------------
 
 
-def resolve_depot(
-    cursor: sqlite3.Cursor, name: str, sort_order: int
-) -> tuple[int, bool]:
-    """Return a depot's id, creating it when missing.
-
-    ``INSERT OR IGNORE ... RETURNING`` yields no row when it ignores, hence the
-    separate lookup.
-
-    :return: the id and whether this call created it.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_depots (name, sort_order) VALUES (?, ?)",
-        (name, sort_order),
-    )
-    created: bool = cursor.rowcount == 1
-    cursor.execute("SELECT id FROM portfolio_depots WHERE name = ?", (name,))
-    row: Any = cursor.fetchone()
-    return int(row["id"]), created
-
-
-def resolve_position(
-    cursor: sqlite3.Cursor, depot_id: int, position: PositionColumn
-) -> tuple[int, bool]:
-    """Return a position's id, creating it when missing.
-
-    An existing position is never updated: the importer only guesses ``kind``
-    and ``currency``, and the UI is allowed to have corrected that guess.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_positions "
-        "(depot_id, name, kind, currency, sort_order) VALUES (?, ?, ?, ?, ?)",
-        (
-            depot_id,
-            position.name,
-            position.kind,
-            position.currency,
-            position.sort_order,
-        ),
-    )
-    created: bool = cursor.rowcount == 1
-    cursor.execute(
-        "SELECT id FROM portfolio_positions WHERE depot_id = ? AND name = ?",
-        (depot_id, position.name),
-    )
-    row: Any = cursor.fetchone()
-    return int(row["id"]), created
-
-
-def insert_snapshots(
-    cursor: sqlite3.Cursor, position_id: int, rows: Sequence[SnapshotRow]
-) -> tuple[int, int]:
-    """Write a position's snapshots, leaving weeks already recorded untouched.
-
-    Rows go in one at a time so ``rowcount`` can tell a write from a conflict;
-    ``executemany`` would collapse the two.
-
-    :return: how many rows were written and how many were already present.
-    """
-    written: int = 0
-    for row in rows:
-        cursor.execute(
-            "INSERT OR IGNORE INTO portfolio_snapshots "
-            "(position_id, date, value, deposit, fx_rate, carried) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                position_id,
-                row.date,
-                row.value,
-                row.deposit,
-                row.fx_rate,
-                int(row.carried),
-            ),
-        )
-        written += cursor.rowcount
-    return written, len(rows) - written
-
-
 def run_import(
     cursor: sqlite3.Cursor,
     columns: Sequence[PositionColumn],
@@ -578,7 +482,12 @@ def run_import(
                 depots_created += 1
 
         position_id, position_is_new = resolve_position(
-            cursor, depot_ids[position.depot], position
+            cursor,
+            depot_ids[position.depot],
+            position.name,
+            position.kind,
+            position.currency,
+            position.sort_order,
         )
         if position_is_new:
             positions_created += 1
@@ -586,10 +495,10 @@ def run_import(
         position_rows: list[SnapshotRow] = rows_by_position.get(
             (position.depot, position.name), []
         )
-        row_written, row_existing = insert_snapshots(cursor, position_id, position_rows)
-        written += row_written
-        existing += row_existing
-        carried += sum(1 for row in position_rows if row.carried)
+        result: SnapshotWrite = insert_snapshots(cursor, position_id, position_rows)
+        written += result.written
+        existing += result.existing
+        carried += result.carried
 
     return ImportSummary(
         depots=len(depot_ids),
@@ -656,19 +565,8 @@ def import_workbook(
     dates, values, deposits = read_grid(worksheet, columns)
     rows, rows_skipped = build_snapshot_rows(columns, dates, values, deposits, fx_rates)
 
-    conn: sqlite3.Connection = (
-        connect_mirror(database_path) if dry_run else connect(database_path)
-    )
-    try:
-        summary: ImportSummary = run_import(conn.cursor(), columns, rows, rows_skipped)
-        # A dry run commits into its in-memory mirror, which close() discards.
-        conn.commit()
-        return summary
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with open_database(database_path, dry_run) as cursor:
+        return run_import(cursor, columns, rows, rows_skipped)
 
 
 def build_parser() -> argparse.ArgumentParser:

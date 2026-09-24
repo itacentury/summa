@@ -27,6 +27,7 @@ from summa.helpers import ApiResponse, error_response
 from summa.routes.auth import auth_bp
 from summa.routes.invoices import invoices_bp
 from summa.routes.portfolio import portfolio_bp
+from summa.routes.portfolio_writes import portfolio_writes_bp
 from summa.routes.stats import stats_bp
 from summa.routes.web import web_bp
 
@@ -143,6 +144,7 @@ def create_app() -> Flask:
     app.register_blueprint(invoices_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(portfolio_bp)
+    app.register_blueprint(portfolio_writes_bp)
 
     # Initialize database on app creation (works with gunicorn and dev server)
     init_db()

@@ -11,11 +11,14 @@ import openpyxl
 import pytest
 
 from scripts.import_portfolio_xlsx import (
+    DEFAULT_SHEET,
     ImportAbort,
+    ImportSummary,
     PositionColumn,
     build_snapshot_rows,
     fill_band_map,
     find_position_columns,
+    import_workbook,
     infer_kind,
     load_repaired_workbook,
     main,
@@ -615,6 +618,19 @@ def test_main_never_rewrites_a_recorded_week(tmp_path: Path) -> None:
 
     assert after == before
     assert all(row["value"] == 999.0 for row in corrected)
+
+
+def test_import_workbook_counts_carried_rows_it_wrote(tmp_path: Path) -> None:
+    """A re-run writes nothing, so it must not go on claiming carried rows either."""
+    workbook: Path = _write_workbook(tmp_path / "book.xlsx")
+    database: Path = tmp_path / "test.db"
+
+    first: ImportSummary = import_workbook(workbook, DEFAULT_SHEET, {}, database, False)
+    again: ImportSummary = import_workbook(workbook, DEFAULT_SHEET, {}, database, False)
+
+    assert 0 < first.rows_carried <= first.snapshots_written
+    assert again.snapshots_written == 0
+    assert again.rows_carried == 0
 
 
 def test_main_applies_the_fx_rate(tmp_path: Path) -> None:

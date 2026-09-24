@@ -175,6 +175,19 @@ export function escapeHtml(text) {
     .replace(/'/g, "&#39;");
 }
 
+/** Swap `button` for a disabled spinner while `task` runs, then restore it. */
+export async function withBusyButton(button, task) {
+  const originalContent = button.innerHTML;
+  button.innerHTML = '<div class="spinner"></div>';
+  button.disabled = true;
+  try {
+    return await task();
+  } finally {
+    button.innerHTML = originalContent;
+    button.disabled = false;
+  }
+}
+
 const CATEGORY_COLOR_SLUGS = {
   technik: "technik",
   sport: "sport",

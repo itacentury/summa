@@ -9,18 +9,14 @@
   >
     <div class="modal-header">
       <h3 class="modal-title" id="history-title">History</h3>
-      {# Nothing here is editable, so the close button takes the initial focus
-         the way Settings does — the filter pills stay one Tab away. #}
+      {# Nothing is editable, so close takes initial focus, as in Settings. #}
       {{ modal_close_button(autofocus=true) }}
     </div>
     <div class="modal-body">
-      {# Read-only: correcting a week stays the snapshot form's job, so this
-         dialog never writes and has no footer at all — the X, the backdrop and
-         Esc are the only ways out, as in Settings. #}
+      {# Read-only: corrections are the snapshot form's job, hence no footer. #}
       <div class="portfolio-history-head">
         <p class="portfolio-history-subtitle" data-el="history-subtitle"></p>
-        {# Its own control rather than the chart's period pills: those switch a
-           date range, this one switches which weeks are listed. #}
+        {# Not the chart's period pills: this picks weeks, not a date range. #}
         <div
           class="portfolio-history-filter"
           data-el="history-filter"

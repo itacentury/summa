@@ -12,6 +12,7 @@ import {
   formatDateShort,
   isFutureIsoDate,
   todayIso,
+  withBusyButton,
   withEuro,
 } from "../../static/js/dom.js";
 import { dayOffset } from "./helpers.js";
@@ -160,6 +161,41 @@ describe("escapeHtml", () => {
   it("stringifies non-string input", () => {
     expect(escapeHtml(42)).toBe("42");
     expect(escapeHtml(0)).toBe("0");
+  });
+});
+
+describe("withBusyButton", () => {
+  it("shows a disabled spinner while the task runs", async () => {
+    const button = document.createElement("button");
+    button.textContent = "Save";
+    let during = null;
+
+    const result = await withBusyButton(button, async () => {
+      during = { html: button.innerHTML, disabled: button.disabled };
+      return 7;
+    });
+
+    expect(during).toEqual({
+      html: '<div class="spinner"></div>',
+      disabled: true,
+    });
+    expect(result).toBe(7);
+    expect(button.textContent).toBe("Save");
+    expect(button.disabled).toBe(false);
+  });
+
+  it("restores the button when the task throws", async () => {
+    const button = document.createElement("button");
+    button.textContent = "Save";
+
+    await expect(
+      withBusyButton(button, async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+
+    expect(button.textContent).toBe("Save");
+    expect(button.disabled).toBe(false);
   });
 });
 

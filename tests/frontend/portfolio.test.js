@@ -18,7 +18,8 @@ import {
   formatDateDots,
   formatPercent,
   formatSigned,
-} from "../../static/js/portfolio-render.js";
+  isCurrencyCode,
+} from "../../static/js/portfolio-format.js";
 import {
   state,
   collapsedDepots,
@@ -436,6 +437,13 @@ describe("portfolio formatters", () => {
     expect(formatDateDots("2026-09-06")).toBe("06.09.2026");
     expect(formatDateDots("2026-01-01")).toBe("01.01.2026");
     expect(formatDateDots(null)).toBe("");
+  });
+
+  it("accepts only an upper-case three-letter currency code", () => {
+    expect(isCurrencyCode("USD")).toBe(true);
+    expect(isCurrencyCode("usd")).toBe(false);
+    expect(isCurrencyCode("EURO")).toBe(false);
+    expect(isCurrencyCode("E1R")).toBe(false);
   });
 });
 

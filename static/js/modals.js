@@ -63,15 +63,24 @@ export function unlockScroll() {
   }
 }
 
+/** Open a `.modal-overlay` and lock the page behind it. */
+export function showOverlay(overlay) {
+  overlay.classList.add("active");
+  lockScroll();
+}
+
+/** Close a `.modal-overlay`; the page scrolls again once nothing else is open. */
+export function hideOverlay(overlay) {
+  overlay.classList.remove("active");
+  unlockScroll();
+}
+
 export function openAddModal() {
   state.editingInvoiceId = null;
   document.querySelector(
     '[data-el="add-invoice-modal"] .modal-title',
   ).textContent = "New Invoice";
-  document
-    .querySelector('[data-el="add-invoice-modal"]')
-    .classList.add("active");
-  lockScroll();
+  showOverlay(document.querySelector('[data-el="add-invoice-modal"]'));
   resetAddForm();
   const dateInput = document.querySelector('[data-el="invoice-date"]');
   capAtToday(dateInput);
@@ -95,10 +104,7 @@ export function validateInvoiceDate() {
 }
 
 export function closeAddModal() {
-  document
-    .querySelector('[data-el="add-invoice-modal"]')
-    .classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="add-invoice-modal"]'));
   state.editingInvoiceId = null;
   resetAddForm();
 }
@@ -150,10 +156,7 @@ export async function editInvoice(id) {
   });
 
   calculateTotal();
-  document
-    .querySelector('[data-el="add-invoice-modal"]')
-    .classList.add("active");
-  lockScroll();
+  showOverlay(document.querySelector('[data-el="add-invoice-modal"]'));
 }
 
 function resetAddForm() {
@@ -165,13 +168,11 @@ function resetAddForm() {
 }
 
 export function openImportModal() {
-  document.querySelector('[data-el="import-modal"]').classList.add("active");
-  lockScroll();
+  showOverlay(document.querySelector('[data-el="import-modal"]'));
 }
 
 export function closeImportModal() {
-  document.querySelector('[data-el="import-modal"]').classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="import-modal"]'));
   document.querySelector('[data-el="json-input"]').value = "";
   document.querySelector('[data-el="file-input"]').value = "";
   state.pendingFiles = [];

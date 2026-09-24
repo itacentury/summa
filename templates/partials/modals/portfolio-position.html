@@ -12,12 +12,10 @@
       {{ modal_close_button() }}
     </div>
     <div class="modal-body">
-      {# The footer buttons sit outside this form, so it never submits and the
-         native validation never runs: savePosition() does the checking, and
-         `required` stays on the fields as the accessibility hint. #}
+      {# The buttons sit outside the form, so it never submits: savePosition()
+         validates, and `required` stays as the accessibility hint. #}
       <form data-el="position-form" novalidate>
-        {# Fields are nested in their labels, so each control is named without
-           an id the rest of the app would have to keep unique. #}
+        {# Nested in labels, so no app-wide unique ids are needed. #}
         <label class="form-group mb-1">
           <span class="form-label">Name</span>
           <input
@@ -54,8 +52,7 @@
           <span class="form-label">Depot</span>
           <select class="form-select" data-el="position-depot"></select>
         </label>
-        {# Revealed by the "New depot…" option; on a first run it is the only
-           way to get a depot at all, since none exists yet. #}
+        {# Revealed by "New depot…"; on a first run the only way to get one. #}
         <label class="form-group mb-1 is-hidden" data-el="position-depot-new">
           <span class="form-label">New depot name</span>
           <input

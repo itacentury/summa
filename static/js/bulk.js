@@ -18,10 +18,10 @@ import {
   reinsertRows,
   restoreRows,
 } from "./render.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { getCombobox } from "./combobox.js";
 import { showUndoToast, showErrorToast, hasPendingToast } from "./toast.js";
-import { apiFetch } from "./http.js";
+import { sendJson } from "./http.js";
 
 export function toggleInvoiceSelection(invoiceId, isSelected) {
   if (isSelected) {
@@ -133,16 +133,12 @@ export function openBulkEditModal() {
 
   document.querySelector('[data-el="bulk-edit-count"]').textContent =
     selectedInvoices.size;
-  document.querySelector('[data-el="bulk-edit-modal"]').classList.add("active");
-  lockScroll();
+  showOverlay(document.querySelector('[data-el="bulk-edit-modal"]'));
   storeInput.focus();
 }
 
 export function closeBulkEditModal() {
-  document
-    .querySelector('[data-el="bulk-edit-modal"]')
-    .classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="bulk-edit-modal"]'));
   document.querySelector('[data-el="bulk-edit-store"]').value = "";
   const categoryCombobox = getCombobox("bulk-edit-category");
   categoryCombobox.setValue("");
@@ -200,14 +196,14 @@ export function saveBulkEdit() {
 
   const commit = async () => {
     try {
-      const response = await apiFetch("/api/invoices/bulk-update", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const response = await sendJson(
+        "/api/invoices/bulk-update",
+        "PUT",
+        payload,
         // Survive page unload: a beforeunload-triggered commit must reach the
         // server even as the document tears down.
-        keepalive: true,
-      });
+        { keepalive: true },
+      );
       const result = await response.json();
       if (!result.success) {
         showErrorToast("Failed to update");
@@ -305,14 +301,14 @@ export function bulkDeleteInvoices() {
 
   const commit = async () => {
     try {
-      const response = await apiFetch("/api/invoices/bulk-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+      const response = await sendJson(
+        "/api/invoices/bulk-delete",
+        "POST",
+        { ids },
         // Survive page unload: a beforeunload-triggered commit must reach the
         // server even as the document tears down.
-        keepalive: true,
-      });
+        { keepalive: true },
+      );
       const result = await response.json();
       if (!result.success) {
         showErrorToast("Failed to delete");

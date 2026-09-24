@@ -1,18 +1,11 @@
 """Refresh the benchmark series in ``benchmark_prices`` from a public feed.
 
-Run periodically by the ``benchmark`` compose service (or by hand). The series
-is the MSCI World, taken from the iShares Core MSCI World UCITS ETF on Xetra so
-that it is quoted in EUR and the line the chart draws is not a mix of index
-growth and EUR/USD movement.
+Run by the ``benchmark`` compose service or by hand. The default is the MSCI
+World via the Xetra-listed iShares ETF, so it is quoted in EUR and free of
+EUR/USD movement; the chart rebases the closes, so their level never shows.
 
-Only the closes matter: :func:`summa.portfolio.rebase_to_grid` indexes them to
-the portfolio's own starting value, so the absolute level is never shown.
-
-A failure exits non-zero, which makes the compose loop retry after an hour;
-the error itself shows up in ``docker compose logs benchmark``. Nothing else
-breaks -- the API falls back to the position flagged ``is_benchmark_fallback``
-when the window holds no feed rows, which costs the chart its footnote and
-nothing more.
+A failure exits non-zero so the compose loop retries after an hour; meanwhile
+the API falls back to the ``is_benchmark_fallback`` position.
 """
 
 import argparse
@@ -27,8 +20,9 @@ from typing import Any, Final
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from scripts.portfolio_db import connect, default_database_path
+from scripts.portfolio_db import default_database_path, open_database
 from summa import config
+from summa.portfolio import CLOSE_DIGITS
 
 CHART_URL: Final[str] = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 DEFAULT_RANGE: Final[str] = "2y"
@@ -39,7 +33,6 @@ INTERVAL_TOKENS: Final[tuple[str, ...]] = ("1d", "1wk")
 # urllib's default agent is rejected by the feed often enough to be worth setting.
 USER_AGENT: Final[str] = "summa-fetch-benchmark/1.0"
 EXPECTED_CURRENCY: Final[str] = "EUR"
-CLOSE_DIGITS: Final[int] = 4
 
 EXIT_OK: Final[int] = 0
 EXIT_ERROR: Final[int] = 1
@@ -83,9 +76,8 @@ def _require_list(value: object, what: str) -> list[Any]:
 def to_iso_date(timestamp: float) -> str:
     """Convert a feed timestamp to an ISO date in UTC.
 
-    UTC is explicit because a weekly bar is stamped at the start of its week;
-    reading it in a timezone west of UTC would move that Sunday onto Saturday
-    and shift the whole series by a day.
+    A weekly bar is stamped at the start of its week; a local timezone west of
+    UTC would move it onto the previous day and shift the whole series.
     """
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat()
 
@@ -93,10 +85,8 @@ def to_iso_date(timestamp: float) -> str:
 def parse_chart_payload(payload: object) -> tuple[str, list[BenchmarkPrice]]:
     """Extract the currency and the ascending closes from a chart response.
 
-    Every hop is narrowed explicitly, so a feed that changes shape raises a
-    :class:`FeedError` the caller can report rather than a stray ``TypeError``.
-
-    :raises FeedError: the payload reports an error or carries no usable point.
+    :raises FeedError: the payload reports an error, changed shape or carries no
+        usable point.
     """
     chart: Mapping[str, Any] = _require_mapping(
         _require_mapping(payload, "the response").get("chart"), "chart"
@@ -158,8 +148,7 @@ def parse_chart_payload(payload: object) -> tuple[str, list[BenchmarkPrice]]:
 def fetch_chart(symbol: str, range_token: str, interval: str, timeout: float) -> object:
     """Fetch a symbol's chart payload and return the decoded JSON.
 
-    There is no retry loop: the compose loop retries by running again, and a
-    non-zero exit is how a run reports itself.
+    No retry here: the compose loop reruns after a non-zero exit.
 
     :raises FeedError: on any network, HTTP or decoding failure.
     """
@@ -184,8 +173,8 @@ def upsert_prices(
 ) -> tuple[int, int]:
     """Write the series, refreshing closes already on record.
 
-    The newest bar is the week in progress, so its close moves until the week
-    closes -- which is why this is an upsert and not an ``INSERT OR IGNORE``.
+    An upsert, not ``INSERT OR IGNORE``: the newest bar is the week in progress
+    and its close still moves.
 
     :return: how many rows were inserted and how many were updated.
     """
@@ -214,8 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
             "to its own fallback position in the meantime."
         ),
     )
-    # Read here rather than at import, so the default follows the environment
-    # the run is given -- the same lazy shape summa.config uses throughout.
+    # Read at call time, not import, so the default follows the run's environment.
     configured_symbol: str = config.benchmark_symbol()
     parser.add_argument(
         "--symbol",
@@ -291,16 +279,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Dry run — nothing written")
         return EXIT_OK
 
-    conn: sqlite3.Connection = connect(args.db)
     try:
-        inserted, updated = upsert_prices(conn.cursor(), args.symbol, prices)
-        conn.commit()
+        with open_database(args.db, dry_run=False) as cursor:
+            inserted, updated = upsert_prices(cursor, args.symbol, prices)
     except sqlite3.Error as error:
-        conn.rollback()
         print(f"error: {error}", file=sys.stderr)
         return EXIT_ERROR
-    finally:
-        conn.close()
 
     print(f"Wrote benchmark_prices: {inserted} inserted, {updated} updated")
     return EXIT_OK

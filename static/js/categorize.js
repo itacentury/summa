@@ -18,10 +18,10 @@ import {
   renderInvoices,
   restoreRows,
 } from "./render.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { createCombobox } from "./combobox.js";
 import { getAiModel, setupModelPicker } from "./ai-model.js";
-import { apiFetch } from "./http.js";
+import { apiFetch, sendJson } from "./http.js";
 
 // Per-open review state, reset every time the modal opens.
 let controller = null; // aborts the in-flight suggest request on cancel
@@ -399,17 +399,13 @@ function setFooterVisible(visible) {
 function openModalShell() {
   const modal = document.querySelector('[data-el="categorize-modal"]');
   document.querySelector('[data-el="categorize-subtitle"]').textContent = "";
-  modal.classList.add("active");
-  lockScroll();
+  showOverlay(modal);
 }
 
 export function closeCategorizeModal() {
   controller?.abort();
   controller = null;
-  document
-    .querySelector('[data-el="categorize-modal"]')
-    .classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="categorize-modal"]'));
   contentEl().innerHTML = "";
   setFooterVisible(false);
   reviewRows = [];
@@ -470,12 +466,12 @@ export async function runAnalysis() {
   const current = controller;
   try {
     const [suggestResponse, categoriesResponse] = await Promise.all([
-      apiFetch("/api/invoices/categorize-suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, model: getAiModel() }),
-        signal: current.signal,
-      }),
+      sendJson(
+        "/api/invoices/categorize-suggest",
+        "POST",
+        { ids, model: getAiModel() },
+        { signal: current.signal },
+      ),
       apiFetch("/api/categories"),
     ]);
 
@@ -553,12 +549,12 @@ function applyCategories() {
     try {
       const responses = await Promise.all(
         [...idsByCategory.entries()].map(([category, ids]) =>
-          apiFetch("/api/invoices/bulk-update", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids, category }),
-            keepalive: true,
-          }),
+          sendJson(
+            "/api/invoices/bulk-update",
+            "PUT",
+            { ids, category },
+            { keepalive: true },
+          ),
         ),
       );
       const bodies = await Promise.all(

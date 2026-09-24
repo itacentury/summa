@@ -38,7 +38,7 @@
 .shortcut-row kbd {
   min-width: 1.5rem;
   padding: 2px 6px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-primary);
   text-align: center;
