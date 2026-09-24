@@ -1,15 +1,11 @@
 /**
- * The keyboard and pointer wiring the portfolio's listbox dropdowns share.
- *
- * The interaction rules are the ones combobox.js established — read its
- * comments for why each exists. What a row does when chosen stays with the
- * caller: the depot filter commits one value, the positions filter toggles.
+ * Keyboard and pointer wiring shared by the portfolio's listbox dropdowns.
+ * What a chosen row does stays with the caller.
  */
 
 /**
- * Wire `trigger`, `menu` and `root` (the element holding both).
- *
- * `activate()` acts on the highlighted row, `pick(index)` on a clicked one.
+ * Wire `trigger` and `menu` inside `root`. `activate()` acts on the highlighted
+ * row, `pick(index)` on a clicked one.
  */
 export function bindListboxTrigger({
   root,
@@ -23,8 +19,7 @@ export function bindListboxTrigger({
   activate,
   pick,
 }) {
-  // mousedown, not click: a click on the already-focused trigger fires no focus
-  // event, so focus alone could never close an open menu.
+  // mousedown, not click: a click on the focused trigger fires no focus event.
   trigger.addEventListener("mousedown", (event) => {
     event.preventDefault();
     if (isOpen()) {

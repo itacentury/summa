@@ -1,9 +1,6 @@
 /**
- * The position history dialog: a read-only listing of a position's past weeks.
- *
- * Reads `GET /api/portfolio/positions/<id>/snapshots`, which is the only
- * endpoint serving the weekly rows the rest of the area shows as sums. Nothing
- * here writes — correcting a week stays the snapshot form's job.
+ * The position history dialog: a read-only listing of a position's past weeks
+ * from `GET /api/portfolio/positions/<id>/snapshots`.
  */
 
 import { apiFetch } from "./http.js";
@@ -11,15 +8,13 @@ import { showErrorToast } from "./toast.js";
 import { hideOverlay, showOverlay } from "./modals.js";
 import { historyRowsHtml } from "./portfolio-render.js";
 
-// The rows of the position currently on screen, and how they are filtered.
-// Kept here rather than refetched, so flipping the filter costs no round trip.
+// Kept rather than refetched, so flipping the filter costs no round trip.
 let rows = [];
 let currency = "EUR";
 let paymentsOnly = true;
 let status = "ready"; // "loading" | "ready" | "error"
 let controller = null; // aborts the in-flight history request
 
-/** The dialog's static hooks. */
 function historyElements() {
   const overlay = document.querySelector('[data-el="portfolio-history-modal"]');
   if (!overlay) return null;
@@ -32,13 +27,8 @@ function historyElements() {
 }
 
 /**
- * Re-render the list from what was already fetched.
- *
- * Both the spinner and the failure line are states here rather than markup
- * whoever hit them assigns, because the filter pills stay live behind them: no
- * rows *while loading* or *after a failed load* means "not here yet" and "we
- * never found out", neither of which is what either of `historyRowsHtml`'s
- * empty wordings says.
+ * Re-render the list from what was already fetched. Loading and error are states
+ * here because the filter pills stay live behind them.
  */
 function renderRows() {
   const { list } = historyElements();
@@ -54,7 +44,6 @@ function renderRows() {
   list.innerHTML = historyRowsHtml(rows, { currency, paymentsOnly });
 }
 
-/** Mark the active filter pill, the way the chart's period group does. */
 function syncFilterButtons() {
   const { filter } = historyElements();
   const active = paymentsOnly ? "payments" : "all";
@@ -67,11 +56,8 @@ function syncFilterButtons() {
 }
 
 /**
- * Fetch one position's weeks, aborting whatever was still in flight.
- *
- * The identity check is what keeps a slow reply off a newer position's screen:
- * `rows` and `currency` are module state, so a reply that is no longer the open
- * one would otherwise render its rows under the other position's heading.
+ * Fetch one position's weeks, aborting whatever was still in flight. The
+ * identity checks keep a slow reply off a newer position's screen.
  */
 async function loadHistory(positionId) {
   controller?.abort();
@@ -102,12 +88,7 @@ async function loadHistory(positionId) {
   }
 }
 
-/**
- * Open the dialog for one position.
- *
- * The name comes from the row that triggered this rather than from the reply,
- * so the heading is right while the rows are still loading.
- */
+/** Open the dialog; the name comes from the trigger so the heading shows while loading. */
 export function openHistoryModal(positionId, name) {
   const elements = historyElements();
   if (!elements) return;
@@ -132,14 +113,13 @@ export function closeHistoryModal() {
   hideOverlay(elements.overlay);
 }
 
-/** Wire the dialog. Its trigger is delegated from the positions list. */
+/** Wire the dialog; its trigger is delegated from the positions list. */
 export function setupHistoryListeners() {
   const elements = historyElements();
   if (!elements) return;
   const { overlay, filter } = elements;
 
-  // The X is the only close button; Esc and the backdrop are handled centrally
-  // (keyboard.js falls back to deactivating an overlay that has no Cancel).
+  // Esc and the backdrop are handled centrally in keyboard.js.
   overlay
     .querySelector(".modal-close")
     .addEventListener("click", closeHistoryModal);

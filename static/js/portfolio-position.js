@@ -1,11 +1,6 @@
 /**
- * The add-position dialog: the only way to create a position, and on a first
- * run a depot along with it.
- *
- * Posts to `POST /api/portfolio/positions`, and to `POST /api/portfolio/depots`
- * first when the depot select is left on its "New depot…" entry. Its depot
- * options come from the snapshot prefill, which is the one endpoint that lists
- * every depot including the empty ones.
+ * The add-position dialog, which can also create a depot on the way. Depot
+ * options come from the snapshot prefill, the only endpoint listing empty depots.
  */
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
@@ -15,15 +10,12 @@ import { escapeHtml, withBusyButton } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
 import { isCurrencyCode } from "./portfolio-format.js";
 
-// The value marking the "New depot…" entry. Not an id, so it can never collide
-// with one.
+// Marks "New depot…"; not an id, so it can never collide with one.
 const NEW_DEPOT = "new";
 
-// What to run after a successful save. The snapshot form sets its own, so a
-// position added mid-entry appears in the form the user is still filling in.
+// The snapshot form sets its own, so a new position appears in the open form.
 let onSaved = null;
 
-/** The dialog's static hooks. */
 function positionElements() {
   const overlay = document.querySelector(
     '[data-el="portfolio-position-modal"]',
@@ -41,19 +33,12 @@ function positionElements() {
   };
 }
 
-/** Reveal the new-depot name field exactly while that option is selected. */
 function syncDepotChoice() {
   const { depot, depotNew } = positionElements();
   depotNew.classList.toggle("is-hidden", depot.value !== NEW_DEPOT);
 }
 
-/**
- * Fill the depot select.
- *
- * The "New depot…" entry is always last and is preselected when there is
- * nothing else to pick — the state a fresh install starts in, where the empty
- * view's "Add first position" is the entry point to the whole area.
- */
+/** Fill the depot select; "New depot…" is last and preselected when there are none. */
 function renderDepotOptions(depots) {
   const { depot } = positionElements();
   const options = depots
@@ -67,7 +52,7 @@ function renderDepotOptions(depots) {
   syncDepotChoice();
 }
 
-/** Reset the form to its defaults, so a reopen never shows the last attempt. */
+/** Reset the form, so a reopen never shows the last attempt. */
 function resetForm() {
   const { name, kind, currency, depotName } = positionElements();
   name.value = "";
@@ -88,12 +73,7 @@ async function loadDepots() {
   }
 }
 
-/**
- * Open the dialog.
- *
- * `onSaved` lets the caller decide what a new position means: the snapshot form
- * reloads its prefill, everything else reloads the view.
- */
+/** Open the dialog; `onSaved` replaces the default view reload after a save. */
 export function openPositionModal({ onSaved: handler = null } = {}) {
   const elements = positionElements();
   if (!elements) return;
@@ -123,10 +103,8 @@ export async function createDepot(name) {
 }
 
 /**
- * Create the depot the form asks for, or return the selected one.
- *
- * Returns `null` when the server refused, after reporting why — the caller must
- * not fall back to some other depot.
+ * Create the depot the form asks for, or return the selected one. `null` means
+ * the server refused, and the caller must not fall back to another depot.
  */
 async function resolveDepotId() {
   const { depot, depotName } = positionElements();
@@ -169,7 +147,7 @@ async function savePosition() {
         currency: code,
       });
       if (!response.ok) {
-        // Carries the duplicate-name conflict too, which names the position.
+        // Carries the duplicate-name conflict message too.
         showErrorToast(await errorMessage(response, "Failed to add position"));
         return;
       }
@@ -186,7 +164,7 @@ async function savePosition() {
 
 /**
  * Wire the dialog and the empty view's trigger. The snapshot form binds its own
- * "Add position" button, because it needs the prefill reloaded afterwards.
+ * "Add position" button to reload its prefill afterwards.
  */
 export function setupPositionListeners() {
   const elements = positionElements();

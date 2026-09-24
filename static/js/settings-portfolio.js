@@ -1,10 +1,6 @@
 /**
- * The Settings dialog's Portfolio section: the two Manage rows and their
- * summaries, plus the benchmark fallback select.
- *
- * Everything here reads `GET /api/portfolio?range=max` rather than the snapshot
- * prefill: that is the only endpoint carrying closed positions, and the
- * Positions editor exists to reopen them.
+ * Settings → Portfolio: the two Manage rows and the benchmark fallback select.
+ * Reads `GET /api/portfolio?range=max`, the only endpoint with closed positions.
  */
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
@@ -13,16 +9,10 @@ import { escapeHtml } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
 import { openManageModal } from "./portfolio-manage.js";
 
-// The flagged position, remembered because clearing the select has to unflag a
-// row the payload no longer names.
+// Remembered because clearing the select must unflag a row the payload no longer names.
 let fallbackId = null;
 
-/**
- * The section's hooks, or `null` when it is not on the page.
- *
- * The guard matters: the dialog is wired before anything portfolio-related is
- * known to exist, and a settings fixture without these rows must not fetch.
- */
+/** The section's hooks, or `null` when absent, so a settings fixture never fetches. */
 function settingsElements() {
   const depots = document.querySelector('[data-el="settings-depots-sub"]');
   if (!depots) return null;
@@ -49,10 +39,8 @@ function positionsSummary(depots) {
 }
 
 /**
- * Fill the select with the active positions, preselecting the flagged one.
- *
- * A closed position is left out: it stops contributing a value the week it is
- * sold, so a benchmark drawn from it would flatline from there on.
+ * Fill the select with the active positions. Closed ones are left out: their
+ * value stops at the sale, so a benchmark from them would flatline.
  */
 function renderBenchmarkOptions(select, depots) {
   const active = allPositions(depots).filter((position) => !position.closed_at);
@@ -75,11 +63,8 @@ function renderSection(elements, depots) {
 }
 
 /**
- * Refill the section. Reports its own failures; callers need not await it.
- *
- * A caller that has just fetched the same payload passes its depots in rather
- * than making this refetch them; `null` means "fetch it yourself", which is
- * also what a failed fetch upstream should fall back to.
+ * Refill the section; reports its own failures, so callers need not await it.
+ * Passing already fetched `depots` skips the refetch; `null` fetches.
  */
 export async function refreshPortfolioSettings(depots = null) {
   const elements = settingsElements();
@@ -101,12 +86,7 @@ export async function refreshPortfolioSettings(depots = null) {
   }
 }
 
-/**
- * Move the benchmark fallback flag, or clear it.
- *
- * Only ever one PATCH: the server clears the other flags itself, so setting the
- * new position is the whole operation.
- */
+/** Move the benchmark fallback flag, or clear it; the server clears the others. */
 async function setFallback(value) {
   const selected = value === "" ? null : Number(value);
   const target = selected ?? fallbackId;
@@ -130,7 +110,7 @@ async function setFallback(value) {
 
     fallbackId = selected;
     showNoticeToast("Benchmark updated");
-    // The list behind the dialog carries the badge on the flagged row.
+    // The list behind the dialog shows the badge on the flagged row.
     await loadPortfolio();
   } catch (error) {
     console.error("Error setting the benchmark:", error);
@@ -138,7 +118,6 @@ async function setFallback(value) {
   }
 }
 
-/** Wire the two Manage buttons and the benchmark select. */
 export function setupPortfolioSettings() {
   const elements = settingsElements();
   if (!elements) return;

@@ -1,15 +1,7 @@
 /**
- * The weekly snapshot form: the one entry flow the portfolio has.
- *
- * Prefilled from `GET /api/portfolio/snapshot/new` and posted to
- * `POST /api/portfolio/snapshot`. A blank field is never zero — it is the
- * "carry the previous value forward" signal the API expects — so every value
- * travels as `null` rather than a guessed number.
- *
- * The dialog itself needs no registration: `.modal-overlay` / `.modal-sheet` /
- * `.sheet-grabber` give it focus trapping, `inert`, `Esc`, `Ctrl+Enter`,
- * backdrop close and the mobile drag gesture from keyboard.js, modals.js and
- * sheet.js.
+ * The weekly snapshot form. A blank field travels as `null`, the API's "carry
+ * the previous value forward" signal, never as zero. Focus trap, Esc and the
+ * sheet gesture come from the `.modal-*` classes, so nothing is registered.
  */
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
@@ -26,14 +18,11 @@ import {
 import { loadPortfolio } from "./portfolio.js";
 import { openPositionModal } from "./portfolio-position.js";
 
-// The prefilled positions of the open form, by id: everything the live delta
-// and the footer total need that the DOM does not carry.
+// The open form's prefilled positions: what the delta and total need beyond the DOM.
 const positions = new Map();
 
-// Every date already covered by a snapshot, so re-entering one can announce
-// that it replaces rather than adds — including a week older than the newest,
-// which is where the replacement is least expected. The server upserts
-// silently either way.
+// Lets re-entering any covered date, not just the newest, warn that it
+// replaces; the server upserts silently.
 const knownDates = new Set();
 
 let lastSnapshotDate = null;
@@ -44,7 +33,6 @@ const CURRENCY_SYMBOLS = new Map([
   ["GBP", "£"],
 ]);
 
-/** The dialog's static hooks. Queried per call — the markup never moves. */
 function snapshotElements() {
   const overlay = document.querySelector(
     '[data-el="portfolio-snapshot-modal"]',
@@ -60,7 +48,7 @@ function snapshotElements() {
   };
 }
 
-/** Sign and magnitude without a currency suffix — the delta column is native. */
+/** Signed amount without a currency suffix; the delta column is native. */
 function signedNative(value) {
   return `${value < 0 ? "-" : "+"}${formatAmount(Math.abs(value))}`;
 }
@@ -70,13 +58,8 @@ function currencySymbol(currency) {
 }
 
 /**
- * Build one position row: name, the two inputs, and the delta cell the input
- * handler rewrites.
- *
- * The previous value sits in the value field's placeholder, so leaving the row
- * alone shows what carrying forward will record. When that previous reading was
- * itself carried, the name cell says so: the placeholder and the delta below it
- * then compare against a copy rather than a number anyone entered.
+ * Build one position row. The previous value is the placeholder, so an untouched
+ * row shows what carrying forward records; a carried previous value is flagged.
  */
 function rowHtml(position) {
   const symbol = escapeHtml(currencySymbol(position.currency));
@@ -109,7 +92,6 @@ function rowHtml(position) {
   `;
 }
 
-/** Build the whole list: one label per depot, then its positions. */
 function rowsHtml(depots) {
   return depots
     .map((depot) => {
@@ -129,12 +111,8 @@ function rowElements(row) {
 }
 
 /**
- * Recompute one row's delta: `value − previous value − deposit`, in the
- * position's own currency.
- *
- * The subtraction is the same rule the backend's `week_delta` follows, so a
- * deposit never reads as a gain. An untouched row shows `carried` instead of a
- * number — there is no move to report until a value is entered.
+ * Recompute one row's delta, `value − previous − deposit`, like the backend's
+ * `week_delta`, so a deposit never reads as a gain.
  */
 function updateRow(row) {
   const { position, valueInput, depositInput, delta } = rowElements(row);
@@ -164,13 +142,8 @@ function updateRow(row) {
 }
 
 /**
- * Recompute the footer total: what the portfolio is worth once this form is
- * saved.
- *
- * A blank row contributes the value it carries forward, and each row is
- * converted with the FX rate its last snapshot used — the same rate the server
- * inherits when the field is left empty. Closed positions are absent from the
- * prefill and worth nothing, so the sum is the whole portfolio.
+ * Recompute the footer total the portfolio will be worth once saved. A blank row
+ * counts its carried value, converted with its last FX rate, as the server does.
  */
 function updateTotal() {
   const { rows, total } = snapshotElements();
@@ -188,7 +161,6 @@ function updateTotal() {
   total.textContent = formatEuro(sum);
 }
 
-/** The neutral sub-line: what the form does when a field is left empty. */
 function baseHint() {
   if (!lastSnapshotDate)
     return "Leave a field empty to carry the previous value forward.";
@@ -198,12 +170,8 @@ function baseHint() {
 }
 
 /**
- * Warn — without blocking — when the chosen date already has a snapshot.
- *
- * The server upserts per `(position_id, date)`, so re-entering a week replaces
- * it. That is usually what the user wants, which is why this states the
- * consequence in the sub-line and on the button instead of interrupting with a
- * confirm dialog.
+ * Warn, without blocking, when the chosen date already has a snapshot: replacing
+ * a week is usually intended, so no confirm dialog.
  */
 function syncDateHint() {
   const { date, hint, save } = snapshotElements();
@@ -216,10 +184,7 @@ function syncDateHint() {
   save.textContent = replaces ? "Replace snapshot" : "Save snapshot";
 }
 
-/**
- * Take over a prefill payload: remember its positions, render the rows and put
- * the date, the hint and the total in their initial state.
- */
+/** Take over a prefill payload and return how many positions it holds. */
 function applyPrefill(payload) {
   const { date, rows } = snapshotElements();
 
@@ -239,8 +204,8 @@ function applyPrefill(payload) {
 
   rows.innerHTML = rowsHtml(depots);
 
-  // The suggestion is the last snapshot plus a week and can therefore fall in
-  // the future, which the POST rejects outright.
+  // The suggestion (last snapshot + a week) may lie in the future, which the
+  // POST rejects.
   const today = todayIso();
   date.max = today;
   date.value = payload.suggested_date > today ? today : payload.suggested_date;
@@ -251,10 +216,7 @@ function applyPrefill(payload) {
   return positions.size;
 }
 
-/**
- * Load the prefill into the open dialog. With no positions at all there is
- * nothing to enter, so the form hands over to the position dialog instead.
- */
+/** Load the prefill; with no positions, hand over to the position dialog. */
 async function loadPrefill() {
   const { rows } = snapshotElements();
   rows.innerHTML =
@@ -275,12 +237,7 @@ async function loadPrefill() {
   }
 }
 
-/**
- * Open the snapshot dialog, then fill it.
- *
- * The overlay is activated first so focus lands on the date field and the
- * spinner is shown inside a real dialog rather than behind the page.
- */
+/** Open the dialog first, so focus and the spinner land inside it, then fill it. */
 export function openSnapshotModal() {
   const elements = snapshotElements();
   if (!elements) return;
@@ -288,7 +245,7 @@ export function openSnapshotModal() {
   loadPrefill();
 }
 
-/** Close the dialog and drop the rendered rows, so a stale list cannot flash. */
+/** Close the dialog and drop the rows, so a stale list cannot flash. */
 export function closeSnapshotModal() {
   const elements = snapshotElements();
   if (!elements) return;
@@ -298,11 +255,8 @@ export function closeSnapshotModal() {
 }
 
 /**
- * Collect the entered rows, or report the first field that cannot be read.
- *
- * A position without any history cannot carry anything forward — the server
- * rejects that row — so an empty value is caught here, where it can still name
- * the field.
+ * Collect the entered rows, or report the first unreadable field. A first
+ * snapshot needs a value, caught here so the field can be named.
  */
 function collectRows() {
   const { rows } = snapshotElements();
@@ -330,11 +284,8 @@ function collectRows() {
 }
 
 /**
- * Post the form, then reload the view.
- *
- * No optimistic patch: loadPortfolio() leaves the rendered list on screen while
- * it refetches, so the only thing an optimistic pass would add is a second,
- * client-side implementation of the server's gain arithmetic.
+ * Post the form, then reload the view. No optimistic patch: it would duplicate
+ * the server's gain arithmetic on the client.
  */
 async function saveSnapshot() {
   const { date, save } = snapshotElements();
@@ -362,8 +313,7 @@ async function saveSnapshot() {
         rows: collected.rows,
       });
       if (!response.ok) {
-        // The dialog stays open: the server's message names the offending row,
-        // and re-entering the whole week would be the alternative.
+        // The dialog stays open; the message names the offending row.
         showErrorToast(await errorMessage(response, "Failed to save snapshot"));
         return;
       }
@@ -377,10 +327,7 @@ async function saveSnapshot() {
   });
 }
 
-/**
- * Wire the dialog and every trigger that opens it (toolbar button and mobile
- * FAB). The rows are delegated — they are rendered per open.
- */
+/** Wire the dialog and its triggers; the rows are delegated as they render per open. */
 export function setupSnapshotListeners() {
   const elements = snapshotElements();
   if (!elements) return;
@@ -400,8 +347,7 @@ export function setupSnapshotListeners() {
     .querySelector('[data-action="save-snapshot"]')
     .addEventListener("click", saveSnapshot);
 
-  // The dialog's own add-position trigger: a new position has to appear in the
-  // form the user is still filling in, so the prefill is reloaded on success.
+  // Reloads the prefill so a new position appears in the open form.
   overlay
     .querySelector('[data-action="add-position"]')
     .addEventListener("click", () =>

@@ -1,10 +1,6 @@
 /**
- * The Manage editor behind both Settings → Portfolio rows.
- *
- * One dialog, two modes: depots are renamed and created here, positions are
- * renamed, reclassified, moved between depots, closed and reopened. Deleting is
- * deliberately absent — a position's history is the portfolio's history, and
- * closing is what "I no longer hold this" means (see `closed_at` in db.py).
+ * The Manage editor behind both Settings → Portfolio rows (depots or positions).
+ * No delete: closing is what "I no longer hold this" means, and keeps the history.
  */
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
@@ -20,20 +16,16 @@ import {
 import { loadPortfolio } from "./portfolio.js";
 import { createDepot, openPositionModal } from "./portfolio-position.js";
 
-// Which editor is open, what to tell the caller afterwards, and the payload the
-// rows are built from.
 let mode = "depots";
 let onChanged = null;
 let depots = [];
-// The row whose inline form is open, `NEW_ENTRY` while one is being added, or
-// null. Only ever one: two open forms would each claim to hold the truth about
-// a name.
+// The row whose inline form is open, `NEW_ENTRY` while adding, or null. Only
+// ever one, so two forms can never disagree about a name.
 let editingId = null;
 
-// Marks the add form. Not an id, so it can never collide with one.
+// Not an id, so it can never collide with one.
 const NEW_ENTRY = "new";
 
-/** The dialog's static hooks. */
 function manageElements() {
   const overlay = document.querySelector('[data-el="portfolio-manage-modal"]');
   if (!overlay) return null;
@@ -73,7 +65,6 @@ function kindOptionsHtml(selectedKind) {
     .join("");
 }
 
-/** The form buttons every inline editor ends with. */
 function formActionsHtml(id, extra = "") {
   return `
     <div class="manage-form-actions">
@@ -191,10 +182,8 @@ function renderList() {
 }
 
 /**
- * Refetch and repaint. The payload is the editor's only source of truth.
- *
- * Returns the depots it fetched, or `null` when the fetch failed, so a caller
- * refreshing the same data need not request it a second time.
+ * Refetch and repaint. Returns the fetched depots, or `null` on failure, so a
+ * caller need not request the same data again.
  */
 async function reload() {
   const { list } = manageElements();
@@ -211,10 +200,7 @@ async function reload() {
   }
 }
 
-/**
- * Repaint everything a write can change: the list, the caller that opened the
- * dialog, and the portfolio view behind it.
- */
+/** Repaint the list, the caller that opened the dialog, and the portfolio view. */
 async function repaintAfterWrite() {
   const fresh = await reload();
   await onChanged?.(fresh);
@@ -222,16 +208,14 @@ async function repaintAfterWrite() {
 }
 
 /**
- * Apply one write, then repaint everything it could have changed.
- *
- * Returns whether it went through, so a caller can leave the form open on a
- * refusal with what the user typed still in it.
+ * Apply one write, then repaint. Returns whether it went through, so a refusal
+ * can leave the form open with the user's input.
  */
 async function sendPatch(url, body, notice) {
   try {
     const response = await sendJson(url, "PATCH", body);
     if (!response.ok) {
-      // Carries the duplicate-name conflict, which names the offending row.
+      // Carries the duplicate-name conflict message.
       showErrorToast(await errorMessage(response, "Failed to save"));
       return false;
     }
@@ -247,7 +231,7 @@ async function sendPatch(url, body, notice) {
   return true;
 }
 
-/** Collect the open form and send only the fields it actually changed. */
+/** Send only the fields the open form actually changed. */
 async function saveRow(id) {
   const { list } = manageElements();
   const name = list.querySelector('[data-el="manage-name"]').value.trim();
@@ -302,7 +286,6 @@ async function saveRow(id) {
   );
 }
 
-/** Close a position, or reopen it — the flag is the whole operation. */
 async function toggleClosed(id) {
   const position = allPositions().find((entry) => entry.id === id);
   const closing = !position.closed_at;
@@ -313,7 +296,6 @@ async function toggleClosed(id) {
   );
 }
 
-/** Create a depot from the name the footer's form asks for. */
 async function addDepot(name) {
   try {
     if ((await createDepot(name)) === null) return;
@@ -328,10 +310,7 @@ async function addDepot(name) {
   await repaintAfterWrite();
 }
 
-/**
- * The footer button: a depot is named in an inline form at the top of the list,
- * while a position needs the fields only the add-position dialog has.
- */
+/** Add a depot inline, or open the add-position dialog for its extra fields. */
 function addEntry() {
   if (mode === "positions") {
     openPositionModal({ onSaved: repaintAfterWrite });
@@ -363,12 +342,7 @@ export function closeManageModal() {
   hideOverlay(elements.overlay);
 }
 
-/**
- * Wire the dialog.
- *
- * The row actions are delegated to the list, which survives every repaint; the
- * rows themselves do not.
- */
+/** Wire the dialog; row actions are delegated because the rows are repainted. */
 export function setupManageListeners() {
   const elements = manageElements();
   if (!elements) return;

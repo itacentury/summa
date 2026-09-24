@@ -1,23 +1,18 @@
 /**
- * The portfolio toolbar's depot filter: a small listbox dropdown.
- *
- * Deliberately not an instance of `combobox.js`: that control is a searchable
- * text input whose committed value *is* the option label, while a depot has an
- * id the filter speaks and a name the user reads. Its keyboard and pointer
- * wiring is the one listbox.js shares with the positions filter.
+ * The portfolio toolbar's depot filter: a small listbox dropdown. Not a
+ * `combobox.js` instance, because a depot's value (id) differs from its label.
  */
 
 import { escapeHtml } from "./dom.js";
 import { bindListboxTrigger } from "./listbox.js";
 
-// The leading row, and the value `state.depotFilter` carries when nothing is
-// filtered. Kept here so the markup and the storage agree on one token.
+// Also the value `state.depotFilter` carries when nothing is filtered.
 export const DEPOT_ALL = "all";
 const ALL_LABEL = "All depots";
 
 /**
- * Create the depot filter bound to `root` (the `.portfolio-depot` element).
- * `onChange(value)` fires only on a user-driven selection, never on setValue().
+ * Create the depot filter bound to `root`. `onChange(value)` fires only on a
+ * user-driven selection, never on setValue().
  */
 export function createDepotFilter(root, { onChange } = {}) {
   const trigger = root.querySelector(".portfolio-depot-trigger");
@@ -27,7 +22,6 @@ export function createDepotFilter(root, { onChange } = {}) {
   menu.id = "portfolio-depot-menu";
   trigger.setAttribute("aria-controls", menu.id);
 
-  // Every selectable row in render order: the "all" entry plus one per depot.
   let entries = [{ value: DEPOT_ALL, name: ALL_LABEL }];
   let value = DEPOT_ALL;
   let highlighted = 0;
@@ -79,7 +73,7 @@ export function createDepotFilter(root, { onChange } = {}) {
     open = true;
     root.classList.add("is-open");
     trigger.setAttribute("aria-expanded", "true");
-    // Start on the committed row, so Arrow keys move relative to what is set.
+    // Start on the committed row.
     highlighted = Math.max(
       0,
       entries.findIndex((entry) => entry.value === value),
@@ -95,8 +89,7 @@ export function createDepotFilter(root, { onChange } = {}) {
     if (onChange) onChange(value);
   };
 
-  // Shared with setOptions(): the highlight is a bare index, so replacing the
-  // rows is as able to strand it past the last one as moving it is.
+  // Also needed by setOptions(): replacing the rows can strand the index.
   const clampHighlight = () => {
     highlighted = Math.max(0, Math.min(entries.length - 1, highlighted));
   };

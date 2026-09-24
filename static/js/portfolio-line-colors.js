@@ -1,24 +1,15 @@
 /**
- * Which palette colour each selected chart line draws in.
- *
- * Pure: the assignment is derived from the previous one plus the new selection,
- * so it can be proven without a DOM or a Chart instance. Two rules carry it —
- * a position keeps the slot it was given for as long as it stays selected, and
- * a deselected one hands its slot back to the next newcomer. Together they keep
- * the eight colours distinct without repainting the lines left behind.
+ * Which palette colour each selected chart line draws in. Pure: a position keeps
+ * its slot while selected, and a freed slot goes to the next newcomer.
  */
 
 import { chartColors, PORTFOLIO_MAX_LINES } from "./state.js";
 import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
 
 /**
- * The palette slot per selected position id, carried over where it already
- * existed.
- *
- * A newcomer takes the lowest free slot, in selection order. Once every slot is
- * taken the remaining ids get none at all: the filter caps the selection long
- * before that, and drawing nothing is the honest outcome of a full palette,
- * where a repeated colour would claim two holdings are one.
+ * The palette slot per selected position id, carried over where it existed.
+ * Newcomers take the lowest free slot; past a full palette they get none, since
+ * a repeated colour would claim two holdings are one.
  *
  * @param {Map<number, number>} previous the assignment to carry over
  * @param {string|number[]} selection `POSITIONS_ALL`, or the selected ids
