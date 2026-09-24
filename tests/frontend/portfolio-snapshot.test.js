@@ -691,6 +691,16 @@ describe("add position", () => {
           { success: false, error: "A depot named 'TR' already exists" },
           { ok: false, status: 409 },
         ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          prefill({
+            depots: [
+              { id: 1, name: "TR", positions: [] },
+              { id: 7, name: "Trade Republic", positions: [] },
+            ],
+          }),
+        ),
       );
     document.querySelector('[data-el="position-save"]').click();
     await flushUi();
@@ -702,7 +712,21 @@ describe("add position", () => {
     expect(retryCalls.map(([url]) => url)).toEqual([
       "/api/portfolio/snapshot/new",
       "/api/portfolio/depots/7",
+      "/api/portfolio/snapshot/new",
     ]);
+    expect(depotSelect().querySelector('option[value="7"]').textContent).toBe(
+      "Trade Republic",
+    );
+    expect(depotSelect().value).toBe("new");
+
+    // The created depot is picked under the name the server kept.
+    depotSelect().value = "7";
+    global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(lastRequest()[0]).toBe("/api/portfolio/positions");
+    expect(lastBody().depot_id).toBe(7);
   });
 
   // The depot request never answers; whether the server wrote it is unknown.
