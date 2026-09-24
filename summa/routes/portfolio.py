@@ -230,8 +230,9 @@ def _fallback_points(
     """Return the deposit-free growth of the position flagged as benchmark fallback, and its name.
 
     Ignores the depot filter on purpose: the benchmark is the chart's yardstick,
-    not part of the selection. Only one position carries the flag
-    (_clear_other_fallbacks), so LIMIT 1 is the whole set.
+    not part of the selection. At most one position carries the flag — the write
+    routes clear it on every other position whenever one is set
+    (_clear_other_fallbacks in portfolio_writes.py) — so LIMIT 1 is the whole set.
     """
     cursor.execute(
         "SELECT id, name FROM portfolio_positions WHERE is_benchmark_fallback = 1 LIMIT 1"
