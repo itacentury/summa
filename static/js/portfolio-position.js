@@ -17,7 +17,7 @@ const NEW_DEPOT = "new";
 let onSaved = null;
 
 // A depot the server created but whose id is still unknown, so a retry looks
-// it up by name instead of posting it again.
+// it up by name instead of posting it again, and renames it if the name changed.
 let unresolvedDepotName = null;
 
 function positionElements() {
@@ -110,6 +110,17 @@ async function requestDepot(name) {
   return response;
 }
 
+/** Rename a depot, or return `false` after reporting a refusal. */
+async function renameDepot(id, name) {
+  const response = await sendJson(`/api/portfolio/depots/${id}`, "PATCH", {
+    name,
+  });
+  if (response.ok) return true;
+  // Carries the duplicate-name conflict message.
+  showErrorToast(await errorMessage(response, "Failed to rename depot"));
+  return false;
+}
+
 /**
  * Create a depot, or return `false` after reporting a refusal. The body is left
  * unread, so a caller that needs no id cannot fail on it after the depot exists.
@@ -150,13 +161,16 @@ function selectCreatedDepot(id, name) {
 /** Create a depot and return its id, or `null` after reporting a refusal. */
 async function createDepot(name) {
   let id = null;
-  if (name !== unresolvedDepotName) {
+  if (unresolvedDepotName === null) {
     const response = await requestDepot(name);
     if (response === null) return null;
     unresolvedDepotName = name;
     id = await readDepotId(response);
   }
-  id ??= await findDepotId(name);
+  id ??= await findDepotId(unresolvedDepotName);
+  if (name !== unresolvedDepotName && !(await renameDepot(id, name))) {
+    return null;
+  }
   unresolvedDepotName = null;
   selectCreatedDepot(id, name);
   return id;

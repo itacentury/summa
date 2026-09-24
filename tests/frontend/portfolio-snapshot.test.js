@@ -572,6 +572,87 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
+  // Leaves "Trade Republic" created on the server but its id unknown.
+  async function failFirstDepotAttempt() {
+    await openPositionForm(prefill({ depots: [] }));
+    document.querySelector('[data-el="position-name"]').value =
+      "MSCI World SRI";
+    document.querySelector('[data-el="position-depot-name"]').value =
+      "Trade Republic";
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => {
+          throw new SyntaxError("bad json");
+        },
+      })
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Server error" },
+          { ok: false, status: 500 },
+        ),
+      );
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+  }
+
+  const createdDepotPrefill = () =>
+    jsonResponse(
+      prefill({ depots: [{ id: 7, name: "Trade Republic", positions: [] }] }),
+    );
+
+  it("renames the created depot when its name changes before a retry", async () => {
+    // Posting "TR" instead would leave "Trade Republic" behind empty.
+    await failFirstDepotAttempt();
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(createdDepotPrefill())
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots/7",
+      "/api/portfolio/positions",
+    ]);
+    const [, renameInit] = retryCalls[1];
+    expect(renameInit.method).toBe("PATCH");
+    expect(JSON.parse(renameInit.body)).toEqual({ name: "TR" });
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("reports a refused rename and adds no position", async () => {
+    await failFirstDepotAttempt();
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(createdDepotPrefill())
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "A depot named 'TR' already exists" },
+          { ok: false, status: 409 },
+        ),
+      );
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(showErrorToast).toHaveBeenCalledWith(
+      "A depot named 'TR' already exists",
+    );
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots/7",
+    ]);
+  });
+
   it("keeps a created depot selected when the position is refused", async () => {
     // A retry must not post the depot a second time: its name is taken now.
     await openPositionForm(prefill({ depots: [] }));
