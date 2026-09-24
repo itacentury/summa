@@ -88,6 +88,9 @@
   --list-chrome-mobile: 329px; /* mobile top bar makes the chrome taller */
   --search-row-chrome: 84px; /* desktop search 2nd row: gap + field + spacing */
 
+  /* Typography */
+  --font-mono: "JetBrains Mono", monospace;
+
   /* Legacy compatibility shim — remapped to warm equivalents so component
      stylesheets keep rendering until each is restyled in its own milestone.
      Pruned in the final polish milestone once no rule references them. */
