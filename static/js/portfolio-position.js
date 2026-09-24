@@ -84,7 +84,7 @@ async function fetchDepots() {
 }
 
 /** Fetch and render the depot list, returning it; failures propagate. */
-async function listDepots() {
+async function refreshDepotList() {
   const depots = await fetchDepots();
   renderDepotOptions(depots);
   depotListLoaded = true;
@@ -93,7 +93,7 @@ async function listDepots() {
 
 async function loadDepots() {
   try {
-    await listDepots();
+    await refreshDepotList();
   } catch (error) {
     console.error("Error loading depots:", error);
     renderDepotOptions([]);
@@ -109,7 +109,7 @@ async function loadDepots() {
 async function offerCreatedDepot() {
   let depots;
   try {
-    depots = await listDepots();
+    depots = await refreshDepotList();
   } catch (error) {
     console.error("Error reloading depots:", error);
     return;
