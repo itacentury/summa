@@ -19,7 +19,7 @@ from summa.helpers import (
     parse_float,
     require_non_empty_str,
 )
-from summa.portfolio import CURRENCY_CODE_LENGTH, DEFAULT_CURRENCY
+from summa.portfolio import CURRENCY_CODE_LENGTH, DEFAULT_CURRENCY, DEFAULT_FX_RATE
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -246,7 +246,7 @@ def _resolve_snapshot_row(
     fx_rate: float | None = row.fx_rate
     if fx_rate is None:
         baseline: Any | None = stored if stored is not None else previous
-        fx_rate = 1.0 if baseline is None else baseline["fx_rate"]
+        fx_rate = DEFAULT_FX_RATE if baseline is None else baseline["fx_rate"]
 
     return _ResolvedRow(
         position_id=row.position_id,

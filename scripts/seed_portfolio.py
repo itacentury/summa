@@ -30,7 +30,7 @@ from scripts.portfolio_db import (
     resolve_position,
 )
 from summa import config
-from summa.portfolio import AMOUNT_DIGITS, CLOSE_DIGITS
+from summa.portfolio import AMOUNT_DIGITS, CLOSE_DIGITS, DEFAULT_FX_RATE
 
 DEFAULT_WEEKS: Final[int] = 156
 DEFAULT_SEED: Final[int] = 20260921
@@ -383,8 +383,8 @@ def _variance_drag(spec: PositionSpec) -> float:
 
 def _fx_series(rng: Random, base_rate: float, length: int) -> list[float]:
     """Draw a slowly drifting weekly FX rate, clamped to `FX_BAND` around the base."""
-    if base_rate == 1.0:
-        return [1.0] * length
+    if base_rate == DEFAULT_FX_RATE:
+        return [DEFAULT_FX_RATE] * length
 
     low: float = base_rate * FX_BAND[0]
     high: float = base_rate * FX_BAND[1]

@@ -39,7 +39,7 @@ class Snapshot:
     date: str
     value: float
     deposit: float = 0.0
-    fx_rate: float = 1.0
+    fx_rate: float = DEFAULT_FX_RATE
     carried: bool = False
     derived: bool = False
 
@@ -529,7 +529,7 @@ def build_position_view(position: Position) -> PositionView:
     """Derive every displayed number for one position from its snapshots."""
     latest: Snapshot | None = position.snapshots[-1] if position.snapshots else None
     native_value: float = latest.value if latest is not None else 0.0
-    fx_rate: float = latest.fx_rate if latest is not None else 1.0
+    fx_rate: float = latest.fx_rate if latest is not None else DEFAULT_FX_RATE
     current_value: float = value_eur(native_value, fx_rate)
     invested: float = invested_eur(position.snapshots)
     contributed: float = contributed_eur(position.snapshots)
