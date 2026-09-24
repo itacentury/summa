@@ -727,11 +727,13 @@ describe("add position", () => {
 
     // The created depot is picked under the name the server kept.
     depotSelect().value = "7";
+    const pickCallsBefore = global.fetch.mock.calls.length;
     global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
     document.querySelector('[data-el="position-save"]').click();
     await flushUi();
 
-    expect(lastRequest()[0]).toBe("/api/portfolio/positions");
+    const pickCalls = global.fetch.mock.calls.slice(pickCallsBefore);
+    expect(pickCalls.map(([url]) => url)).toEqual(["/api/portfolio/positions"]);
     expect(lastBody().depot_id).toBe(7);
   });
 
