@@ -252,6 +252,29 @@ describe("manage editor", () => {
     ).toHaveLength(2);
   });
 
+  it("adds a depot even when the created response has no readable body", async () => {
+    global.fetch = vi.fn(async (url, options) => {
+      if (options?.method !== "POST") return jsonResponse(payload());
+      return {
+        ok: true,
+        status: 201,
+        json: async () => {
+          throw new SyntaxError("bad json");
+        },
+      };
+    });
+    const onChanged = vi.fn(async () => {});
+    await open("depots", { onChanged });
+
+    document.querySelector('[data-el="manage-add"]').click();
+    list().querySelector('[data-el="manage-name"]').value = "Scalable";
+    clickAction("manage-save");
+    await flushUi();
+
+    expect(showErrorToast).not.toHaveBeenCalled();
+    expect(onChanged).toHaveBeenCalledWith(payload().depots);
+  });
+
   it("hands adding a position to the dialog that has the fields", async () => {
     await open("positions");
 

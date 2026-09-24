@@ -146,4 +146,11 @@ describe("errorMessage", () => {
 
     await expect(errorMessage(response, "Failed")).resolves.toBe("Failed");
   });
+
+  it("falls back when the body is JSON null", async () => {
+    const { errorMessage } = await loadHttp();
+    const response = jsonResponse(null, { ok: false });
+
+    await expect(errorMessage(response, "Failed")).resolves.toBe("Failed");
+  });
 });
