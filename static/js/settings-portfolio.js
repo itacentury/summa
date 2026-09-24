@@ -7,7 +7,7 @@
  * Positions editor exists to reopen them.
  */
 
-import { apiFetch } from "./http.js";
+import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { escapeHtml } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
@@ -114,14 +114,15 @@ async function setFallback(value) {
 
   const previous = fallbackId;
   try {
-    const response = await apiFetch(`/api/portfolio/positions/${target}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_benchmark_fallback: selected !== null }),
-    });
+    const response = await sendJson(
+      `/api/portfolio/positions/${target}`,
+      "PATCH",
+      { is_benchmark_fallback: selected !== null },
+    );
     if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      showErrorToast(payload.error ?? "Failed to set the benchmark");
+      showErrorToast(
+        await errorMessage(response, "Failed to set the benchmark"),
+      );
       settingsElements().benchmark.value =
         previous === null ? "" : String(previous);
       return;

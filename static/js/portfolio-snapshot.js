@@ -12,7 +12,7 @@
  * sheet.js.
  */
 
-import { apiFetch } from "./http.js";
+import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml, todayIso } from "./dom.js";
@@ -361,16 +361,14 @@ async function saveSnapshot() {
   save.innerHTML = '<div class="spinner"></div>';
   save.disabled = true;
   try {
-    const response = await apiFetch("/api/portfolio/snapshot", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: date.value, rows: collected.rows }),
+    const response = await sendJson("/api/portfolio/snapshot", "POST", {
+      date: date.value,
+      rows: collected.rows,
     });
     if (!response.ok) {
       // The dialog stays open: the server's message names the offending row,
       // and re-entering the whole week would be the alternative.
-      const payload = await response.json().catch(() => ({}));
-      showErrorToast(payload.error ?? "Failed to save snapshot");
+      showErrorToast(await errorMessage(response, "Failed to save snapshot"));
       return;
     }
     closeSnapshotModal();

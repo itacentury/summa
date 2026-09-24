@@ -28,7 +28,7 @@ import {
   restoreRows,
   renderInvoices,
 } from "./render.js";
-import { apiFetch } from "./http.js";
+import { apiFetch, sendJson } from "./http.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -88,11 +88,7 @@ async function createInvoice(payload) {
   saveButton.disabled = true;
 
   try {
-    const response = await apiFetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const response = await sendJson("/api/invoices", "POST", payload);
 
     if (!response.ok) {
       showErrorToast("Failed to save");
@@ -143,14 +139,14 @@ function deferInvoiceUpdate(id, payload) {
 
   const commit = async () => {
     try {
-      const response = await apiFetch(`/api/invoices/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const response = await sendJson(
+        `/api/invoices/${id}`,
+        "PUT",
+        payload,
         // Survive page unload: a beforeunload-triggered commit must reach the
         // server even as the document tears down.
-        keepalive: true,
-      });
+        { keepalive: true },
+      );
       if (!response.ok) {
         showErrorToast("Failed to update");
         restore();

@@ -7,7 +7,7 @@
  * closing is what "I no longer hold this" means (see `closed_at` in db.py).
  */
 
-import { apiFetch } from "./http.js";
+import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
@@ -229,15 +229,10 @@ async function repaintAfterWrite() {
  */
 async function sendPatch(url, body, notice) {
   try {
-    const response = await apiFetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const response = await sendJson(url, "PATCH", body);
     if (!response.ok) {
       // Carries the duplicate-name conflict, which names the offending row.
-      const payload = await response.json().catch(() => ({}));
-      showErrorToast(payload.error ?? "Failed to save");
+      showErrorToast(await errorMessage(response, "Failed to save"));
       return false;
     }
   } catch (error) {
@@ -321,14 +316,9 @@ async function toggleClosed(id) {
 /** Create a depot from the name the footer's form asks for. */
 async function addDepot(name) {
   try {
-    const response = await apiFetch("/api/portfolio/depots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
+    const response = await sendJson("/api/portfolio/depots", "POST", { name });
     if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      showErrorToast(payload.error ?? "Failed to create depot");
+      showErrorToast(await errorMessage(response, "Failed to create depot"));
       return;
     }
   } catch (error) {

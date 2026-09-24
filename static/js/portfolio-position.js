@@ -8,7 +8,7 @@
  * every depot including the empty ones.
  */
 
-import { apiFetch } from "./http.js";
+import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
@@ -128,14 +128,9 @@ async function resolveDepotId() {
     return null;
   }
 
-  const response = await apiFetch("/api/portfolio/depots", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  const response = await sendJson("/api/portfolio/depots", "POST", { name });
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    showErrorToast(payload.error ?? "Failed to create depot");
+    showErrorToast(await errorMessage(response, "Failed to create depot"));
     return null;
   }
   return (await response.json()).id;
@@ -164,20 +159,15 @@ async function savePosition() {
     const depotId = await resolveDepotId();
     if (depotId === null) return;
 
-    const response = await apiFetch("/api/portfolio/positions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        depot_id: depotId,
-        name: positionName,
-        kind: kind.value,
-        currency: code,
-      }),
+    const response = await sendJson("/api/portfolio/positions", "POST", {
+      depot_id: depotId,
+      name: positionName,
+      kind: kind.value,
+      currency: code,
     });
     if (!response.ok) {
       // Carries the duplicate-name conflict too, which names the position.
-      const payload = await response.json().catch(() => ({}));
-      showErrorToast(payload.error ?? "Failed to add position");
+      showErrorToast(await errorMessage(response, "Failed to add position"));
       return;
     }
 
