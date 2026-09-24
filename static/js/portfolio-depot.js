@@ -3,11 +3,12 @@
  *
  * Deliberately not an instance of `combobox.js`: that control is a searchable
  * text input whose committed value *is* the option label, while a depot has an
- * id the filter speaks and a name the user reads. The interaction rules below
- * are the ones combobox.js established — read its comments for why each exists.
+ * id the filter speaks and a name the user reads. Its keyboard and pointer
+ * wiring is the one listbox.js shares with the positions filter.
  */
 
 import { escapeHtml } from "./dom.js";
+import { bindListboxTrigger } from "./listbox.js";
 
 // The leading row, and the value `state.depotFilter` carries when nothing is
 // filtered. Kept here so the markup and the storage agree on one token.
@@ -106,56 +107,17 @@ export function createDepotFilter(root, { onChange } = {}) {
     applyHighlight();
   };
 
-  // mousedown, not click: a click on the already-focused trigger fires no focus
-  // event, so focus alone could never close an open menu.
-  trigger.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    if (open) closeMenu();
-    else {
-      trigger.focus();
-      openMenu();
-    }
-  });
-
-  trigger.addEventListener("keydown", (event) => {
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        if (open) moveHighlight(1);
-        else openMenu();
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        if (open) moveHighlight(-1);
-        break;
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        if (open) commit(entries[highlighted].value);
-        else openMenu();
-        break;
-      case "Escape":
-        if (open) {
-          event.preventDefault();
-          closeMenu();
-        }
-        break;
-      case "Tab":
-        closeMenu();
-        break;
-    }
-  });
-
-  // mousedown so it lands before the trigger's focusout closes the menu.
-  menu.addEventListener("mousedown", (event) => {
-    const option = event.target.closest(".portfolio-depot-option");
-    if (!option) return;
-    event.preventDefault();
-    commit(entries[Number(option.dataset.index)].value);
-  });
-
-  root.addEventListener("focusout", (event) => {
-    if (!root.contains(event.relatedTarget)) closeMenu();
+  bindListboxTrigger({
+    root,
+    trigger,
+    menu,
+    optionSelector: ".portfolio-depot-option",
+    isOpen: () => open,
+    open: openMenu,
+    close: closeMenu,
+    move: moveHighlight,
+    activate: () => commit(entries[highlighted].value),
+    pick: (index) => commit(entries[index].value),
   });
 
   applyLabel();

@@ -15,6 +15,7 @@ import { escapeHtml } from "./dom.js";
 import { PORTFOLIO_MAX_LINES } from "./state.js";
 import { createFloatingMenu } from "./floating-menu.js";
 import { setTruncatableText } from "./truncate.js";
+import { bindListboxTrigger } from "./listbox.js";
 
 // The value the filter carries while nothing is picked out. Kept here so the
 // markup, the storage and the chart agree on one token.
@@ -243,61 +244,22 @@ export function createPositionsFilter(root, { onChange } = {}) {
     renderMenu();
   };
 
-  // mousedown, not click: a click on the already-focused trigger fires no focus
-  // event, so focus alone could never close an open menu.
-  trigger.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    if (open) closeMenu();
-    else {
-      trigger.focus();
-      openMenu();
-    }
-  });
-
-  trigger.addEventListener("keydown", (event) => {
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        if (open) moveHighlight(1);
-        else openMenu();
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        if (open) moveHighlight(-1);
-        break;
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        // Toggling deliberately leaves the menu open: picking a second position
-        // is the normal next step, and reopening for it would be busywork.
-        if (open) toggle(highlighted);
-        else openMenu();
-        break;
-      case "Escape":
-        if (open) {
-          event.preventDefault();
-          closeMenu();
-        }
-        break;
-      case "Tab":
-        closeMenu();
-        break;
-    }
-  });
-
-  // mousedown so it lands before the trigger's focusout closes the menu.
-  menu.addEventListener("mousedown", (event) => {
-    const option = event.target.closest(
-      ".portfolio-positions-option, .portfolio-positions-reset",
-    );
-    if (!option) return;
-    event.preventDefault();
-    highlighted = Number(option.dataset.index);
-    toggle(highlighted);
-  });
-
-  root.addEventListener("focusout", (event) => {
-    if (!root.contains(event.relatedTarget)) closeMenu();
+  bindListboxTrigger({
+    root,
+    trigger,
+    menu,
+    optionSelector: ".portfolio-positions-option, .portfolio-positions-reset",
+    isOpen: () => open,
+    open: openMenu,
+    close: closeMenu,
+    move: moveHighlight,
+    // Toggling deliberately leaves the menu open: picking a second position is
+    // the normal next step, and reopening for it would be busywork.
+    activate: () => toggle(highlighted),
+    pick: (index) => {
+      highlighted = index;
+      toggle(index);
+    },
   });
 
   applyLabel();
