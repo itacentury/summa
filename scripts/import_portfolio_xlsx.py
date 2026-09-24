@@ -30,7 +30,15 @@ from typing import Any, Final
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
-from scripts.portfolio_db import connect, connect_mirror, default_database_path
+from scripts.portfolio_db import (
+    SnapshotWrite,
+    connect,
+    connect_mirror,
+    default_database_path,
+    insert_snapshots,
+    resolve_depot,
+    resolve_position,
+)
 
 BAND_ROW: Final[int] = 1
 HEADER_ROW: Final[int] = 2
@@ -474,83 +482,6 @@ def read_grid(
 # --- Writing ----------------------------------------------------------------
 
 
-def resolve_depot(
-    cursor: sqlite3.Cursor, name: str, sort_order: int
-) -> tuple[int, bool]:
-    """Return a depot's id, creating it when missing.
-
-    ``INSERT OR IGNORE ... RETURNING`` yields no row when it ignores, hence the
-    separate lookup.
-
-    :return: the id and whether this call created it.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_depots (name, sort_order) VALUES (?, ?)",
-        (name, sort_order),
-    )
-    created: bool = cursor.rowcount == 1
-    cursor.execute("SELECT id FROM portfolio_depots WHERE name = ?", (name,))
-    row: Any = cursor.fetchone()
-    return int(row["id"]), created
-
-
-def resolve_position(
-    cursor: sqlite3.Cursor, depot_id: int, position: PositionColumn
-) -> tuple[int, bool]:
-    """Return a position's id, creating it when missing.
-
-    An existing position is never updated: the importer only guesses ``kind``
-    and ``currency``, and the UI is allowed to have corrected that guess.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_positions "
-        "(depot_id, name, kind, currency, sort_order) VALUES (?, ?, ?, ?, ?)",
-        (
-            depot_id,
-            position.name,
-            position.kind,
-            position.currency,
-            position.sort_order,
-        ),
-    )
-    created: bool = cursor.rowcount == 1
-    cursor.execute(
-        "SELECT id FROM portfolio_positions WHERE depot_id = ? AND name = ?",
-        (depot_id, position.name),
-    )
-    row: Any = cursor.fetchone()
-    return int(row["id"]), created
-
-
-def insert_snapshots(
-    cursor: sqlite3.Cursor, position_id: int, rows: Sequence[SnapshotRow]
-) -> tuple[int, int]:
-    """Write a position's snapshots, leaving weeks already recorded untouched.
-
-    Rows go in one at a time so ``rowcount`` can tell a write from a conflict;
-    ``executemany`` would collapse the two.
-
-    :return: how many rows were written and how many were already present.
-    """
-    written: int = 0
-    for row in rows:
-        cursor.execute(
-            "INSERT OR IGNORE INTO portfolio_snapshots "
-            "(position_id, date, value, deposit, fx_rate, carried) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                position_id,
-                row.date,
-                row.value,
-                row.deposit,
-                row.fx_rate,
-                int(row.carried),
-            ),
-        )
-        written += cursor.rowcount
-    return written, len(rows) - written
-
-
 def run_import(
     cursor: sqlite3.Cursor,
     columns: Sequence[PositionColumn],
@@ -578,7 +509,12 @@ def run_import(
                 depots_created += 1
 
         position_id, position_is_new = resolve_position(
-            cursor, depot_ids[position.depot], position
+            cursor,
+            depot_ids[position.depot],
+            position.name,
+            position.kind,
+            position.currency,
+            position.sort_order,
         )
         if position_is_new:
             positions_created += 1
@@ -586,9 +522,9 @@ def run_import(
         position_rows: list[SnapshotRow] = rows_by_position.get(
             (position.depot, position.name), []
         )
-        row_written, row_existing = insert_snapshots(cursor, position_id, position_rows)
-        written += row_written
-        existing += row_existing
+        result: SnapshotWrite = insert_snapshots(cursor, position_id, position_rows)
+        written += result.written
+        existing += result.existing
         carried += sum(1 for row in position_rows if row.carried)
 
     return ImportSummary(

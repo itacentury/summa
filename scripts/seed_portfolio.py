@@ -31,7 +31,15 @@ from pathlib import Path
 from random import Random
 from typing import Final
 
-from scripts.portfolio_db import connect, connect_mirror, default_database_path
+from scripts.portfolio_db import (
+    SnapshotWrite,
+    connect,
+    connect_mirror,
+    default_database_path,
+    insert_snapshots,
+    resolve_depot,
+    resolve_position,
+)
 from summa import config
 
 DEFAULT_WEEKS: Final[int] = 156
@@ -143,19 +151,6 @@ class SeedSummary:
     rows_carried: int
     benchmark_written: int
     rows_deleted: int
-
-
-@dataclass(frozen=True)
-class SnapshotWrite:
-    """What one position's insert did to the database.
-
-    :param carried: how many of the *written* rows were carried forward -- a row
-        already present was not written by this run and so is not counted.
-    """
-
-    written: int
-    existing: int
-    carried: int
 
 
 @dataclass(frozen=True)
@@ -665,89 +660,6 @@ def clear_portfolio(cursor: sqlite3.Cursor) -> int:
     return deleted
 
 
-def resolve_depot(cursor: sqlite3.Cursor, depot: SeedDepot) -> tuple[int, bool]:
-    """Return a depot's id, creating it when missing.
-
-    ``INSERT OR IGNORE ... RETURNING`` yields no row when it ignores, hence the
-    separate lookup.
-
-    :return: the id and whether this call created it.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_depots (name, sort_order) VALUES (?, ?)",
-        (depot.name, depot.sort_order),
-    )
-    created: bool = cursor.rowcount == 1
-    row: sqlite3.Row = cursor.execute(
-        "SELECT id FROM portfolio_depots WHERE name = ?", (depot.name,)
-    ).fetchone()
-    return int(row["id"]), created
-
-
-def resolve_position(
-    cursor: sqlite3.Cursor, depot_id: int, position: SeedPosition
-) -> tuple[int, bool]:
-    """Return a position's id, creating it when missing.
-
-    An existing position is never updated: a re-run without ``--reset`` leaves a
-    database that was adjusted by hand exactly as it stands.
-    """
-    cursor.execute(
-        "INSERT OR IGNORE INTO portfolio_positions "
-        "(depot_id, name, kind, currency, is_benchmark_fallback, closed_at, sort_order) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            depot_id,
-            position.name,
-            position.kind,
-            position.currency,
-            int(position.is_benchmark_fallback),
-            position.closed_at,
-            position.sort_order,
-        ),
-    )
-    created: bool = cursor.rowcount == 1
-    row: sqlite3.Row = cursor.execute(
-        "SELECT id FROM portfolio_positions WHERE depot_id = ? AND name = ?",
-        (depot_id, position.name),
-    ).fetchone()
-    return int(row["id"]), created
-
-
-def insert_snapshots(
-    cursor: sqlite3.Cursor, position_id: int, snapshots: Sequence[SeedSnapshot]
-) -> SnapshotWrite:
-    """Write a position's weeks, leaving any already recorded untouched.
-
-    Rows go in one at a time so ``rowcount`` can tell a write from a conflict;
-    ``executemany`` would collapse the two -- and the same per-row answer is what
-    lets the carried rows be counted where they were actually written.
-    """
-    written: int = 0
-    carried: int = 0
-    for snapshot in snapshots:
-        cursor.execute(
-            "INSERT OR IGNORE INTO portfolio_snapshots "
-            "(position_id, date, value, deposit, fx_rate, carried) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                position_id,
-                snapshot.date,
-                snapshot.value,
-                snapshot.deposit,
-                snapshot.fx_rate,
-                int(snapshot.carried),
-            ),
-        )
-        if cursor.rowcount == 0:
-            continue
-        written += 1
-        carried += int(snapshot.carried)
-    return SnapshotWrite(
-        written=written, existing=len(snapshots) - written, carried=carried
-    )
-
-
 def upsert_benchmark(
     cursor: sqlite3.Cursor, symbol: str, prices: Sequence[SeedBenchmarkPrice]
 ) -> int:
@@ -774,7 +686,7 @@ def write_seed_data(cursor: sqlite3.Cursor, data: SeedData, reset: bool) -> Seed
     depot_ids: dict[str, int] = {}
     depots_created: int = 0
     for depot in data.depots:
-        depot_id, depot_is_new = resolve_depot(cursor, depot)
+        depot_id, depot_is_new = resolve_depot(cursor, depot.name, depot.sort_order)
         depot_ids[depot.name] = depot_id
         depots_created += int(depot_is_new)
 
@@ -784,7 +696,14 @@ def write_seed_data(cursor: sqlite3.Cursor, data: SeedData, reset: bool) -> Seed
     carried: int = 0
     for position in data.positions:
         position_id, position_is_new = resolve_position(
-            cursor, depot_ids[position.depot], position
+            cursor,
+            depot_ids[position.depot],
+            position.name,
+            position.kind,
+            position.currency,
+            position.sort_order,
+            is_benchmark_fallback=position.is_benchmark_fallback,
+            closed_at=position.closed_at,
         )
         positions_created += int(position_is_new)
         result: SnapshotWrite = insert_snapshots(
