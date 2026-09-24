@@ -11,7 +11,7 @@
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
-import { escapeHtml } from "./dom.js";
+import { escapeHtml, withBusyButton } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
 import { isCurrencyCode } from "./portfolio-format.js";
 
@@ -159,35 +159,31 @@ async function savePosition() {
     return;
   }
 
-  const originalContent = save.innerHTML;
-  save.innerHTML = '<div class="spinner"></div>';
-  save.disabled = true;
-  try {
-    const depotId = await resolveDepotId();
-    if (depotId === null) return;
+  await withBusyButton(save, async () => {
+    try {
+      const depotId = await resolveDepotId();
+      if (depotId === null) return;
 
-    const response = await sendJson("/api/portfolio/positions", "POST", {
-      depot_id: depotId,
-      name: positionName,
-      kind: kind.value,
-      currency: code,
-    });
-    if (!response.ok) {
-      // Carries the duplicate-name conflict too, which names the position.
-      showErrorToast(await errorMessage(response, "Failed to add position"));
-      return;
+      const response = await sendJson("/api/portfolio/positions", "POST", {
+        depot_id: depotId,
+        name: positionName,
+        kind: kind.value,
+        currency: code,
+      });
+      if (!response.ok) {
+        // Carries the duplicate-name conflict too, which names the position.
+        showErrorToast(await errorMessage(response, "Failed to add position"));
+        return;
+      }
+
+      closePositionModal();
+      showNoticeToast("Position added");
+      await (onSaved ? onSaved() : loadPortfolio());
+    } catch (error) {
+      console.error("Error adding position:", error);
+      showErrorToast("Failed to add position");
     }
-
-    closePositionModal();
-    showNoticeToast("Position added");
-    await (onSaved ? onSaved() : loadPortfolio());
-  } catch (error) {
-    console.error("Error adding position:", error);
-    showErrorToast("Failed to add position");
-  } finally {
-    save.innerHTML = originalContent;
-    save.disabled = false;
-  }
+  });
 }
 
 /**

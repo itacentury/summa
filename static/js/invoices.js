@@ -29,6 +29,7 @@ import {
   renderInvoices,
 } from "./render.js";
 import { apiFetch, sendJson } from "./http.js";
+import { withBusyButton } from "./dom.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -83,30 +84,25 @@ async function createInvoice(payload) {
   const saveButton = document.querySelector(
     '[data-el="add-invoice-modal"] [data-action="save"]',
   );
-  const originalContent = saveButton.innerHTML;
-  saveButton.innerHTML = '<div class="spinner"></div>';
-  saveButton.disabled = true;
+  await withBusyButton(saveButton, async () => {
+    try {
+      const response = await sendJson("/api/invoices", "POST", payload);
 
-  try {
-    const response = await sendJson("/api/invoices", "POST", payload);
+      if (!response.ok) {
+        showErrorToast("Failed to save");
+        return;
+      }
 
-    if (!response.ok) {
+      showNoticeToast("Invoice saved");
+      closeAddModal();
+      refreshLookupsFor(payload.store, payload.category);
+      // A new invoice jumps to page 1 so it is visible at the top of the
+      // date-descending sort.
+      loadInvoices();
+    } catch {
       showErrorToast("Failed to save");
-      return;
     }
-
-    showNoticeToast("Invoice saved");
-    closeAddModal();
-    refreshLookupsFor(payload.store, payload.category);
-    // A new invoice jumps to page 1 so it is visible at the top of the
-    // date-descending sort.
-    loadInvoices();
-  } catch {
-    showErrorToast("Failed to save");
-  } finally {
-    saveButton.innerHTML = originalContent;
-    saveButton.disabled = false;
-  }
+  });
 }
 
 /**

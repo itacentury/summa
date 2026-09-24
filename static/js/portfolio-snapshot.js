@@ -15,7 +15,7 @@
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
-import { escapeHtml, todayIso } from "./dom.js";
+import { escapeHtml, todayIso, withBusyButton } from "./dom.js";
 import {
   formatAmount,
   formatDateDots,
@@ -357,30 +357,26 @@ async function saveSnapshot() {
     return;
   }
 
-  const originalContent = save.innerHTML;
-  save.innerHTML = '<div class="spinner"></div>';
-  save.disabled = true;
-  try {
-    const response = await sendJson("/api/portfolio/snapshot", "POST", {
-      date: date.value,
-      rows: collected.rows,
-    });
-    if (!response.ok) {
-      // The dialog stays open: the server's message names the offending row,
-      // and re-entering the whole week would be the alternative.
-      showErrorToast(await errorMessage(response, "Failed to save snapshot"));
-      return;
+  await withBusyButton(save, async () => {
+    try {
+      const response = await sendJson("/api/portfolio/snapshot", "POST", {
+        date: date.value,
+        rows: collected.rows,
+      });
+      if (!response.ok) {
+        // The dialog stays open: the server's message names the offending row,
+        // and re-entering the whole week would be the alternative.
+        showErrorToast(await errorMessage(response, "Failed to save snapshot"));
+        return;
+      }
+      closeSnapshotModal();
+      await loadPortfolio();
+      showNoticeToast("Snapshot saved");
+    } catch (error) {
+      console.error("Error saving snapshot:", error);
+      showErrorToast("Failed to save snapshot");
     }
-    closeSnapshotModal();
-    await loadPortfolio();
-    showNoticeToast("Snapshot saved");
-  } catch (error) {
-    console.error("Error saving snapshot:", error);
-    showErrorToast("Failed to save snapshot");
-  } finally {
-    save.innerHTML = originalContent;
-    save.disabled = false;
-  }
+  });
 }
 
 /**
