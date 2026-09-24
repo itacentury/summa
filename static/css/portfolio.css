@@ -720,17 +720,23 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
    all-time. Deliberately its own control, not .quick-filters: the portfolio
    period is independent of the invoice one and neither may inherit the other.
    Sized against the header's own padding, and tracked rather than carded, so it
-   does not read as a second card inside .chart-card. */
-.portfolio-period {
+   does not read as a second card inside .chart-card. The history dialog's
+   filter pills share the look. */
+.portfolio-period,
+.portfolio-history-filter {
   display: flex;
-  flex: none;
   gap: 2px;
   padding: 3px;
   background: var(--bg-hover);
   border-radius: 9px;
 }
 
-.portfolio-period-btn {
+.portfolio-period {
+  flex: none;
+}
+
+.portfolio-period-btn,
+.portfolio-history-filter-btn {
   padding: 5px 11px;
   font: inherit;
   font-size: 11.5px;
@@ -743,11 +749,13 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   transition: all var(--transition);
 }
 
-.portfolio-period-btn:hover {
+.portfolio-period-btn:hover,
+.portfolio-history-filter-btn:hover {
   color: var(--text-primary);
 }
 
-.portfolio-period-btn[aria-pressed="true"] {
+.portfolio-period-btn[aria-pressed="true"],
+.portfolio-history-filter-btn[aria-pressed="true"] {
   font-weight: 600;
   color: var(--accent-text-on);
   background: var(--accent);
@@ -1291,39 +1299,6 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   font-weight: 600;
 }
 
-/* Deliberately not .portfolio-period: those pills switch a date range, these
-   switch which weeks are listed, and neither may inherit the other's rules. */
-.portfolio-history-filter {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  background: var(--bg-hover);
-  border-radius: 9px;
-}
-
-.portfolio-history-filter-btn {
-  padding: 5px 11px;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-}
-
-.portfolio-history-filter-btn:hover {
-  color: var(--text-primary);
-}
-
-.portfolio-history-filter-btn[aria-pressed="true"] {
-  font-weight: 600;
-  color: var(--accent-text-on);
-  background: var(--accent);
-}
-
 /* One grid per row rather than a table: the rows are rendered as a flat string
    list, and a shared column template keeps them aligned without one. */
 .portfolio-history-row {
@@ -1450,7 +1425,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 
   /* The header already wraps, so a full-width pill row slots between the title
      and the legend instead of squeezing all three onto one line. */
-  .portfolio-period {
+  .portfolio-period,
+  .portfolio-history-filter {
     flex: 1 0 100%;
   }
 
@@ -1468,7 +1444,8 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
     max-width: none;
   }
 
-  .portfolio-period-btn {
+  .portfolio-period-btn,
+  .portfolio-history-filter-btn {
     flex: 1;
   }
 
@@ -1692,14 +1669,6 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
   .portfolio-detail-action {
     flex: 1 0 100%;
     margin-left: 0;
-  }
-
-  .portfolio-history-filter {
-    flex: 1 0 100%;
-  }
-
-  .portfolio-history-filter-btn {
-    flex: 1;
   }
 
   /* The desktop minimums add up past a phone's width, and the value line has to
