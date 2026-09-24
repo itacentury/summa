@@ -1,10 +1,7 @@
 """REST API routes that read the portfolio area: overview, snapshot prefill and history.
 
-This module is the seam between SQLite and :mod:`summa.portfolio`. It reads rows,
-maps them into that module's dataclasses, calls the derivations and serialises the
-result — it deliberately carries no arithmetic of its own beyond rounding at the
-JSON boundary, so every numeric rule stays provable without a request context.
-The writes live in :mod:`summa.routes.portfolio_writes`.
+Maps SQLite rows into :mod:`summa.portfolio` and serialises the result; no
+arithmetic here beyond rounding at the JSON boundary.
 """
 
 import logging
@@ -25,16 +22,14 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 portfolio_bp: Blueprint = Blueprint("portfolio", __name__)
 
-# The explicit "no filter" token, so ?depot=all is intended behaviour rather than
-# a side effect of int() failing.
+# Explicit token, so ?depot=all is intended rather than an int() failure.
 DEPOT_ALL: Final[str] = "all"
 SNAPSHOT_INTERVAL_DAYS: Final[int] = 7
 PERCENT_DIGITS: Final[int] = 1
 
 
 # --- Rounding ---------------------------------------------------------------
-# summa.portfolio returns full precision on purpose; this is the only place that
-# rounds. Rounding twice is how a subtotal stops matching the rows above it.
+# The only place that rounds: rounding twice breaks subtotals against their rows.
 
 
 def _amount(value: float) -> float:
@@ -80,10 +75,8 @@ def _load_snapshots(
 ) -> dict[int, list[portfolio.Snapshot]]:
     """Load every snapshot of the given positions, grouped by position.
 
-    One query per chunk of positions rather than one per position, and
-    ``ORDER BY date`` is what satisfies the ascending precondition every function
-    in :mod:`summa.portfolio` relies on — chunking cannot disturb it, since a
-    position's rows always land in a single chunk.
+    ``ORDER BY date`` provides the ascending order :mod:`summa.portfolio`
+    requires; a position's rows always land in a single chunk.
     """
     history: dict[int, list[portfolio.Snapshot]] = {
         position_id: [] for position_id in position_ids
@@ -127,8 +120,7 @@ def _load_positions(
     if not rows:
         return []
 
-    # The order is global across depots, so it cannot come from a per-chunk
-    # ORDER BY; sorting the merged rows keeps one source of ordering truth.
+    # The order is global across depots, so it cannot come from a per-chunk ORDER BY.
     rows.sort(key=lambda row: (row["sort_order"], row["name"]))
 
     position_ids: list[int] = [row["id"] for row in rows]
@@ -140,8 +132,7 @@ def _load_positions(
             name=row["name"],
             kind=row["kind"],
             currency=row["currency"],
-            # A sold position's closing row is derived here rather than stored,
-            # so closing one never overwrites the week it was sold in.
+            # Derived, never stored, so closing never overwrites the week sold in.
             snapshots=portfolio.with_sale_recorded(
                 history[row["id"]], row["closed_at"]
             ),
@@ -160,9 +151,8 @@ def _load_positions(
 class _Benchmark:
     """The benchmark line plus where it came from.
 
-    ``name`` is the raw fact behind ``source`` — the feed's symbol or the flagged
-    position's name — so the client can say which yardstick it is drawing. How it
-    is worded is the frontend's business.
+    ``name`` is the feed symbol or the fallback position's name; wording is the
+    frontend's business.
     """
 
     values: list[float]
@@ -183,14 +173,9 @@ class _Feed:
 def _feed_symbol(cursor: sqlite3.Cursor) -> tuple[str, str] | None:
     """Return the benchmark symbol on record and its newest close date.
 
-    The configured symbol (:func:`summa.config.benchmark_symbol`, the same one
-    the feed job fetches) wins whenever it has any row at all, so an exploratory
-    fetch of another ticker writes rows the chart never reads. A database filled
-    under some other symbol keeps its line: only when the configured one is
-    absent does the freshest symbol on record stand in.
-
-    Settings -> Portfolio has no say here — its "Benchmark" select governs only
-    the position that stands in when this feed has nothing to offer.
+    The configured symbol (:func:`summa.config.benchmark_symbol`) wins whenever it
+    has any row; only when it has none does the freshest symbol stand in. The
+    Settings "Benchmark" select governs only the fallback position, not this.
     """
     configured: str = config.benchmark_symbol()
     cursor.execute(
@@ -214,9 +199,8 @@ def _feed_symbol(cursor: sqlite3.Cursor) -> tuple[str, str] | None:
 def _feed_points(cursor: sqlite3.Cursor, start: str | None) -> _Feed:
     """Return the benchmark symbol's closes inside the window, its last date and itself.
 
-    No points means the chart falls back to the flagged position — which is
-    also what a configured symbol whose history stops before the window yields,
-    the same way a stale feed already did.
+    No points (also for history ending before the window) means the chart falls
+    back to the flagged position.
     """
     found: tuple[str, str] | None = _feed_symbol(cursor)
     if found is None:
@@ -245,13 +229,9 @@ def _fallback_points(
 ) -> tuple[list[tuple[str, float]], str | None]:
     """Return the deposit-free growth of the position flagged as benchmark fallback, and its name.
 
-    The lookup ignores the depot filter on purpose: the benchmark is the chart's
-    yardstick, not a member of the selection, and the feed path is global for the
-    same reason. Only one position carries the flag (_clear_other_fallbacks), so
-    LIMIT 1 is the whole set.
-
-    Its raw value series would not do: a week the user paid into would lift the
-    benchmark line as if the index had risen.
+    Ignores the depot filter on purpose: the benchmark is the chart's yardstick,
+    not part of the selection. Only one position carries the flag
+    (_clear_other_fallbacks), so LIMIT 1 is the whole set.
     """
     cursor.execute(
         "SELECT id, name FROM portfolio_positions WHERE is_benchmark_fallback = 1 LIMIT 1"
@@ -263,9 +243,8 @@ def _fallback_points(
     snapshots: list[portfolio.Snapshot] = _load_snapshots(cursor, [row["id"]])[
         row["id"]
     ]
-    # Growth over the full history, then cut to the window: the first return
-    # inside the window is still measured against the week before it, and
-    # rebasing divides the constant factor back out anyway.
+    # Growth over the full history, then cut: the window's first return is still
+    # measured against the week before it.
     points: list[tuple[str, float]] = []
     for point in portfolio.growth_points(snapshots):
         if start is None or point[0] >= start:
@@ -289,8 +268,7 @@ def _build_benchmark(
 ) -> _Benchmark:
     """Build the benchmark line, falling back to the flagged position silently.
 
-    A missing or stale feed is never an error: the chart still has to render, so
-    the worst outcome is a line labelled ``fallback`` — or no third line at all.
+    A missing or stale feed is never an error: at worst there is no third line.
     """
     feed: _Feed = _feed_points(cursor, start)
     points: list[tuple[str, float]] = feed.points
@@ -418,10 +396,8 @@ def _serialize_position_series(entry: portfolio.PositionSeries) -> dict[str, Any
 def _requested_range() -> str:
     """Return the requested period token, falling back to the default.
 
-    An unrecognized token degrades rather than 400-ing, the way ``sort_by``
-    already does in ``get_invoices``: a stale client value must not blank the
-    whole screen. The response echoes what was used so the client can correct
-    itself.
+    Degrades rather than 400-ing so a stale client value cannot blank the screen;
+    the response echoes the token used.
     """
     token: str = request.args.get("range", portfolio.DEFAULT_RANGE)
     if token in portfolio.RANGE_TOKENS:
@@ -432,9 +408,8 @@ def _requested_range() -> str:
 def _requested_depot() -> int | None:
     """Return the requested depot id, or None for all depots.
 
-    Unlike ``_requested_range``, a malformed value is rejected rather than
-    degraded: a filter that silently widens to every depot answers a question the
-    client did not ask, and the caller cannot tell the difference.
+    A malformed value is rejected: silently widening to all depots would answer
+    a question the client did not ask.
     """
     raw: str = request.args.get("depot", "")
     if not raw or raw == DEPOT_ALL:
@@ -455,11 +430,8 @@ def _requested_depot() -> int | None:
 def get_portfolio() -> ApiResponse:
     """Return the whole Portfolio screen: groups, totals, allocation, series.
 
-    The depot filter narrows everything, because it changes which positions
-    exist for this request. The one exception is ``depot_options``, the
-    switcher's list: narrowing it would hide every other depot from the very
-    control that switches to them. The period token reaches only the chart: the
-    list always shows current values.
+    The depot filter narrows everything except ``depot_options``, the switcher's
+    own list. The period token affects only the chart.
     """
     range_token: str = _requested_range()
 
@@ -481,9 +453,7 @@ def get_portfolio() -> ApiResponse:
             views: list[portfolio.PositionView] = [
                 portfolio.build_position_view(position) for position in positions
             ]
-            # One reading of the date for the whole response: two calls could land
-            # on either side of midnight and describe a window the grid does not
-            # match.
+            # Read once: two calls could straddle midnight.
             today: date = date.today()
             start: date | None = portfolio.range_start(range_token, today)
             grid: list[str] = portfolio.snapshot_dates(positions, start)
@@ -528,10 +498,7 @@ def get_portfolio() -> ApiResponse:
                 "portfolio": [_amount(value) for value in series.portfolio],
                 "invested": [_amount(value) for value in series.invested],
                 "benchmark": [_amount(value) for value in benchmark.values],
-                # The per-position lines the chart's position filter draws. Sent
-                # unconditionally rather than behind a query parameter: they cost
-                # nothing extra to compute, and the client can then switch the
-                # selection without a round trip.
+                # Always sent, so the chart's position filter needs no round trip.
                 "positions": [
                     _serialize_position_series(entry) for entry in series.positions
                 ],
@@ -554,10 +521,8 @@ def _suggested_snapshot_date(last_snapshot_date: str | None) -> str:
 def _prefill_position(position: portfolio.Position) -> dict[str, Any]:
     """Render one position for the weekly entry form, with its previous reading.
 
-    `previous_carried` marks a previous reading that was itself copied forward
-    rather than entered, so the form can tell the user that the number it is
-    comparing against is not a real one. A position without history reports
-    False rather than None: there is no stale reading to warn about.
+    `previous_carried` lets the form warn that the previous value was copied
+    forward; False (not None) without history, as there is nothing to warn about.
     """
     previous: portfolio.Snapshot | None = (
         position.snapshots[-1] if position.snapshots else None
@@ -583,10 +548,7 @@ def get_snapshot_prefill() -> Response:
             cursor, [depot.id for depot in depots]
         )
 
-    # A closed position is sold: it still counts in the totals, but there is
-    # nothing left to record a weekly value for. Its snapshot dates stay out of
-    # the reply too — the form cannot write that position, so such a date is an
-    # addition here rather than a replacement.
+    # Sold positions cannot be written by the form, so their dates stay out too.
     active: list[portfolio.Position] = [
         position for position in positions if position.closed_at is None
     ]
@@ -595,8 +557,7 @@ def get_snapshot_prefill() -> Response:
     for position in active:
         grouped[position.depot_id].append(_prefill_position(position))
 
-    # The full set, not just the newest: the form warns about replacing any week
-    # the user can backdate to.
+    # All dates, not just the newest: the form warns on any backdated overwrite.
     dates: list[str] = portfolio.snapshot_dates(active, None)
     last_snapshot_date: str | None = dates[-1] if dates else None
 
@@ -617,15 +578,9 @@ def get_snapshot_prefill() -> Response:
     "/api/portfolio/positions/<int:position_id>/snapshots", methods=["GET"]
 )
 def get_position_history(position_id: int) -> ApiResponse:
-    """Return one position's recorded weeks, newest first.
+    """Return one position's weeks, newest first, including a derived closing row.
 
-    The weekly rows the rest of the area only ever shows as sums. A sold
-    position carries its derived closing row here too, so the sale is visible
-    where the money left rather than only in the totals it changed.
-
-    The reply is ordered descending, against the ascending order every function
-    in :mod:`summa.portfolio` requires: the reversal happens after the
-    derivation, never before it.
+    Reversed only after the derivation, which requires ascending order.
     """
     with db_cursor() as cursor:
         cursor.execute(

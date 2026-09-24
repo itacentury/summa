@@ -1,18 +1,9 @@
 """Pure derivations for the portfolio area: no Flask, no SQL, no I/O.
 
-The schema stores only raw facts — a snapshot holds a value, a deposit and an FX
-rate in the position's own currency. Everything the Portfolio screen displays is
-computed from those rows on every read: EUR conversions, invested sums, gains,
-the weekly delta, the chart series, allocation shares and the biggest movers.
-
-Keeping this layer free of Flask and SQLite is what makes those rules testable on
-their own, before any HTTP or query shape exists to hide a mistake in.
-
-A sale is recorded, not flagged: a closed position's history ends in a snapshot
-worth 0 with a deposit of minus the proceeds, so the money leaves the portfolio
-the way it entered. Every function here therefore needs no special case for a
-sold position — it simply stops carrying value. That closing row is derived, not
-stored: :func:`with_sale_recorded` computes it from `closed_at` on every read.
+Snapshots store only raw facts; every displayed number is derived here on read.
+A sale is recorded, not flagged: a sold position's history ends in a derived row
+worth 0 with a deposit of minus the proceeds (:func:`with_sale_recorded`), so no
+function needs a special case for it.
 """
 
 import calendar
@@ -42,8 +33,7 @@ class Snapshot:
 
     :param fx_rate: units of the position's currency per EUR at that date.
     :param carried: the value was copied forward, not entered by the user.
-    :param derived: the closing row of a sold position, computed on read rather
-        than recorded — see :func:`with_sale_recorded`.
+    :param derived: a sold position's closing row, computed on read, never stored.
     """
 
     date: str
@@ -58,14 +48,10 @@ class Snapshot:
 class Position:
     """A held position together with its full snapshot history.
 
-    :param snapshots: ascending by date — every function here relies on that.
-        Dates need not be distinct: a sold position carries its derived closing
-        row alongside a week recorded on the same date.
-    :param closed_at: the date the position was sold. `snapshots` is then
-        expected to end in the zeroing row :func:`with_sale_recorded` derives:
-        value 0 and a deposit of minus what it was last worth, dated exactly
-        `closed_at`. A sold position is never hidden — it keeps its history and
-        its realized gain.
+    :param snapshots: ascending by date (every function here relies on that), not
+        necessarily distinct: the derived closing row may share a recorded date.
+    :param closed_at: sale date; `snapshots` then ends in the row
+        :func:`with_sale_recorded` derives.
     """
 
     id: int
@@ -92,17 +78,8 @@ class Depot:
 class PositionView:
     """Every displayed number for one position.
 
-    :param closed_at: the date the position was sold, else None — the sale date
-        itself rather than a flag, so the row can name the day it was sold.
     :param value: the latest snapshot value, still in the native currency.
-    :param invested_eur: net money at work — see :func:`invested_eur`.
-    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
-    :param gain_pct: None when nothing was contributed — see :func:`gain_pct`.
-    :param week_delta: the last recorded week's move, the derived closing row of a
-        sold position excluded. None when there is no previous week — see
-        :func:`week_delta`.
-    :param snapshot_count: how many weeks were recorded — the closing row a sold
-        position's history ends in was derived, not entered, and is not counted.
+    :param snapshot_count: recorded weeks only; the derived closing row is not counted.
     """
 
     id: int
@@ -128,10 +105,7 @@ class PositionView:
 
 @dataclass(frozen=True)
 class DepotView:
-    """One depot group with its positions and subtotal.
-
-    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
-    """
+    """One depot group with its positions and subtotal."""
 
     id: int
     name: str
@@ -145,10 +119,7 @@ class DepotView:
 
 @dataclass(frozen=True)
 class PortfolioTotals:
-    """The grand total behind the three summary cards.
-
-    :param contributed_eur: what was ever paid in — see :func:`contributed_eur`.
-    """
+    """The grand total behind the three summary cards."""
 
     value_eur: float
     invested_eur: float
@@ -163,12 +134,7 @@ class PortfolioTotals:
 
 @dataclass(frozen=True)
 class PositionSeries:
-    """One position's own value line over the shared chart grid.
-
-    The aggregated `portfolio` line is these summed up. They are carried
-    alongside rather than derived by the caller so the chart can draw a subset
-    of positions without asking the server a second question.
-    """
+    """One position's own value line over the shared chart grid."""
 
     position_id: int
     name: str
@@ -179,9 +145,8 @@ class PositionSeries:
 class ChartSeries:
     """The value-over-time lines, one entry per date in a shared grid.
 
-    :param positions: one entry per position handed to :func:`build_series`, in
-        that same order — including a position with no reading inside the window,
-        whose line is then flat at zero.
+    :param positions: one per input position, same order; one without readings in
+        the window is flat at zero.
     """
 
     dates: list[str]
@@ -215,14 +180,9 @@ class Change:
 
 @dataclass(frozen=True)
 class HistoryRow:
-    """One week of a position's history, as it is shown rather than stored.
+    """One week of a position's history: raw facts plus their EUR readings.
 
-    Carries both the raw facts (native value, signed deposit, FX rate) and the
-    EUR readings derived from them, so the caller never divides by an FX rate
-    itself.
-
-    :param change: the week's move in EUR with that week's deposit removed, or
-        None where no such move is defined — see :func:`history_rows`.
+    :param change: the week's deposit-free move in EUR, None where undefined.
     """
 
     date: str
@@ -241,28 +201,11 @@ def with_sale_recorded(
 ) -> Sequence[Snapshot]:
     """Return the history a sold position ends with: worth 0, proceeds withdrawn.
 
-    A sale is recorded rather than flagged, but it is derived here instead of
-    being stored: the schema keeps only what the user entered, and the closing
-    row is computed from `closed_at` on every read. Deriving it is what makes a
-    close reversible — reopening drops this row again and the week the position
-    was sold in keeps the value and the deposit the user actually typed.
-
-    The money leaves as a negative deposit so the realized gain survives in
-    ``value - invested``, which is why every other function here needs no special
-    case for a sold position. A position that was never snapshotted has no value
-    to take out.
-
-    The sale follows a week already recorded on the close date rather than
-    replacing it: the two are separate events, so the value and the deposit the
-    user entered both stay standing and only the proceeds are withdrawn. Netting
-    them into one row instead would hide that week's deposit from
-    :func:`contributed_eur`, which counts money paid *in*. The derived row may
-    therefore share its date with a stored one — every consumer here reads a
-    history of ascending dates, not of distinct ones.
-
-    The derived row is flagged as such: it is history like any other row for
-    every number computed here, but it is not a week the user recorded, so a
-    count of recorded weeks can leave it out.
+    Derived rather than stored so reopening is lossless. The proceeds leave as a
+    negative deposit, keeping the realized gain in ``value - invested``. The row
+    follows (not replaces) a week recorded on the close date, so that week's
+    deposit still counts in :func:`contributed_eur`; dates are therefore
+    ascending, not distinct.
 
     :param snapshots: ascending by date.
     """
@@ -290,31 +233,23 @@ def with_sale_recorded(
 
 
 def recorded_weeks(snapshots: Sequence[Snapshot]) -> list[Snapshot]:
-    """Return only the weeks the user entered, dropping the derived closing row.
-
-    The row :func:`with_sale_recorded` appends is history for every sum computed
-    here, but it is not a week anybody recorded — so anything that reads the
-    history *as weeks* rather than as money goes through this filter.
-    """
+    """Return only the weeks the user entered, dropping the derived closing row."""
     return [snapshot for snapshot in snapshots if not snapshot.derived]
 
 
 def value_eur(value: float, fx_rate: float) -> float:
     """Convert a native-currency amount to EUR.
 
-    :param fx_rate: units of the position's currency per EUR; the schema's
-        ``CHECK (fx_rate > 0)`` is what makes this division total.
+    :param fx_rate: units of the currency per EUR; ``CHECK (fx_rate > 0)`` keeps
+        this division total.
     """
     return value / fx_rate
 
 
 def invested_eur(snapshots: Sequence[Snapshot]) -> float:
-    """Sum every deposit of a position's history, each at its own FX rate.
+    """Sum every signed deposit at its own FX rate: the net money still at work.
 
-    Deposits are signed, so this is the net money still at work: a sale enters as
-    a negative deposit and takes its proceeds back out. A position sold at a
-    profit therefore ends below zero, which is the honest reading — more money
-    came out of it than ever went in.
+    A position sold at a profit therefore ends below zero.
     """
     return sum(value_eur(snapshot.deposit, snapshot.fx_rate) for snapshot in snapshots)
 
@@ -322,10 +257,8 @@ def invested_eur(snapshots: Sequence[Snapshot]) -> float:
 def contributed_eur(snapshots: Sequence[Snapshot]) -> float:
     """Sum only the money paid *in*, ignoring withdrawals.
 
-    This is the denominator of :func:`gain_pct`. Dividing by the net invested
-    amount instead would report exactly -100 % for every profitably sold
-    position, whose net invested is the negation of its gain. For a position
-    that was never sold from, the two sums are identical.
+    The :func:`gain_pct` basis: the net invested amount would report -100 % for
+    every profitably sold position.
     """
     return sum(
         value_eur(snapshot.deposit, snapshot.fx_rate)
@@ -342,11 +275,7 @@ def gain(value: float, invested: float) -> float:
 def gain_pct(absolute_gain: float, contributed: float) -> float | None:
     """Return the gain as a percentage of what was paid in.
 
-    None when nothing was contributed: the percentage is undefined there, and a
-    0.0 would be indistinguishable from a genuinely flat position.
-
-    :param contributed: see :func:`contributed_eur` for why the basis is the sum
-        of the deposits rather than the net invested amount.
+    None when nothing was contributed: undefined, and 0.0 would read as flat.
     """
     if contributed == 0:
         return None
@@ -354,21 +283,11 @@ def gain_pct(absolute_gain: float, contributed: float) -> float | None:
 
 
 def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
-    """Return the latest week's change in EUR, with that week's deposit removed.
+    """Return the latest recorded week's change in EUR, with its deposit removed.
 
-    ``latest.value_eur - previous.value_eur - latest.deposit_eur``. Subtracting
-    the deposit is the deliberate difference from the Delta column of the
-    spreadsheet this feature replaces: money paid in is not a gain.
-
-    Only the weeks that were recorded count: the derived closing row of a sold
-    position is a withdrawal, not a market move, and reading it as the latest
-    week would net every sale to exactly zero — reporting each closed position as
-    flat and hiding the move of the very week it was sold in, which is the last
-    place that number is shown at all.
-
-    None when fewer than two weeks were recorded — without a previous week any
-    number would be invented, and a fresh position's first deposit would surface
-    as the week's biggest winner.
+    Money paid in is not a gain (unlike the old spreadsheet's Delta column). The
+    derived closing row is skipped, else every sale would net to exactly zero.
+    None with fewer than two recorded weeks: a first deposit is no move.
 
     :param snapshots: ascending by date.
     """
@@ -387,15 +306,9 @@ def week_delta(snapshots: Sequence[Snapshot]) -> float | None:
 def history_rows(snapshots: Sequence[Snapshot]) -> list[HistoryRow]:
     """Return a position's full history, one row per snapshot, ascending by date.
 
-    ``change`` repeats the rule of :func:`week_delta` for every week rather than
-    only the latest one: the move against the previous week with that week's
-    deposit removed, because money paid in is not a gain.
-
-    Two cases leave it undefined. The first row has no previous week to move
-    against, and the derived closing row of a sold position is a withdrawal
-    rather than a market move — reading it as one would report every sale as an
-    exact wipeout. That row still appears, flagged ``derived``, since it is the
-    sale itself and the one place the proceeds are visible.
+    ``change`` applies the :func:`week_delta` rule to every week. It is None on
+    the first row and on the derived closing row, a withdrawal rather than a
+    market move (else every sale would read as a wipeout).
 
     :param snapshots: ascending by date.
     """
@@ -428,14 +341,9 @@ def history_rows(snapshots: Sequence[Snapshot]) -> list[HistoryRow]:
 def growth_points(snapshots: Sequence[Snapshot]) -> list[tuple[str, float]]:
     """Return a position's deposit-free growth index, one point per snapshot.
 
-    The index starts at 1.0 and compounds each week's return with that week's
-    deposit removed: ``(value - deposit) / previous_value``. Feeding raw values
-    to a benchmark line instead would make the line jump every time money was
-    paid into the position, reading as index performance nobody earned — the
-    same mistake the Excel Delta column makes, one chart line over.
-
-    A week following a worthless one contributes no return: there is nothing for
-    the new value to be a multiple of.
+    Starts at 1.0 and compounds ``(value - deposit) / previous_value``, so a
+    deposit never reads as index performance. A week after a worthless one adds
+    no return.
 
     :param snapshots: ascending by date.
     """
@@ -466,9 +374,8 @@ def _shift_months(anchor: date, months: int) -> date:
 def range_start(range_token: str, today: date) -> date | None:
     """Return the inclusive window start for a period token.
 
-    None means unbounded ("max"), which is also the fallback for an unrecognized
-    token: showing everything is the harmless outcome, and rejecting bad input is
-    the API layer's job.
+    None means unbounded ("max"), also for an unknown token: validation is the
+    API layer's job.
     """
     if range_token == "3m":
         return _shift_months(today, 3)
@@ -490,16 +397,10 @@ class ChartWindow:
 def chart_window(range_token: str, today: date, dates: Sequence[str]) -> ChartWindow:
     """Return the axis boundaries for a period token as ISO dates.
 
-    The date grid holds only dates that exist, so three months of history under
-    "1y" would draw a three-month axis. The window says how wide the axis should
-    be instead, keeping the period arithmetic (and its month clamping) on this
-    side rather than duplicated in the chart client.
-
-    The start is the window start, or — for the unbounded "max", where there is
-    none to compute — the first date with data; None only when neither exists.
-    The end is today, unless a snapshot dates after it: the API rejects future
-    dates but the import script does not, and clipping a real point is worse than
-    an axis running slightly long.
+    The grid holds only dates with data, so the axis width comes from here. The
+    start falls back to the first date for "max"; the end is today unless an
+    imported snapshot dates later (the API rejects future dates, the importer
+    does not).
 
     :param dates: the chart's date grid, ascending.
     """
@@ -514,11 +415,7 @@ def chart_window(range_token: str, today: date, dates: Sequence[str]) -> ChartWi
 
 
 def snapshot_dates(positions: Sequence[Position], start: date | None) -> list[str]:
-    """Return every distinct snapshot date at or after `start`, ascending.
-
-    The dates are ISO strings, so comparing and sorting them as text is the same
-    as comparing them as dates — no parsing needed.
-    """
+    """Return every distinct snapshot date at or after `start`, ascending."""
     boundary: str | None = start.isoformat() if start is not None else None
     dates: set[str] = set()
     for position in positions:
@@ -533,11 +430,8 @@ def _position_series(
 ) -> tuple[list[float], list[float]]:
     """Return one position's value and cumulative deposits for each date in `grid`.
 
-    The value is carried forward: a date the position has no row for keeps the
-    most recent earlier one, so a missing week does not drop the position out of
-    the portfolio line. Dates before the position's first snapshot yield 0.0 — it
-    does not exist yet and contributes nothing, rather than starting at zero on
-    its own line.
+    The value is carried forward over missing weeks; dates before the first
+    snapshot yield 0.0.
     """
     values: list[float] = []
     deposits: list[float] = []
@@ -559,12 +453,7 @@ def _position_series(
 
 
 def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSeries:
-    """Sum every position into the portfolio and invested lines over one date grid.
-
-    Each position's own pair of lines is kept as well: they are computed here
-    anyway, and handing them out lets the chart draw a subset of positions
-    without a second request.
-    """
+    """Sum all positions into the portfolio and invested lines, keeping each one's own line."""
     grid: list[str] = list(dates)
     portfolio: list[float] = [0.0] * len(grid)
     invested: list[float] = [0.0] * len(grid)
@@ -592,14 +481,10 @@ def build_series(positions: Sequence[Position], dates: Sequence[str]) -> ChartSe
 def _anchor_value(points: Sequence[tuple[str, float]], grid_start: str) -> float:
     """Return the value a dated series holds at the grid's first date.
 
-    A feed reaching further back than the portfolio does must still meet it
-    where the chart begins. Anchoring on the earliest point in the window
-    instead would scale the line by whatever the index did before the first
-    snapshot ever existed, so the benchmark would start well above the
-    portfolio and the two would never share a starting point.
+    Anchoring on the earliest point instead would scale a longer feed by what the
+    index did before the portfolio existed.
 
     :param points: (date, value) pairs, ascending by date.
-    :param grid_start: the chart's first date.
     """
     anchor: float = points[0][1]
     for point_date, value in points:
@@ -614,20 +499,12 @@ def rebase_to_grid(
 ) -> list[float]:
     """Align dated values onto a date grid and scale them to start at `base`.
 
-    Points are carried forward exactly as position values are: a grid date
-    without a point of its own keeps the most recent earlier one, and dates
-    before the first point yield 0.0. A benchmark feed publishes on trading days
-    while the portfolio grid is weekly, so the two rarely line up.
-
-    The scaling is what makes the line comparable at all. An index close is a
-    number like 142.18 while the portfolio is in euros, so the raw series would
-    draw a flat line along the bottom of the chart. Indexed to `base` it answers
-    the question the chart actually asks: what the same starting money would have
-    done in the index.
+    Points are carried forward like position values (trading-day feed vs. weekly
+    grid). Scaling turns an index close into "what the same money would have
+    done in the index".
 
     :param points: (date, value) pairs, ascending by date.
     :param grid: the chart's dates, ascending.
-    :param base: the value the series is scaled to at the grid's first date.
     """
     if not points or not grid or base == 0:
         return []
@@ -695,12 +572,10 @@ def build_depot_views(
 ) -> list[DepotView]:
     """Group positions under their depots and add a subtotal to each group.
 
-    Depots without positions are kept: an empty depot is a legitimate state right
-    after one is created, and the settings screen lists it.
+    Empty depots are kept: a new depot is legitimately empty.
     """
     grouped: dict[int, list[PositionView]] = {depot.id: [] for depot in depots}
     for view in position_views:
-        # A position whose depot was not passed in (filtered out) simply drops.
         if view.depot_id in grouped:
             grouped[view.depot_id].append(view)
 
@@ -731,25 +606,19 @@ def build_totals(
 ) -> PortfolioTotals:
     """Sum every position into the grand total behind the summary cards.
 
-    A sold position is summed in like any other: its zeroing snapshot already
-    leaves it worth nothing, and the negative deposit that took the proceeds out
-    is what keeps its realized gain in the total.
+    Sold positions count too: their negative deposit keeps the realized gain.
     """
     total_value: float = sum(view.value_eur for view in position_views)
     total_invested: float = sum(view.invested_eur for view in position_views)
     total_contributed: float = sum(view.contributed_eur for view in position_views)
     total_gain: float = gain(total_value, total_invested)
-    # A position without a previous week contributes nothing here; falling back
-    # to its full value would read as a one-week gain of the whole position. A
-    # closed one is skipped outright: its delta is the real move of the last week
-    # it was held, but no further snapshot will ever arrive to replace it, so that
-    # one week would keep reporting itself into "this week" for good.
+    # Closed positions are skipped: their last delta would never be replaced and
+    # would report into "this week" for good.
     total_delta: float = sum(
         view.week_delta
         for view in position_views
         if view.week_delta is not None and view.closed_at is None
     )
-    # ISO dates sort as text, so max() picks the most recent snapshot date.
     seen_dates: list[str] = [
         view.last_snapshot_date
         for view in position_views
@@ -762,7 +631,7 @@ def build_totals(
         gain=total_gain,
         gain_pct=gain_pct(total_gain, total_contributed),
         week_delta=total_delta,
-        # The "n positions · m depots" sub-line counts what is still held.
+        # Counts what is still held.
         position_count=sum(1 for view in position_views if view.closed_at is None),
         depot_count=depot_count,
         last_snapshot_date=max(seen_dates) if seen_dates else None,
@@ -779,11 +648,8 @@ def allocation(
 ) -> list[AllocationSlice]:
     """Return the donut slices: the largest positions, then the rest pooled into one.
 
-    The slices sum to the same grand total the hero card shows: a sold position
-    is worth 0 by then and drops out of both. The explicit `closed_at` filter is
-    a guard for a row closed by hand without its zeroing snapshot — allocating
-    money that is no longer held would be the worse failure. Worthless positions
-    are dropped too: they would draw an invisible slice and a 0 % legend row.
+    The `closed_at` filter guards a row closed without its zeroing snapshot;
+    worthless positions are dropped to avoid invisible 0 % slices.
     """
     held: list[PositionView] = [
         view for view in position_views if view.closed_at is None and view.value_eur > 0
@@ -827,11 +693,8 @@ def biggest_changes(
 ) -> tuple[list[Change], list[Change]]:
     """Return the week's largest gainers and losers, biggest movement first.
 
-    Fewer than `count` entries per side is normal: a position with no previous
-    week, a flat one and a sold one are all not movers and are left out. The last
-    of those still carries the real move of the last week it was held, but no
-    further snapshot is ever recorded for it, so that week would otherwise stand
-    in the movers list forever.
+    Positions without a previous week, flat ones and sold ones are left out; a
+    sold one's last move would otherwise stay in the list forever.
     """
     movers: list[Change] = []
     for view in position_views:

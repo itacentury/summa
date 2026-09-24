@@ -80,16 +80,9 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     """
     )
 
-    # closed_at marks a sold position, and the sale is recorded rather than just
-    # flagged: a closed position's history ends in a snapshot dated exactly
-    # closed_at, worth 0 with a deposit of minus the proceeds — following, not
-    # replacing, a week already recorded on that date. That row is derived on
-    # every read (summa.portfolio.with_sale_recorded), never stored, so closing
-    # and reopening only move this column and no entered week is ever rewritten.
-    # The position leaves the allocation and the totals through its own numbers,
-    # while keeping its history and its realized gain. Portfolio rows are not
-    # soft-deleted, so the invoice-side "deleted_at IS NULL" read filter has no
-    # counterpart here.
+    # A sale is recorded, not flagged: closed_at drives a closing row derived on
+    # read (summa.portfolio.with_sale_recorded), never stored, so reopening is
+    # lossless. No soft delete here, hence no "deleted_at IS NULL" filter.
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS portfolio_positions (
@@ -109,12 +102,9 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     """
     )
 
-    # value and deposit are in the position's own currency; fx_rate holds the units
-    # of that currency per EUR at that date. Only value has a floor: a deposit is a
-    # signed flow and goes negative on a withdrawal or a sale, while what a position
-    # is worth cannot. carried = 1 means the value was copied
-    # forward from the previous week rather than entered by the user. The weekly
-    # delta is always derived from consecutive snapshots, never stored.
+    # Amounts are in the position's currency; fx_rate = units of it per EUR.
+    # deposit is signed (withdrawals, sales), so only value has a floor.
+    # carried = 1: value copied forward from the previous week, not entered.
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS portfolio_snapshots (
@@ -147,7 +137,7 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
         "CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_position_date "
         "ON portfolio_snapshots (position_id, date)"
     )
-    # Partial, because every list and allocation query looks at active positions only.
+    # Partial: list and allocation queries only look at active positions.
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_portfolio_positions_depot "
         "ON portfolio_positions (depot_id) WHERE closed_at IS NULL"

@@ -1,7 +1,6 @@
 """REST API routes that write the portfolio area: weekly snapshots, positions and depots.
 
-The reads live in :mod:`summa.routes.portfolio`; nothing here derives a number,
-it only validates a request and stores the raw facts it carries.
+Only validates requests and stores raw facts; nothing here derives a number.
 """
 
 import logging
@@ -26,12 +25,10 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 portfolio_writes_bp: Blueprint = Blueprint("portfolio_writes", __name__)
 
-# The same allowlist the schema's CHECK holds. Validating it here too turns a
-# constraint violation (a 500) into a 400 naming the accepted values.
+# Mirrors the schema CHECK, so a bad kind is a 400 rather than a 500.
 POSITION_KINDS: Final[tuple[str, ...]] = ("etf", "fund", "stock")
 
-# Columns a PATCH may set. The keys are ours, never the client's strings, which
-# is what makes building the SET clause from them safe.
+# Our own keys, never client strings, which is what makes the SET clause safe.
 _PATCHABLE_COLUMNS: Final[tuple[str, ...]] = (
     "name",
     "kind",
@@ -91,9 +88,7 @@ def _require_kind(value: Any) -> str:
 def _require_currency(value: Any) -> str:
     """Return an upper-cased three-letter currency code; raise ValidationError otherwise.
 
-    Defaulting is the caller's job: inside a PATCH branch an explicit ``null``
-    means "set this to null", not "leave it alone", so swallowing it here would
-    silently overwrite the stored code.
+    No defaulting here: in a PATCH an explicit ``null`` must not be swallowed.
     """
     code: str = require_non_empty_str(value, "currency").upper()
     if len(code) != CURRENCY_CODE_LENGTH or not (code.isascii() and code.isalpha()):
@@ -104,11 +99,7 @@ def _require_currency(value: Any) -> str:
 
 
 def _require_snapshot_date(value: Any) -> str:
-    """Return a normalized ISO date; reject malformed and future dates.
-
-    A snapshot records what a position was worth, so a date that has not
-    happened yet cannot be observed.
-    """
+    """Return a normalized ISO date; reject malformed and future dates."""
     text: str = require_non_empty_str(value, "date")
     try:
         parsed: date = date.fromisoformat(text)
@@ -182,11 +173,9 @@ def _require_open_position(
 ) -> None:
     """Reject an unknown position, and a week that falls after its sale.
 
-    A snapshot dated after ``closed_at`` is discarded by
-    :func:`summa.portfolio.with_sale_recorded` on every read, so writing one only
-    stores a value that reappears the moment the position is reopened. A week at
-    or before the sale stays writable: correcting it corrects the proceeds the
-    closing row is derived from.
+    Such a week would be hidden by :func:`summa.portfolio.with_sale_recorded` and
+    reappear on reopening. Weeks up to the sale stay writable, since they feed
+    the derived proceeds.
     """
     cursor.execute(
         "SELECT closed_at FROM portfolio_positions WHERE id = ?", (position_id,)
@@ -196,7 +185,6 @@ def _require_open_position(
         raise ValidationError(f"Position {position_id} not found", field="position_id")
 
     closed_at: str | None = row["closed_at"]
-    # ISO dates compare as text, as everywhere else in this module.
     if closed_at is not None and snapshot_date > closed_at:
         raise ValidationError(
             f"Position {position_id} was closed on {closed_at}", field="position_id"
@@ -232,14 +220,9 @@ def _resolve_snapshot_row(
 ) -> _ResolvedRow:
     """Fill an empty value, deposit or FX rate from what is already known.
 
-    On a new week an empty value carries the previous one forward and an empty
-    deposit is 0 (handoff decision 9). On a re-post of a week that already has a
-    row, an empty field preserves what is stored instead: the weekly form sends
-    every position at once, so a user correcting one row re-posts blanks for all
-    the others, and those must not be reverted or zeroed.
-
-    The FX rate is inherited the same way, so a USD position keeps its rate
-    without the weekly form having to ask for one.
+    New week: value and FX rate carry forward, deposit is 0. Re-posted week:
+    blanks keep what is stored, because the form re-posts every position when
+    the user corrects one.
     """
     if row.value is not None:
         value: float = row.value
@@ -283,8 +266,7 @@ def save_snapshot() -> ApiResponse:
         return error_response(e.message, 400)
 
     try:
-        # One transaction for the whole week: a half-saved snapshot would leave a
-        # portfolio value that matches no real point in time.
+        # One transaction: a half-saved week matches no real point in time.
         with db_cursor() as cursor:
             for row in rows:
                 _require_open_position(cursor, row.position_id, snapshot_date)
@@ -297,10 +279,7 @@ def save_snapshot() -> ApiResponse:
                     else _previous_snapshot(cursor, row.position_id, snapshot_date)
                 )
                 resolved: _ResolvedRow = _resolve_snapshot_row(row, stored, previous)
-                # Re-posting a date corrects it instead of colliding with the
-                # UNIQUE constraint: the user fixing last week is the normal case.
-                # Blank fields keep what that row already holds (see
-                # _resolve_snapshot_row), so only what the user typed changes.
+                # Upsert: correcting last week is the normal case, not a conflict.
                 cursor.execute(
                     "INSERT INTO portfolio_snapshots "
                     "(position_id, date, value, deposit, fx_rate, carried) "
@@ -331,10 +310,7 @@ def save_snapshot() -> ApiResponse:
 
 
 def _clear_other_fallbacks(cursor: sqlite3.Cursor, keep_id: int | None) -> None:
-    """Leave exactly one benchmark fallback position.
-
-    Two flagged positions would make the benchmark line depend on row order.
-    """
+    """Unflag every other fallback: two would make the benchmark depend on row order."""
     cursor.execute(
         "UPDATE portfolio_positions SET is_benchmark_fallback = 0 WHERE id != ?",
         (keep_id,),
@@ -397,11 +373,7 @@ def add_position() -> ApiResponse:
 
 
 def _parse_position_patch(data: Any) -> dict[str, Any]:
-    """Validate a partial position update into column/value pairs.
-
-    Only keys actually present are updated, so a PATCH never overwrites a field
-    the client did not mention.
-    """
+    """Validate a partial position update into column/value pairs, present keys only."""
     payload: dict[str, Any] = _require_object(data)
     updates: dict[str, Any] = {}
 
@@ -421,8 +393,7 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
         )
     if "close" in payload:
         closing: bool = _require_bool(payload["close"], "close")
-        # Selling is always dated today: a backdated close would retroactively
-        # withdraw money from weeks the user has already seen reported.
+        # Always today: a backdated close would rewrite weeks already reported.
         updates["closed_at"] = date.today().isoformat() if closing else None
 
     if not updates:
@@ -433,9 +404,7 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
 def _assignment(column: str, value: Any) -> str:
     """Return one SET clause for a patched column.
 
-    Closing keeps an existing sale date: the user sold once, on the day the
-    column already records, so a second close must not re-date that sale.
-    Reopening writes NULL unconditionally.
+    A repeated close keeps the original sale date; reopening writes NULL.
     """
     if column == "closed_at" and value is not None:
         return "closed_at = COALESCE(closed_at, ?)"
@@ -451,9 +420,8 @@ def _apply_patch(
 ) -> bool:
     """Write a validated PATCH to one row and return whether that row exists.
 
-    The column names come from the parser's own keys, never from the request
-    body, so interpolating them carries no injection surface. Checked rather than
-    asserted, because an assert would vanish under `python -O`.
+    Column names come from the parser's own keys, so interpolating them is safe.
+    Checked rather than asserted, because an assert would vanish under `python -O`.
     """
     unknown_columns: set[str] = set(updates) - set(allowed)
     if unknown_columns:
@@ -473,13 +441,8 @@ def _apply_patch(
 def update_position(position_id: int) -> ApiResponse:
     """Rename, reclassify, move or close a position.
 
-    Closing and reopening both only move the ``closed_at`` column: the snapshot
-    that takes a sold position's money back out is derived on every read by
-    :func:`summa.portfolio.with_sale_recorded`. Nothing the user entered is
-    rewritten, so the round trip is exactly reversible, and closing an
-    already-closed position keeps the date of the first close. Reopening brings
-    back the state the position was closed in, because no week after the sale can
-    be recorded while it is closed (see :func:`_require_open_position`).
+    Closing and reopening only move ``closed_at``; the closing row is derived on
+    read, so the round trip is exactly reversible.
     """
     try:
         updates: dict[str, Any] = _parse_position_patch(request.json)
@@ -541,11 +504,7 @@ def add_depot() -> ApiResponse:
 
 
 def _parse_depot_patch(data: Any) -> dict[str, Any]:
-    """Validate a partial depot update into column/value pairs.
-
-    Only keys actually present are updated, so a PATCH never overwrites a field
-    the client did not mention.
-    """
+    """Validate a partial depot update into column/value pairs, present keys only."""
     payload: dict[str, Any] = _require_object(data)
     updates: dict[str, Any] = {}
 
@@ -561,12 +520,7 @@ def _parse_depot_patch(data: Any) -> dict[str, Any]:
 
 @portfolio_writes_bp.route("/api/portfolio/depots/<int:depot_id>", methods=["PATCH"])
 def update_depot(depot_id: int) -> ApiResponse:
-    """Rename a depot or move it in the sort order.
-
-    Nothing below the depot is touched: its positions keep their ids, so a
-    corrected name reaches every group header and snapshot row without rewriting
-    a single number.
-    """
+    """Rename a depot or move it in the sort order."""
     try:
         updates: dict[str, Any] = _parse_depot_patch(request.json)
     except ValidationError as e:
