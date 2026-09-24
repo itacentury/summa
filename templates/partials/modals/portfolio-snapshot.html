@@ -11,14 +11,12 @@
     <div class="modal-header">
       <div class="snapshot-heading">
         <h3 class="modal-title" id="snapshot-title">New snapshot</h3>
-        {# Live region: the "already exists — saving replaces it" warning is
-           written in place, so without it the switch is silent. #}
+        {# Live region, so the "already exists" warning is announced. #}
         <p class="snapshot-hint" data-el="snapshot-hint" aria-live="polite">
           Leave a field empty to carry the previous value forward.
         </p>
       </div>
-      {# Nested rather than associated by id: the field needs a label, and the
-         visible one is the calendar icon next to it. #}
+      {# Nested label: the visible one is the calendar icon beside it. #}
       <label class="snapshot-date">
         <span class="visually-hidden">Snapshot date</span>
         <input type="date" data-el="snapshot-date" data-autofocus />
@@ -26,8 +24,7 @@
       {{ modal_close_button() }}
     </div>
     <div class="modal-body">
-      {# Decorative: each input carries its own aria-label naming the position,
-         so the strip is only a visual column legend. #}
+      {# Decorative: each input has its own aria-label. #}
       <div class="snapshot-columns" aria-hidden="true">
         <span class="snapshot-cell-name">Position</span>
         <span class="snapshot-cell-value">Value</span>

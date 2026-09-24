@@ -3,8 +3,8 @@
   <h2 class="visually-hidden">Portfolio</h2>
   <!-- Toolbar -->
   <div class="portfolio-toolbar">
-    {# Own listbox rather than a combobox instance: the filter commits a depot
-       id while the row shows a name, which combobox.js cannot express. #}
+    {# Own listbox: it commits a depot id while showing a name, which
+       combobox.js cannot express. #}
     <div class="portfolio-depot" data-el="portfolio-depot">
       <button
         type="button"
@@ -55,22 +55,17 @@
   <!-- Summary Cards -->
   <div class="portfolio-summary is-hidden" data-el="portfolio-summary"></div>
 
-  {# The legend is hand-built markup rather than Chart.js' own, so it can sit in
-     the card header next to the title the way the stats cards do. #}
+  {# Hand-built legend, not Chart.js', so it sits in the header like stats. #}
   <div
     class="chart-card portfolio-chart-card is-hidden"
     data-el="portfolio-chart-card"
   >
     <div class="chart-header portfolio-chart-header">
       <h3 class="chart-title">Value over time</h3>
-      {# The period governs this card alone: the summary cards, the positions list
-         and the bottom row always show current, all-time figures — the only thing
-         the window changes below is the `since` date in a position's meta line.
-         The invoice Week/Month/Year/All switcher in filters.html is deliberately
-         unrelated. #}
-      {# Multi-select rather than the depot filter's single-choice listbox: the
-         chart draws one line per checked position, and picking a second one is
-         the normal next step — so a toggle here never closes the menu. #}
+      {# The period governs this card alone (plus a position's `since` date);
+         deliberately unrelated to the invoice period switcher. #}
+      {# Multi-select: one line per checked position, so a toggle never closes
+         the menu. #}
       <div class="portfolio-positions" data-el="portfolio-positions">
         <button
           type="button"
@@ -140,9 +135,8 @@
           Max
         </button>
       </div>
-      {# Two legends, one visible at a time: the aggregate lines are fixed markup
-         whose colors are CSS tokens, while a per-position selection names lines
-         only the payload knows, so those swatches have to be painted at runtime. #}
+      {# Aggregate swatches use CSS tokens; per-position ones are painted at
+         runtime, since only the payload knows those lines. #}
       <div class="portfolio-chart-legend" data-el="portfolio-legend-static">
         <span class="portfolio-legend-item">
           <span class="portfolio-legend-bar is-portfolio"></span>Portfolio

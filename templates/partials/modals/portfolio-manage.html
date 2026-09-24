@@ -1,9 +1,7 @@
 {% from "partials/_macros.html" import modal_close_button %}
 <!-- Manage Depots / Positions Modal -->
-{# One overlay for both editors: each is a list of named things with an inline
-   edit form, and the mode only decides the title, the rows and what the footer
-   button adds. Server-rendered like every other dialog, because the focus trap
-   and the backdrop close enumerate the overlays once at wiring time. #}
+{# One overlay for both editors; the mode picks title, rows and footer action.
+   Server-rendered: the focus trap and backdrop close enumerate overlays once. #}
 <div class="modal-overlay" data-el="portfolio-manage-modal">
   <div
     class="modal modal-sm"
@@ -28,8 +26,7 @@
       >
         Close
       </button>
-      {# The list is still loading when the dialog opens, so the one control
-         that is certain to be there takes the focus. #}
+      {# The list is still loading on open, so this button takes the focus. #}
       <button class="btn btn-primary" data-el="manage-add" data-autofocus>
         Add
       </button>
