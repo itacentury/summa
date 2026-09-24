@@ -127,3 +127,8 @@ export function toneClass(value) {
   if (value < 0) return "is-loss";
   return "";
 }
+
+// Mirrors the server's own rule (_require_currency), so a typo costs no round trip.
+export function isCurrencyCode(code) {
+  return /^[A-Z]{3}$/.test(code);
+}

@@ -12,7 +12,11 @@ import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
 import { refreshTruncation, truncatableHtml } from "./truncate.js";
-import { KIND_LABELS, formatDateDots } from "./portfolio-format.js";
+import {
+  KIND_LABELS,
+  formatDateDots,
+  isCurrencyCode,
+} from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
 import { openPositionModal } from "./portfolio-position.js";
 
@@ -278,9 +282,7 @@ async function saveRow(id) {
     .querySelector('[data-el="manage-currency"]')
     .value.trim()
     .toUpperCase();
-  // Mirrors the server's own rule (_require_currency), so a typo costs no round
-  // trip.
-  if (!/^[A-Z]{3}$/.test(currency)) {
+  if (!isCurrencyCode(currency)) {
     showErrorToast("Enter a three-letter currency code");
     return;
   }

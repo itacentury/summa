@@ -13,6 +13,7 @@ import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
+import { isCurrencyCode } from "./portfolio-format.js";
 
 // The value marking the "New depot…" entry. Not an id, so it can never collide
 // with one.
@@ -149,10 +150,8 @@ async function savePosition() {
     return;
   }
 
-  // Mirrors the server's own rule (_require_currency), so a typo costs no round
-  // trip.
   const code = currency.value.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(code)) {
+  if (!isCurrencyCode(code)) {
     showErrorToast("Enter a three-letter currency code");
     currency.focus();
     return;
