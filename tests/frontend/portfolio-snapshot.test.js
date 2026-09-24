@@ -729,6 +729,42 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
+  it("creates the depot again when the one being renamed was deleted", async () => {
+    // Renaming depot 7 again would hit the same 404 on every retry.
+    await failFirstDepotAttempt();
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    global.fetch
+      .mockResolvedValueOnce(createdDepotPrefill())
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Depot not found" },
+          { ok: false, status: 404 },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(prefill({ depots: [] })));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    expect(showErrorToast).toHaveBeenCalledWith("Depot not found");
+    expect(depotSelect().value).toBe("new");
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 8 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(JSON.parse(retryCalls[0][1].body)).toEqual({ name: "TR" });
+    expect(lastBody().depot_id).toBe(8);
+  });
+
   // The depot request never answers; whether the server wrote it is unknown.
   async function loseDepotResponse(
     payload = prefill({ depots: [] }),

@@ -95,15 +95,22 @@ async function loadDepots() {
 
 /**
  * Re-list the depots with "New depot…" still chosen, so a created depot whose
- * rename was refused can be picked under the name the server kept.
+ * rename was refused can be picked under the name the server kept. A depot
+ * missing from the list was deleted, so a retry creates it again instead.
  */
 async function offerCreatedDepot() {
+  let depots;
   try {
-    renderDepotOptions(await fetchDepots());
-    depotListLoaded = true;
+    depots = await fetchDepots();
   } catch (error) {
     console.error("Error reloading depots:", error);
     return;
+  }
+  renderDepotOptions(depots);
+  depotListLoaded = true;
+  if (!depots.some((entry) => entry.id === unresolvedDepotId)) {
+    unresolvedDepotId = null;
+    unresolvedDepotName = null;
   }
   positionElements().depot.value = NEW_DEPOT;
   syncDepotChoice();
