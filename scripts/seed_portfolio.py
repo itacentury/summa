@@ -1,24 +1,14 @@
 """Fill the portfolio tables with a plausible depot history, for UI checks.
 
-A workstation tool, not part of the served app: the Portfolio screen has a lot
-of states -- the depot switcher, allocation pooling, weekly movers, four range
-filters, foreign currencies, a sold position and the benchmark line -- and none
-of them can be looked at against an empty database.
+A workstation tool covering the Portfolio screen's states: depot switcher,
+allocation pooling, movers, range filters, foreign currencies, a sale and the
+benchmark line. :func:`build_seed_data` is pure and seed-deterministic, so the
+tests need no database; only the writer touches SQLite. Weekly returns mix a
+per-position drift with a *shared* market factor, so positions move together
+and the movers list reads like a market rather than noise.
 
-The generator is pure and deterministic: :func:`build_seed_data` takes a seed
-and a date and returns plain dataclasses, no SQL and no clock of its own, which
-is what lets :mod:`tests.test_seed_portfolio` prove the schema's invariants
-without a database. Only the writer below it touches SQLite.
-
-Values follow a geometric random walk whose weekly return mixes a per-position
-drift with a *shared* market factor. The shared part is what makes the result
-read as a market rather than as noise: positions move together in a bad week,
-which is the whole point of a movers list.
-
-Re-running is safe: depots, positions and snapshots go in with
-``INSERT OR IGNORE``, so a week corrected in the UI survives. ``--reset`` clears
-the portfolio tables first and touches nothing on the invoice side; ``--dry-run``
-works against an in-memory copy and writes nothing at all.
+Re-running keeps every recorded row (``INSERT OR IGNORE``); ``--reset`` clears
+the portfolio tables only; ``--dry-run`` works on an in-memory copy.
 """
 
 import argparse
@@ -46,32 +36,27 @@ DEFAULT_WEEKS: Final[int] = 156
 DEFAULT_SEED: Final[int] = 20260921
 MIN_WEEKS: Final[int] = 8
 
-# Weeks of benchmark history generated before the first snapshot. The chart
-# anchors the benchmark on the last close at or before its first date
-# (``_anchor_value``), so without a pre-roll the line would be anchored on a
-# point inside the window and start off the portfolio's value.
+# Benchmark weeks before the first snapshot: the chart anchors on the last close
+# at or before its first date (``_anchor_value``), which must lie outside the window.
 BENCHMARK_PREROLL: Final[int] = 12
 
 MONTHLY: Final[int] = 4
 QUARTERLY: Final[int] = 13
 
-# The weekly market return every position shares, and the level the benchmark
-# starts from. The benchmark tracks that factor almost exactly -- a broad index
-# is what it stands for -- with just enough noise of its own that the portfolio
-# does not shadow it week for week.
+# The benchmark tracks the shared market factor with a little noise of its own,
+# so the portfolio does not shadow it week for week.
 MARKET_DRIFT: Final[float] = 0.0022
 MARKET_VOLATILITY: Final[float] = 0.0112
 BENCHMARK_START_CLOSE: Final[float] = 78.5
 BENCHMARK_VOLATILITY: Final[float] = 0.0022
 
-# How often a week is recorded as carried forward rather than entered, and the
-# band a drifting FX rate is kept inside (as a factor on its starting rate).
+# FX_BAND bounds a drifting rate, as factors on its starting rate.
 CARRY_PROBABILITY: Final[float] = 0.02
 FX_VOLATILITY: Final[float] = 0.006
 FX_BAND: Final[tuple[float, float]] = (0.92, 1.09)
 
-# A value can only fall so far: the schema allows 0, but a zero grid point makes
-# :func:`summa.portfolio.rebase_to_grid` drop the benchmark line without a word.
+# The schema allows 0, but a zero grid point makes
+# :func:`summa.portfolio.rebase_to_grid` silently drop the benchmark line.
 MIN_VALUE: Final[float] = 0.01
 
 EXIT_OK: Final[int] = 0
@@ -102,10 +87,9 @@ class SeedSnapshot:
 class SeedPosition:
     """A generated position together with its full history.
 
-    :param closed_at: the date the position was sold, or None while it is held.
-        The zeroing row that follows a sale is deliberately absent from
-        `snapshots`: :func:`summa.portfolio.with_sale_recorded` derives it on
-        every read, and storing it as well would withdraw the proceeds twice.
+    :param closed_at: the sale date, or None while held. The zeroing row after a
+        sale is not in `snapshots`: :func:`summa.portfolio.with_sale_recorded`
+        derives it on read, and storing it too would withdraw the proceeds twice.
     """
 
     depot: str
@@ -155,17 +139,14 @@ class SeedSummary:
 class PositionSpec:
     """The recipe one position's random walk is grown from.
 
-    :param start_offset: weeks after the first snapshot date that the position
-        is bought in. Its history starts there -- never earlier with a value of
-        0, which would hand the chart a zero first grid point.
-    :param close_offset: weeks after the first snapshot date that the position
-        is sold in, counted back from the end when negative, or None while it is
-        still held. No snapshot is generated past that week.
-    :param drift: expected weekly return on top of the position's share of the
-        market, net of the variance drag -- see :func:`_variance_drag`.
-    :param beta: how much of the shared market return this position takes.
-    :param deposit_every: weeks between recurring deposits, or None for a
-        position that was bought and then only added to on the dates in
+    :param start_offset: purchase week after the first grid date; the history
+        never starts earlier at 0, which would be a zero first grid point.
+    :param close_offset: sale week, counted back from the end when negative, or
+        None while held.
+    :param drift: weekly return beyond the market share, net of
+        :func:`_variance_drag`.
+    :param beta: the share of the market return this position takes.
+    :param deposit_every: weeks between recurring deposits, or None for only
         `extra_deposits`.
     """
 
@@ -192,11 +173,8 @@ DEPOTS: Final[tuple[SeedDepot, ...]] = (
     SeedDepot(name="DKB", sort_order=2),
 )
 
-# Ten positions are still held and one is sold, so the donut shows its five
-# largest slices plus a pooled "5 more" -- the state worth looking at. Offsets
-# are written against DEFAULT_WEEKS and scaled in :func:`_resolve_offset`, so a
-# shorter --weeks run still staggers the entries instead of collapsing them all
-# onto week 0.
+# Ten held plus one sold, so the donut shows five slices and a pooled "5 more".
+# Offsets are against DEFAULT_WEEKS; :func:`_resolve_offset` scales them.
 POSITION_SPECS: Final[tuple[PositionSpec, ...]] = (
     PositionSpec(
         depot="Trade Republic",
@@ -367,10 +345,8 @@ POSITION_SPECS: Final[tuple[PositionSpec, ...]] = (
 def weekly_grid(weeks: int, today: date) -> list[str]:
     """Return `weeks` consecutive Mondays ending on the most recent one.
 
-    The grid ends at or before `today` because the API rejects a snapshot dated
-    in the future, and a script writing straight to SQLite bypasses that check.
-
-    :param weeks: how many dates the grid holds, the last one included.
+    Never past `today`: writing straight to SQLite bypasses the API's check
+    against future-dated snapshots.
     """
     last_monday: date = today - timedelta(days=today.weekday())
     first: date = last_monday - timedelta(weeks=weeks - 1)
@@ -380,10 +356,9 @@ def weekly_grid(weeks: int, today: date) -> list[str]:
 def _resolve_offset(offset: int, weeks: int) -> int:
     """Map a spec offset onto a grid of `weeks` weeks.
 
-    Offsets are written against DEFAULT_WEEKS so the profile reads as a calendar
-    rather than as fractions. A shorter run scales them down instead of dropping
-    every late entry off the end, and a negative offset counts back from the
-    final week -- which is how the sale keeps a fixed distance from today.
+    Scaled rather than clipped, so a short run keeps its late entries; a
+    negative offset counts back from the final week, keeping the sale a fixed
+    distance from today.
     """
     scaled: int = round(offset * weeks / DEFAULT_WEEKS)
     if offset < 0:
@@ -397,25 +372,17 @@ def _market_returns(rng: Random, length: int) -> list[float]:
 
 
 def _variance_drag(spec: PositionSpec) -> float:
-    """Return the weekly return a position's own volatility costs it.
+    """Return the weekly growth a position's volatility costs it: half the variance.
 
-    A multiplicative walk compounds ``1 + r``, so its expected *growth* is the
-    drift minus half the variance -- the more volatile the position, the more a
-    given drift overstates where it actually ends up. Subtracting the drag makes
-    ``drift`` mean the same thing for a 0.4 % ETF and a 4.6 % single stock,
-    which is what keeps a profile readable as expected returns.
+    Subtracting it makes ``drift`` mean the same expected growth for a calm ETF
+    and a volatile single stock.
     """
     variance: float = (spec.beta * MARKET_VOLATILITY) ** 2 + spec.volatility**2
     return variance / 2
 
 
 def _fx_series(rng: Random, base_rate: float, length: int) -> list[float]:
-    """Draw a slowly drifting FX rate, one per week, kept inside a plausible band.
-
-    A constant rate would make a foreign-currency position's history read as a
-    conversion table rather than as a record. The band is what keeps the drift
-    from wandering somewhere no EUR cross has ever been.
-    """
+    """Draw a slowly drifting weekly FX rate, clamped to `FX_BAND` around the base."""
     if base_rate == 1.0:
         return [1.0] * length
 
@@ -434,7 +401,6 @@ def _deposit_for(
 ) -> float:
     """Return the money paid into a position in one week, 0 when none was.
 
-    :param week: index into the grid.
     :param start: the grid index the position was bought in.
     """
     if week == start:
@@ -454,8 +420,8 @@ def _build_snapshots(
 ) -> tuple[list[SeedSnapshot], str | None]:
     """Grow one position's weekly history, and the date it was sold on.
 
-    A carried week is only ever a week without a deposit: the flag says the
-    value was copied forward, and money that moved is a week somebody recorded.
+    Only a week without a deposit can be carried: money that moved is a week
+    somebody recorded.
 
     :return: the snapshots, ascending by date, and ``closed_at`` or None.
     """
@@ -512,8 +478,7 @@ def _build_benchmark(
     :param dates: the pre-roll dates followed by the snapshot grid, ascending.
     """
     returns: list[float] = list(preroll) + list(market)
-    # The same correction the positions apply, so a drift means the same thing
-    # on both lines and the chart does not compare a corrected series to a raw one.
+    # The positions' drag correction too, so both lines' drifts mean the same.
     drag: float = (MARKET_VOLATILITY**2 + BENCHMARK_VOLATILITY**2) / 2
     prices: list[SeedBenchmarkPrice] = []
     close: float = BENCHMARK_START_CLOSE
@@ -531,11 +496,8 @@ def build_seed_data(
 ) -> SeedData:
     """Generate the whole fake portfolio, deterministically for a given seed.
 
-    Nothing here reads a clock, an environment or a database: the same arguments
-    always produce the same data, which is what makes a screenshot reproducible
-    and the schema's invariants testable without SQLite.
-
-    :param weeks: how many weekly snapshot dates the history spans.
+    No clock, environment or database is read, so a screenshot is reproducible
+    and the invariants are testable without SQLite.
     """
     rng: Random = Random(seed)
     grid: list[str] = weekly_grid(weeks, today)
@@ -577,9 +539,8 @@ def build_seed_data(
 def snapshot_range(positions: Sequence[SeedPosition]) -> tuple[str, str]:
     """Return the first and last week any position was recorded in.
 
-    Taken across the whole roster rather than from its first entry: that one
-    covers the run only as long as a spec with ``start_offset=0`` happens to come
-    first, and a sold position ends before the grid does.
+    Taken across all positions: the first spec need not start at week 0, and a
+    sold position ends before the grid does.
 
     :param positions: at least one position, each with at least one snapshot.
     """
@@ -589,14 +550,10 @@ def snapshot_range(positions: Sequence[SeedPosition]) -> tuple[str, str]:
 
 
 def symbol_notes(symbol: str, configured: str, reset: bool, dry_run: bool) -> list[str]:
-    """Return the stderr notes a run under a foreign benchmark symbol owes its user.
+    """Return the stderr notes owed for seeding a symbol the chart does not read.
 
-    The chart draws the configured symbol alone, so seeding another one writes
-    closes nothing reads -- and with ``--reset``, which clears
-    ``benchmark_prices`` along with the rest, it also takes the closes the chart
-    *was* reading, leaving it with no benchmark at all.
-
-    :param configured: the symbol the app charts, per ``config.benchmark_symbol()``.
+    With ``--reset`` the configured symbol's closes are cleared as well, leaving
+    the chart with no benchmark at all.
     """
     if symbol == configured:
         return []
@@ -641,9 +598,7 @@ PORTFOLIO_TABLES: Final[tuple[str, ...]] = (
 def clear_portfolio(cursor: sqlite3.Cursor) -> int:
     """Delete every portfolio row, leaving the invoice tables alone.
 
-    Positions and snapshots go with their depot through ``ON DELETE CASCADE``,
-    which the connection enables -- so the two statements below cover the whole
-    portfolio area and reach nothing outside it.
+    Positions and snapshots follow their depot via ``ON DELETE CASCADE``.
 
     :return: how many rows were deleted, across all four tables.
     """
@@ -663,9 +618,8 @@ def upsert_benchmark(
 ) -> int:
     """Write the generated closes, refreshing any already on record.
 
-    An upsert rather than an ``INSERT OR IGNORE``, matching
-    ``scripts/fetch_benchmark.py``: re-seeding with another seed should move the
-    line rather than leave the previous run's closes standing beside it.
+    An upsert like ``fetch_benchmark``'s, so re-seeding with another seed moves
+    the line instead of leaving the previous closes beside it.
 
     :return: how many closes were written.
     """
@@ -748,8 +702,7 @@ def build_parser() -> argparse.ArgumentParser:
             "it is, so a value corrected in the UI survives a re-run."
         ),
     )
-    # Read here rather than at import, so the default follows the environment
-    # the run is given -- the same lazy shape summa.config uses throughout.
+    # Read at call time, not import, so the default follows the run's environment.
     configured_symbol: str = config.benchmark_symbol()
     parser.add_argument(
         "--db",
@@ -801,8 +754,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: --weeks needs at least {MIN_WEEKS}", file=sys.stderr)
         return EXIT_USAGE_ERROR
 
-    # Read here rather than from the parser default, so a symbol the environment
-    # changed after parsing is still compared against the one the chart reads.
+    # Re-read, not the parser default, in case the environment changed since.
     for note in symbol_notes(
         args.symbol, config.benchmark_symbol(), args.reset, args.dry_run
     ):

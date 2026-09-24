@@ -1,17 +1,13 @@
 """Import a depot workbook into Summa's portfolio tables.
 
-The workbook is wide: row 1 carries merged depot bands, row 2 the headers, and
-from row 3 every row is one week. Each position occupies a triple of columns --
-its value, its ``Einzahlung`` and a ``Delta`` that this importer recomputes
-rather than reads, because :func:`summa.portfolio.week_delta` derives it from
-the stored snapshots anyway.
+Layout: row 1 merged depot bands, row 2 headers, row 3+ one week per row. Each
+position is a ``value · Einzahlung · Delta`` column triple; Delta is not read,
+since :func:`summa.portfolio.week_delta` derives it from the snapshots.
 
-Re-running is safe: snapshots are written with ``INSERT OR IGNORE`` on
-``(position_id, date)``, so a week already in the database is left exactly as it
-is -- including one corrected by hand in the UI.
-
-``--dry-run`` runs the whole import against an in-memory copy of the database, so
-it reports real counts while never creating or modifying the file behind ``--db``.
+Re-running is safe: snapshots use ``INSERT OR IGNORE`` on ``(position_id, date)``,
+so a week already stored -- including one corrected in the UI -- is never
+rewritten. ``--dry-run`` imports into an in-memory copy and never creates or
+modifies the ``--db`` file.
 """
 
 import argparse
@@ -55,9 +51,8 @@ BAND_SUFFIX: Final[str] = "Depot"
 IGNORED_BANDS: Final[frozenset[str]] = frozenset({"Gesamt", "Insgesamt", "Total"})
 DEFAULT_SHEET: Final[str] = "Übersicht"
 
-# Not the ISO table, just what a depot sheet plausibly quotes in. A header's last
-# token is only read as a currency when it appears here, which is what keeps a
-# position named "AMD" from being stripped down to nothing.
+# Not the ISO table, just what a depot sheet plausibly quotes in: a trailing
+# header token outside it stays part of the name, so "AMD" is not stripped.
 CURRENCY_CODES: Final[frozenset[str]] = frozenset(
     {"EUR", "USD", "GBP", "CHF", "JPY", "SEK", "NOK", "DKK", "CAD", "AUD"}
 )
@@ -129,19 +124,15 @@ class ImportSummary:
 
 
 def strip_style_extensions(styles_xml: bytes) -> bytes:
-    """Remove every ``extLst`` element from a stylesheet.
-
-    :param styles_xml: the raw ``xl/styles.xml`` part.
-    """
+    """Remove every ``extLst`` element from a stylesheet."""
     return STYLE_EXTENSIONS.sub(b"", styles_xml)
 
 
 def parse_number(raw: object) -> float | None:
     """Coerce a cell value to an amount in cents precision, or None when empty.
 
-    A repaired workbook hands over real floats, so the German text branch only
-    catches a sheet whose amounts were saved as strings. The rounding is what
-    turns a stored ``510.769999999999982`` back into ``510.77``.
+    The German text branch only catches amounts saved as strings. Rounding turns
+    a stored ``510.769999999999982`` back into ``510.77``.
     """
     if raw is None or isinstance(raw, bool):
         return None
@@ -183,8 +174,7 @@ def parse_date_cell(raw: object) -> str | None:
 def split_header(header: str) -> tuple[str, str]:
     """Split a row-2 header into a position name and its currency.
 
-    The trailing token is only taken as a currency when the header has more than
-    one token, so a position literally named ``AMD`` or ``USD`` keeps its name.
+    A single token is always the name, so a position named ``USD`` keeps it.
     """
     tokens: list[str] = header.split()
     if len(tokens) > 1 and tokens[-1].upper() in CURRENCY_CODES:
@@ -201,11 +191,7 @@ def normalize_depot_name(band: str) -> str:
 
 
 def infer_kind(name: str) -> str:
-    """Guess a position's kind from its name.
-
-    ETF markers win over fund markers, so a hypothetical "Deka MSCI World" reads
-    as an ETF. The user can correct either one in Settings afterwards.
-    """
+    """Guess a position's kind from its name; ETF markers win over fund markers."""
     folded: str = name.casefold()
     if any(marker in folded for marker in ETF_MARKERS):
         return KIND_ETF
@@ -221,9 +207,8 @@ def fill_band_map(
 ) -> dict[int, str]:
     """Map every column to the depot band above it.
 
-    Merged ranges carry their label in the top-left cell only. Columns no merge
-    covers inherit the nearest label to their left, so a sheet that repeats the
-    label instead of merging maps identically.
+    Unmerged columns inherit the nearest label to their left, so a sheet that
+    repeats labels instead of merging maps identically.
 
     :param merges: ``(min_col, max_col)`` pairs of the row-1 merged ranges.
     """
@@ -250,11 +235,9 @@ def find_position_columns(
 ) -> list[PositionColumn]:
     """Find the value column of every position in the sheet.
 
-    A column starts a position exactly when the column beside it is headed
-    ``Einzahlung``. That single test also rejects the ``Datum`` column, every
-    ``Delta`` column and the sheet's own total band, whose deposit column is
-    headed ``Einzahlung gesamt`` -- which is why the comparison is equality and
-    not a prefix match.
+    A position starts where the next column is headed exactly ``Einzahlung``.
+    Equality, not a prefix match, also rejects ``Datum``, every ``Delta`` and
+    the total band's ``Einzahlung gesamt``.
 
     :raises ImportAbort: a position sits under no depot band.
     """
@@ -294,13 +277,9 @@ def find_position_columns(
 def _position_started(value: float | None, deposit: float | None) -> bool:
     """Decide whether a position is already held in this row.
 
-    A blank cell is the usual way the sheet says "not bought yet", but a column
-    pre-filled with formulas says it with a literal 0 instead. Importing those
-    weeks would predate the position's first snapshot and, worse, hand the chart
-    a zero first grid point -- which makes
-    :func:`summa.portfolio.rebase_to_grid` return nothing and silently drop the
-    benchmark line. A deposit without a value still starts the position: the
-    money moved, so the week is real.
+    A formula-prefilled literal 0 counts as "not bought yet" like a blank: a zero
+    first grid point makes :func:`summa.portfolio.rebase_to_grid` drop the
+    benchmark line. A deposit alone does start it -- the money moved.
     """
     if value is not None and value > 0:
         return True
@@ -316,15 +295,9 @@ def build_snapshot_rows(
 ) -> tuple[list[SnapshotRow], int]:
     """Turn the parsed grid into snapshot rows.
 
-    Once a position has started, every remaining week yields a row: a blank value
-    is carried forward from the previous week and flagged ``carried``. The flag
-    describes the value alone -- a deposit on such a week is real money and is
-    recorded at its own date, because dropping it would distort ``invested_eur``
-    and moving it would misdate the cash flow.
-
-    A week before the position's first real value is not carried: there is nothing
-    to carry. A deposit-only start therefore records ``carried=False``, the same as
-    the literal-zero spelling of that week.
+    After a position starts, a blank value is carried forward and flagged
+    ``carried``. The flag covers the value only: a deposit that week is still
+    recorded at its own date. Nothing is carried before the first real value.
 
     :return: the rows plus the number of pre-start rows skipped.
     """
@@ -411,8 +384,8 @@ def format_summary(summary: ImportSummary) -> str:
 def load_repaired_workbook(path: Path) -> Any:
     """Load a workbook, repacking it in memory so openpyxl accepts its styles.
 
-    The file on disk is never touched. ``read_only`` is deliberately off: it
-    hides ``merged_cells.ranges``, which is where the depot bands live.
+    ``read_only`` stays off: it hides ``merged_cells.ranges``, where the depot
+    bands live.
     """
     buffer: io.BytesIO = io.BytesIO()
     with zipfile.ZipFile(path) as source:
@@ -452,8 +425,7 @@ def read_grid(
 ) -> tuple[list[str], list[dict[int, float | None]], list[dict[int, float | None]]]:
     """Read the data rows into dates plus per-column values and deposits.
 
-    Rows whose date cell does not parse are skipped, which is how a trailing
-    note or a blank spacer row below the data stays out of the import.
+    Rows without a parseable date (trailing notes, spacers) are skipped.
     """
     dates: list[str] = []
     values: list[dict[int, float | None]] = []

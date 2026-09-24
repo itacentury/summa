@@ -36,8 +36,7 @@ class SnapshotFields(Protocol):
 class SnapshotWrite:
     """What one position's insert did to the database.
 
-    :param carried: how many of the *written* rows were carried forward -- a row
-        already present was not written by this run and so is not counted.
+    :param carried: carried-forward rows among those *written*, not pre-existing.
     """
 
     written: int
@@ -53,12 +52,8 @@ def default_database_path() -> Path:
 def connect(database_path: Path) -> sqlite3.Connection:
     """Open a database with foreign keys on and the portfolio schema present.
 
-    The scripts deliberately do not reuse :func:`summa.db.get_db`: its path is a
-    module-level constant read at import, while a CLI takes its target from
-    ``--db``. :func:`summa.db.init_db` is avoided for the same reason, and
-    because creating the invoice tables is none of these scripts' business.
-
-    :param database_path: the SQLite file to open, created when missing.
+    Not :func:`summa.db.get_db`/:func:`summa.db.init_db`: they fix the path at
+    import (a CLI takes ``--db``) and would create the invoice tables too.
     """
     conn: sqlite3.Connection = sqlite3.connect(database_path, timeout=CONNECT_TIMEOUT)
     conn.row_factory = sqlite3.Row
@@ -72,12 +67,8 @@ def connect(database_path: Path) -> sqlite3.Connection:
 def connect_mirror(database_path: Path) -> sqlite3.Connection:
     """Open a throwaway in-memory copy of a database, for runs that must not write.
 
-    The file itself is only read -- it is not created when missing and its
-    journal mode is left alone -- so everything written to the returned
-    connection dies with it. This is what lets a dry run report real insert
-    counts without a rollback that could never undo the committed schema.
-
-    :param database_path: the SQLite file to copy, ignored when it does not exist.
+    The file is only read (never created, journal mode untouched), so a dry run
+    reports real counts without a rollback that could not undo the schema commit.
     """
     mirror: sqlite3.Connection = sqlite3.connect(":memory:")
     if database_path.exists():
@@ -85,8 +76,7 @@ def connect_mirror(database_path: Path) -> sqlite3.Connection:
             f"file:{database_path}?mode=ro", uri=True, timeout=CONNECT_TIMEOUT
         )
         try:
-            # backup() replaces the whole target database, so the connection
-            # settings below are applied only afterwards.
+            # backup() replaces the whole target, so settings are applied after it.
             source.backup(mirror)
         finally:
             source.close()
@@ -99,12 +89,9 @@ def connect_mirror(database_path: Path) -> sqlite3.Connection:
 
 @contextmanager
 def open_database(database_path: Path, dry_run: bool) -> Iterator[sqlite3.Cursor]:
-    """Yield a cursor inside one transaction, committed only when the body succeeds.
+    """Yield a cursor in one transaction, committed only when the body succeeds.
 
-    A dry run commits into its in-memory mirror, which closing discards.
-
-    :param database_path: the SQLite file to write, or to copy on a dry run.
-    :param dry_run: work on a :func:`connect_mirror` copy instead of the file.
+    :param dry_run: work on a :func:`connect_mirror` copy, discarded on close.
     """
     conn: sqlite3.Connection = (
         connect_mirror(database_path) if dry_run else connect(database_path)
