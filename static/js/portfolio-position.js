@@ -83,10 +83,17 @@ async function fetchDepots() {
   return (await response.json()).depots;
 }
 
+/** Fetch and render the depot list, returning it; failures propagate. */
+async function listDepots() {
+  const depots = await fetchDepots();
+  renderDepotOptions(depots);
+  depotListLoaded = true;
+  return depots;
+}
+
 async function loadDepots() {
   try {
-    renderDepotOptions(await fetchDepots());
-    depotListLoaded = true;
+    await listDepots();
   } catch (error) {
     console.error("Error loading depots:", error);
     renderDepotOptions([]);
@@ -101,13 +108,11 @@ async function loadDepots() {
 async function offerCreatedDepot() {
   let depots;
   try {
-    depots = await fetchDepots();
+    depots = await listDepots();
   } catch (error) {
     console.error("Error reloading depots:", error);
     return;
   }
-  renderDepotOptions(depots);
-  depotListLoaded = true;
   if (!depots.some((entry) => entry.id === unresolvedDepotId)) {
     unresolvedDepotId = null;
     unresolvedDepotName = null;
