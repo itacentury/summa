@@ -498,7 +498,7 @@ def run_import(
         result: SnapshotWrite = insert_snapshots(cursor, position_id, position_rows)
         written += result.written
         existing += result.existing
-        carried += sum(1 for row in position_rows if row.carried)
+        carried += result.carried
 
     return ImportSummary(
         depots=len(depot_ids),
