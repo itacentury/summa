@@ -10,8 +10,7 @@ import {
   openAddModal,
   openImportModal,
   hideOverlay,
-  lockScroll,
-  unlockScroll,
+  showOverlay,
 } from "./modals.js";
 import { openSettingsModal } from "./settings.js";
 import { openSnapshotModal } from "./portfolio-snapshot.js";
@@ -92,8 +91,8 @@ function closeActiveModal(modal) {
 function toggleShortcutHelp() {
   const overlay = document.querySelector('[data-el="shortcuts-help"]');
   if (!overlay) return;
-  if (overlay.classList.toggle("active")) lockScroll();
-  else unlockScroll();
+  if (overlay.classList.contains("active")) hideOverlay(overlay);
+  else showOverlay(overlay);
 }
 
 /**
