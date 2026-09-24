@@ -18,7 +18,7 @@ import {
   formatDateDots,
   formatPercent,
   formatSigned,
-} from "../../static/js/portfolio-render.js";
+} from "../../static/js/portfolio-format.js";
 import {
   state,
   collapsedDepots,

@@ -14,7 +14,7 @@ import {
   setupSnapshotListeners,
 } from "../../static/js/portfolio-snapshot.js";
 import { setupPositionListeners } from "../../static/js/portfolio-position.js";
-import { parseAmountInput } from "../../static/js/portfolio-render.js";
+import { parseAmountInput } from "../../static/js/portfolio-format.js";
 import { loadPortfolio } from "../../static/js/portfolio.js";
 import { showErrorToast, showNoticeToast } from "../../static/js/toast.js";
 import { todayIso } from "../../static/js/dom.js";

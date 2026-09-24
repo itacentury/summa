@@ -12,7 +12,7 @@ import { showErrorToast, showNoticeToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { escapeHtml } from "./dom.js";
 import { refreshTruncation, truncatableHtml } from "./truncate.js";
-import { KIND_LABELS, formatDateDots } from "./portfolio-render.js";
+import { KIND_LABELS, formatDateDots } from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
 import { openPositionModal } from "./portfolio-position.js";
 

@@ -22,7 +22,7 @@ import {
   formatEuro,
   parseAmountInput,
   toneClass,
-} from "./portfolio-render.js";
+} from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
 import { openPositionModal } from "./portfolio-position.js";
 

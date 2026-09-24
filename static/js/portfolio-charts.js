@@ -16,9 +16,9 @@ import {
   benchmarkDisplayName,
   benchmarkNoteText,
   biggestChangesHtml,
-  formatEuro,
   seriesLegendHtml,
 } from "./portfolio-render.js";
+import { formatEuro } from "./portfolio-format.js";
 import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
 import { refreshTruncation } from "./truncate.js";
 
