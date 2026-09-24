@@ -79,5 +79,5 @@ export function sendJson(url, method, body, options = {}) {
  */
 export async function errorMessage(response, fallback) {
   const payload = await response.json().catch(() => ({}));
-  return payload.error ?? fallback;
+  return payload?.error ?? fallback;
 }
