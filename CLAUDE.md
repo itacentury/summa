@@ -110,7 +110,8 @@ the eager WSGI/CLI instance `app = create_app()` lives in `summa/wsgi.py`
 (`FLASK_APP=summa.wsgi`, gunicorn `summa.wsgi:app`). Routes are split into blueprints under
 `summa/routes/` (`web.py` → `/`, `auth.py` → `/api/auth/*`, `invoices.py` →
 `/api/invoices*` + `/stores` + `/categories`, `stats.py` → `/api/stats`,
-`portfolio.py` → `/api/portfolio*`); the DB layer lives in `summa/db.py`
+`portfolio.py` → `GET /api/portfolio*`, `portfolio_writes.py` → the portfolio
+POST/PATCH routes); the DB layer lives in `summa/db.py`
 and shared types/helpers in `summa/helpers.py`. Key conventions:
 
 - **SQLite:** `invoices` and `invoice_items` (FK with `ON DELETE CASCADE`), plus
@@ -162,8 +163,8 @@ units of that currency per EUR, so `value_eur = value / fx_rate`). Everything
 shown — EUR sums, invested, gains, the weekly delta, the chart series, allocation
 and the biggest movers — is derived on read by the **pure** module
 `summa/portfolio.py` (no Flask, no SQL), which is why `tests/test_portfolio.py`
-can prove the rules without HTTP; `summa/routes/portfolio.py` only queries and
-calls into it. Two invariants: **a sale is recorded, not flagged** (`closed_at`
+can prove the rules without HTTP; `summa/routes/portfolio.py` (reads) and
+`summa/routes/portfolio_writes.py` (writes) only query and call into it. Two invariants: **a sale is recorded, not flagged** (`closed_at`
 plus a closing row derived by `with_sale_recorded()`, never stored), and
 `carried = 1` marks a value copied forward from the previous week rather than
 entered. History is loaded by `scripts/import_portfolio_xlsx.py`, which reads the
