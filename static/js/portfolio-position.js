@@ -25,6 +25,10 @@ let unresolvedDepotName = null;
 // rename was refused or its response lost. A retry renames it again by id.
 let unresolvedDepotId = null;
 
+// Adoption relies on the select listing every existing depot, which holds only
+// once the list loaded; the prefill omits sold positions, so it cannot tell.
+let depotListLoaded = false;
+
 function positionElements() {
   const overlay = document.querySelector(
     '[data-el="portfolio-position-modal"]',
@@ -70,6 +74,7 @@ function resetForm() {
   depotName.value = "";
   unresolvedDepotName = null;
   unresolvedDepotId = null;
+  depotListLoaded = false;
 }
 
 async function fetchDepots() {
@@ -81,6 +86,7 @@ async function fetchDepots() {
 async function loadDepots() {
   try {
     renderDepotOptions(await fetchDepots());
+    depotListLoaded = true;
   } catch (error) {
     console.error("Error loading depots:", error);
     renderDepotOptions([]);
@@ -155,8 +161,8 @@ async function findDepotId(name) {
 
 /**
  * The depot an earlier attempt may have created, or `null` when it never landed.
- * A depot already offered in the select, or one that holds positions, existed
- * before, so it is never adopted: the select is empty when the list failed to load.
+ * Only a loaded list offers every earlier depot in the select, so without one
+ * nothing is adopted; with one, a depot already offered existed before.
  */
 async function findUnresolvedDepotId() {
   if (unresolvedDepotName === null) return null;
@@ -165,8 +171,8 @@ async function findUnresolvedDepotId() {
     (entry) => entry.name === unresolvedDepotName,
   );
   if (
+    depotListLoaded &&
     found &&
-    found.positions.length === 0 &&
     !depot.querySelector(`option[value="${found.id}"]`)
   ) {
     return found.id;

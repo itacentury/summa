@@ -805,6 +805,32 @@ describe("add position", () => {
     expect(lastBody().depot_id).toBe(7);
   });
 
+  it("never renames a depot with only sold positions when the list failed to load", async () => {
+    // The prefill omits sold positions, so depot 1 looks as empty as a new one.
+    const soldOnlyPrefill = () =>
+      prefill({ depots: [{ id: 1, name: "Trade Republic", positions: [] }] });
+    await loseDepotResponse(soldOnlyPrefill(), { ok: false, status: 500 });
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse(soldOnlyPrefill()))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 7 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(retryCalls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+    expect(JSON.parse(retryCalls[1][1].body)).toEqual({ name: "TR" });
+    expect(lastBody().depot_id).toBe(7);
+  });
+
   it("keeps a created depot selected when the position is refused", async () => {
     // A retry must not post the depot a second time: its name is taken now.
     await openPositionForm(prefill({ depots: [] }));
