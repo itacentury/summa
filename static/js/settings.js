@@ -4,26 +4,21 @@
  * wires it.
  */
 
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import {
   refreshPortfolioSettings,
   setupPortfolioSettings,
 } from "./settings-portfolio.js";
 
 export function openSettingsModal() {
-  const modal = document.querySelector('[data-el="settings-modal"]');
-  modal.classList.add("active");
-  lockScroll();
+  showOverlay(document.querySelector('[data-el="settings-modal"]'));
   // Deliberately not awaited: the dialog is usable while its sub-lines fill in,
   // and the module reports its own failures.
   refreshPortfolioSettings();
 }
 
 export function closeSettingsModal() {
-  document
-    .querySelector('[data-el="settings-modal"]')
-    .classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="settings-modal"]'));
 }
 
 /**

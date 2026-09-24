@@ -10,7 +10,7 @@
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { escapeHtml, withBusyButton } from "./dom.js";
 import { loadPortfolio } from "./portfolio.js";
 import { isCurrencyCode } from "./portfolio-format.js";
@@ -99,16 +99,14 @@ export function openPositionModal({ onSaved: handler = null } = {}) {
   if (!elements) return;
   onSaved = handler;
   resetForm();
-  elements.overlay.classList.add("active");
-  lockScroll();
+  showOverlay(elements.overlay);
   loadDepots();
 }
 
 export function closePositionModal() {
   const elements = positionElements();
   if (!elements) return;
-  elements.overlay.classList.remove("active");
-  unlockScroll();
+  hideOverlay(elements.overlay);
 }
 
 /**

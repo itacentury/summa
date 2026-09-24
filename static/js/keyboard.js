@@ -9,6 +9,7 @@
 import {
   openAddModal,
   openImportModal,
+  hideOverlay,
   lockScroll,
   unlockScroll,
 } from "./modals.js";
@@ -85,8 +86,7 @@ function closeActiveModal(modal) {
     cancelButton.click();
     return;
   }
-  modal.classList.remove("active");
-  unlockScroll();
+  hideOverlay(modal);
 }
 
 function toggleShortcutHelp() {

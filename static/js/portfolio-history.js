@@ -8,7 +8,7 @@
 
 import { apiFetch } from "./http.js";
 import { showErrorToast } from "./toast.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { historyRowsHtml } from "./portfolio-render.js";
 
 // The rows of the position currently on screen, and how they are filtered.
@@ -119,8 +119,7 @@ export function openHistoryModal(positionId, name) {
   syncFilterButtons();
   elements.subtitle.textContent = name;
   renderRows();
-  elements.overlay.classList.add("active");
-  lockScroll();
+  showOverlay(elements.overlay);
   loadHistory(positionId);
 }
 
@@ -130,8 +129,7 @@ export function closeHistoryModal() {
   controller?.abort();
   controller = null;
   status = "ready";
-  elements.overlay.classList.remove("active");
-  unlockScroll();
+  hideOverlay(elements.overlay);
 }
 
 /** Wire the dialog. Its trigger is delegated from the positions list. */

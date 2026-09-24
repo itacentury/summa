@@ -9,7 +9,7 @@
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { escapeHtml } from "./dom.js";
 import { refreshTruncation, truncatableHtml } from "./truncate.js";
 import {
@@ -353,16 +353,14 @@ export function openManageModal(nextMode, { onChanged: handler = null } = {}) {
   elements.title.textContent = mode === "depots" ? "Depots" : "Positions";
   elements.add.textContent = mode === "depots" ? "Add depot" : "Add position";
   elements.list.innerHTML = '<div class="manage-empty">Loading…</div>';
-  elements.overlay.classList.add("active");
-  lockScroll();
+  showOverlay(elements.overlay);
   reload();
 }
 
 export function closeManageModal() {
   const elements = manageElements();
   if (!elements) return;
-  elements.overlay.classList.remove("active");
-  unlockScroll();
+  hideOverlay(elements.overlay);
 }
 
 /**

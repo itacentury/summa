@@ -14,7 +14,7 @@
 
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { escapeHtml, todayIso, withBusyButton } from "./dom.js";
 import {
   formatAmount,
@@ -284,8 +284,7 @@ async function loadPrefill() {
 export function openSnapshotModal() {
   const elements = snapshotElements();
   if (!elements) return;
-  elements.overlay.classList.add("active");
-  lockScroll();
+  showOverlay(elements.overlay);
   loadPrefill();
 }
 
@@ -293,10 +292,9 @@ export function openSnapshotModal() {
 export function closeSnapshotModal() {
   const elements = snapshotElements();
   if (!elements) return;
-  elements.overlay.classList.remove("active");
+  hideOverlay(elements.overlay);
   elements.rows.innerHTML = "";
   positions.clear();
-  unlockScroll();
 }
 
 /**

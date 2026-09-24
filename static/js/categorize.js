@@ -18,7 +18,7 @@ import {
   renderInvoices,
   restoreRows,
 } from "./render.js";
-import { lockScroll, unlockScroll } from "./modals.js";
+import { hideOverlay, showOverlay } from "./modals.js";
 import { createCombobox } from "./combobox.js";
 import { getAiModel, setupModelPicker } from "./ai-model.js";
 import { apiFetch, sendJson } from "./http.js";
@@ -399,17 +399,13 @@ function setFooterVisible(visible) {
 function openModalShell() {
   const modal = document.querySelector('[data-el="categorize-modal"]');
   document.querySelector('[data-el="categorize-subtitle"]').textContent = "";
-  modal.classList.add("active");
-  lockScroll();
+  showOverlay(modal);
 }
 
 export function closeCategorizeModal() {
   controller?.abort();
   controller = null;
-  document
-    .querySelector('[data-el="categorize-modal"]')
-    .classList.remove("active");
-  unlockScroll();
+  hideOverlay(document.querySelector('[data-el="categorize-modal"]'));
   contentEl().innerHTML = "";
   setFooterVisible(false);
   reviewRows = [];

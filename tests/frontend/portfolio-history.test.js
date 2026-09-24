@@ -20,8 +20,8 @@ vi.mock("../../static/js/toast.js", () => ({
   showNoticeToast: vi.fn(),
 }));
 vi.mock("../../static/js/modals.js", () => ({
-  lockScroll: vi.fn(),
-  unlockScroll: vi.fn(),
+  showOverlay: (overlay) => overlay.classList.add("active"),
+  hideOverlay: (overlay) => overlay.classList.remove("active"),
 }));
 
 const markup = `
