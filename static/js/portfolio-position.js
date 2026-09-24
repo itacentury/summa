@@ -150,7 +150,8 @@ async function findDepotId(name) {
 
 /**
  * The depot an earlier attempt may have created, or `null` when it never landed.
- * A depot already offered in the select existed before, so it is never adopted.
+ * A depot already offered in the select, or one that holds positions, existed
+ * before, so it is never adopted: the select is empty when the list failed to load.
  */
 async function findUnresolvedDepotId() {
   if (unresolvedDepotName === null) return null;
@@ -158,7 +159,11 @@ async function findUnresolvedDepotId() {
   const found = (await fetchDepots()).find(
     (entry) => entry.name === unresolvedDepotName,
   );
-  if (found && !depot.querySelector(`option[value="${found.id}"]`)) {
+  if (
+    found &&
+    found.positions.length === 0 &&
+    !depot.querySelector(`option[value="${found.id}"]`)
+  ) {
     return found.id;
   }
   unresolvedDepotName = null;

@@ -416,8 +416,8 @@ describe("add position", () => {
   });
 
   /** Open from the empty state and let the depot list settle. */
-  async function openPositionForm(payload = prefill()) {
-    global.fetch.mockResolvedValueOnce(jsonResponse(payload));
+  async function openPositionForm(payload = prefill(), init = undefined) {
+    global.fetch.mockResolvedValueOnce(jsonResponse(payload, init));
     document
       .querySelector('[data-el="portfolio-empty"] [data-action="add-position"]')
       .click();
@@ -654,8 +654,11 @@ describe("add position", () => {
   });
 
   // The depot request never answers; whether the server wrote it is unknown.
-  async function loseDepotResponse(payload = prefill({ depots: [] })) {
-    await openPositionForm(payload);
+  async function loseDepotResponse(
+    payload = prefill({ depots: [] }),
+    init = undefined,
+  ) {
+    await openPositionForm(payload, init);
     depotSelect().value = "new";
     document.querySelector('[data-el="position-name"]').value =
       "MSCI World SRI";
@@ -724,6 +727,29 @@ describe("add position", () => {
       "/api/portfolio/depots",
       "/api/portfolio/positions",
     ]);
+    expect(lastBody().depot_id).toBe(7);
+  });
+
+  it("never renames a depot with positions when the list failed to load", async () => {
+    // The select holds only "New depot…", so it cannot tell depot 1 existed.
+    await loseDepotResponse(prefill(), { ok: false, status: 500 });
+    document.querySelector('[data-el="position-depot-name"]').value = "TR";
+
+    const callsBefore = global.fetch.mock.calls.length;
+    global.fetch
+      .mockResolvedValueOnce(jsonResponse(prefill()))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 7 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, id: 21 }));
+    document.querySelector('[data-el="position-save"]').click();
+    await flushUi();
+
+    const retryCalls = global.fetch.mock.calls.slice(callsBefore);
+    expect(retryCalls.map(([url]) => url)).toEqual([
+      "/api/portfolio/snapshot/new",
+      "/api/portfolio/depots",
+      "/api/portfolio/positions",
+    ]);
+    expect(retryCalls.some(([, init]) => init?.method === "PATCH")).toBe(false);
     expect(lastBody().depot_id).toBe(7);
   });
 
