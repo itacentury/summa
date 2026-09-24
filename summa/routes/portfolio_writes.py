@@ -5,6 +5,7 @@ Only validates requests and stores raw facts; nothing here derives a number.
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Final
@@ -401,24 +402,27 @@ def _parse_position_patch(data: Any) -> dict[str, Any]:
     return updates
 
 
-def _assignment(column: str, value: Any) -> str:
-    """Return one SET clause for a patched column.
+def _plain_assignment(column: str, value: Any) -> str:
+    """Return one SET assignment that overwrites the column."""
+    return f"{column} = ?"
+
+
+def _position_assignment(column: str, value: Any) -> str:
+    """Return one SET assignment for a patched position column.
 
     A repeated close keeps the original sale date; reopening writes NULL.
     """
     if column == "closed_at" and value is not None:
         return "closed_at = COALESCE(closed_at, ?)"
-    return f"{column} = ?"
+    return _plain_assignment(column, value)
 
 
-def _apply_patch(
-    cursor: sqlite3.Cursor,
-    table: str,
-    row_id: int,
+def _set_clause(
     updates: dict[str, Any],
     allowed: tuple[str, ...],
-) -> bool:
-    """Write a validated PATCH to one row and return whether that row exists.
+    assignment: Callable[[str, Any], str] = _plain_assignment,
+) -> str:
+    """Build the SET clause for a validated PATCH.
 
     Column names come from the parser's own keys, so interpolating them is safe.
     Checked rather than asserted, because an assert would vanish under `python -O`.
@@ -426,11 +430,19 @@ def _apply_patch(
     unknown_columns: set[str] = set(updates) - set(allowed)
     if unknown_columns:
         raise ValueError(f"Not a patchable column: {sorted(unknown_columns)}")
-    assignments: str = ", ".join(
-        _assignment(column, value) for column, value in updates.items()
-    )
+    return ", ".join(assignment(column, value) for column, value in updates.items())
+
+
+def _apply_patch(
+    cursor: sqlite3.Cursor,
+    table: str,
+    row_id: int,
+    set_clause: str,
+    updates: dict[str, Any],
+) -> bool:
+    """Write a PATCH to one row and return whether that row exists."""
     cursor.execute(
-        f"UPDATE {table} SET {assignments} WHERE id = ?", [*updates.values(), row_id]
+        f"UPDATE {table} SET {set_clause} WHERE id = ?", [*updates.values(), row_id]
     )
     return cursor.rowcount > 0
 
@@ -448,13 +460,14 @@ def update_position(position_id: int) -> ApiResponse:
         updates: dict[str, Any] = _parse_position_patch(request.json)
     except ValidationError as e:
         return error_response(e.message, 400)
+    set_clause: str = _set_clause(updates, _PATCHABLE_COLUMNS, _position_assignment)
 
     try:
         with db_cursor() as cursor:
             if "depot_id" in updates:
                 _require_existing_depot(cursor, updates["depot_id"])
             if not _apply_patch(
-                cursor, "portfolio_positions", position_id, updates, _PATCHABLE_COLUMNS
+                cursor, "portfolio_positions", position_id, set_clause, updates
             ):
                 return error_response("Position not found", 404)
             if updates.get("is_benchmark_fallback"):
@@ -525,11 +538,12 @@ def update_depot(depot_id: int) -> ApiResponse:
         updates: dict[str, Any] = _parse_depot_patch(request.json)
     except ValidationError as e:
         return error_response(e.message, 400)
+    set_clause: str = _set_clause(updates, _PATCHABLE_DEPOT_COLUMNS)
 
     try:
         with db_cursor() as cursor:
             if not _apply_patch(
-                cursor, "portfolio_depots", depot_id, updates, _PATCHABLE_DEPOT_COLUMNS
+                cursor, "portfolio_depots", depot_id, set_clause, updates
             ):
                 return error_response("Depot not found", 404)
     except sqlite3.IntegrityError:

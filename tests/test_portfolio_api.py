@@ -1449,6 +1449,25 @@ def test_patch_position_reopens_a_closed_one(
     assert position["invested_eur"] == 400.0
 
 
+def test_patch_position_repeated_close_keeps_the_original_sale_date(
+    client: FlaskClient,
+    seed_depot: SeedDepot,
+    seed_position: SeedPosition,
+    seed_snapshot: SeedSnapshot,
+) -> None:
+    """Closing an already closed position must not move the sale to today."""
+    position_id = seed_position(seed_depot(), closed_at=_weeks_ago(1))
+    seed_snapshot(position_id, _weeks_ago(2), 500.0, deposit=400.0)
+
+    response = client.patch(
+        f"/api/portfolio/positions/{position_id}", json={"close": True}
+    )
+
+    assert response.status_code == 200
+    payload = client.get("/api/portfolio").get_json()
+    assert payload["depots"][0]["positions"][0]["closed_at"] == _weeks_ago(1)
+
+
 def test_patch_position_close_follows_an_existing_row_for_today(
     client: FlaskClient,
     seed_depot: SeedDepot,
