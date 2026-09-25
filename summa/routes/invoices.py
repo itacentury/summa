@@ -509,6 +509,25 @@ def add_invoice() -> ApiResponse:
     return jsonify({"success": True, "id": invoice_id})
 
 
+def _existing_invoice_keys(
+    cursor: sqlite3.Cursor, invoices: list[Invoice]
+) -> set[tuple[str, str, float]]:
+    """Return the (date, store, total) of every active invoice in the batch's range.
+
+    One range query instead of a lookup per entry; every exact date match lies
+    between the batch's lowest and highest date, as strings compare.
+    """
+    if not invoices:
+        return set()
+    dates: list[str] = [invoice.date for invoice in invoices]
+    cursor.execute(
+        "SELECT date, store, total FROM invoices "
+        "WHERE deleted_at IS NULL AND date BETWEEN ? AND ?",
+        (min(dates), max(dates)),
+    )
+    return {(row["date"], row["store"], row["total"]) for row in cursor.fetchall()}
+
+
 @invoices_bp.route("/api/invoices/import", methods=["POST"])
 def import_invoices() -> ApiResponse:
     """Bulk import invoices with partial success: valid entries are imported even
@@ -526,20 +545,17 @@ def import_invoices() -> ApiResponse:
     skipped_count: int = 0
 
     with db_cursor() as cursor:
+        seen: set[tuple[str, str, float]] = _existing_invoice_keys(
+            cursor, validation.invoices
+        )
         for invoice in validation.invoices:
-            # Duplicate check: same combination of date, store and total amount
-            cursor.execute(
-                "SELECT id FROM invoices "
-                "WHERE date = ? AND store = ? AND total = ? AND deleted_at IS NULL",
-                (invoice.date, invoice.store, invoice.total),
-            )
-            existing: Any = cursor.fetchone()
-
-            if existing:
+            key: tuple[str, str, float] = (invoice.date, invoice.store, invoice.total)
+            if key in seen:
                 skipped_count += 1
                 continue
-
             insert_invoice(cursor, invoice)
+            # A repeat later in the same batch is a duplicate as well.
+            seen.add(key)
             imported_count += 1
 
     logger.info(

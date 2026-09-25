@@ -488,6 +488,21 @@ def test_import_skips_duplicates(
     assert len(_list(client)) == 2
 
 
+def test_import_skips_duplicates_within_the_batch(client: FlaskClient) -> None:
+    """A repeat inside one batch is skipped like a match already stored."""
+    entry: dict[str, Any] = {
+        "date": "2024-01-01",
+        "store": "Twice",
+        "total": 10.0,
+        "items": _valid_items(),
+    }
+
+    body = _get_json(client.post("/api/invoices/import", json=[entry, entry]))
+
+    assert (body["imported"], body["skipped"]) == (1, 1)
+    assert len(_list(client)) == 1
+
+
 def test_import_reimports_soft_deleted_invoice(
     client: FlaskClient, seed_invoice: SeedInvoice
 ) -> None:
