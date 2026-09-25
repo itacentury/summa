@@ -705,7 +705,8 @@ def bulk_delete_invoices() -> ApiResponse:
             for chunk in chunked(invoice_ids):
                 cursor.execute(
                     "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP "
-                    f"WHERE id IN ({placeholders_for(len(chunk))})",
+                    f"WHERE id IN ({placeholders_for(len(chunk))}) "
+                    "AND deleted_at IS NULL",
                     chunk,
                 )
                 deleted_count += cursor.rowcount

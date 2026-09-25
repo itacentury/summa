@@ -1044,6 +1044,34 @@ def test_bulk_delete_soft_deletes_many(
     assert _list(client) == []
 
 
+def test_bulk_delete_skips_already_deleted(
+    client: FlaskClient, seed_invoice: SeedInvoice
+) -> None:
+    """An already deleted id is neither counted nor has its timestamp rewritten."""
+    deleted = seed_invoice(deleted=True)
+    original: str = "2020-01-01 00:00:00"
+    conn = db.get_db()
+    try:
+        conn.execute(
+            "UPDATE invoices SET deleted_at = ? WHERE id = ?", (original, deleted)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.post("/api/invoices/bulk-delete", json={"ids": [deleted]})
+    assert _get_json(response) == {"success": True, "deleted": 0}
+
+    conn = db.get_db()
+    try:
+        stamp = conn.execute(
+            "SELECT deleted_at FROM invoices WHERE id = ?", (deleted,)
+        ).fetchone()["deleted_at"]
+    finally:
+        conn.close()
+    assert stamp == original
+
+
 def test_bulk_delete_missing_ids_returns_400(client: FlaskClient) -> None:
     """An empty ids list is rejected with 400."""
     response = client.post("/api/invoices/bulk-delete", json={"ids": []})
