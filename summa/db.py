@@ -155,11 +155,26 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     )
 
 
-def init_db() -> None:
-    """Initialize the database schema and apply migrations if needed."""
-    conn: sqlite3.Connection = get_db()
-    cursor: sqlite3.Cursor = conn.cursor()
+# Columns added to `invoices` after its first release, with the DDL that adds them.
+_INVOICE_COLUMN_MIGRATIONS: Final[tuple[tuple[str, str], ...]] = (
+    ("deleted_at", "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"),
+    ("category", "ALTER TABLE invoices ADD COLUMN category TEXT DEFAULT NULL"),
+)
 
+
+def _migrate_invoice_columns(cursor: sqlite3.Cursor) -> None:
+    """Add every column from the migration table that the database still lacks."""
+    cursor.execute("PRAGMA table_info(invoices)")
+    columns: set[str] = {column[1] for column in cursor.fetchall()}
+    for column, ddl in _INVOICE_COLUMN_MIGRATIONS:
+        if column in columns:
+            continue
+        cursor.execute(ddl)
+        logger.info("Migration applied: added '%s' column", column)
+
+
+def _create_schema(cursor: sqlite3.Cursor) -> None:
+    """Create every table and index, migrating older databases on the way."""
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS invoices (
@@ -205,24 +220,7 @@ def init_db() -> None:
     """
     )
 
-    # Migration: Add deleted_at column if it doesn't exist (for existing databases)
-    cursor.execute("PRAGMA table_info(invoices)")
-    columns: list[str] = [column[1] for column in cursor.fetchall()]
-    if "deleted_at" not in columns:
-        try:
-            cursor.execute(
-                "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
-            )
-            logger.info("Migration applied: added 'deleted_at' column")
-        except sqlite3.OperationalError:
-            logger.debug("Column 'deleted_at' already exists, skipping migration")
-
-    if "category" not in columns:
-        try:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN category TEXT DEFAULT NULL")
-            logger.info("Migration applied: added 'category' column")
-        except sqlite3.OperationalError:
-            logger.debug("Column 'category' already exists, skipping migration")
+    _migrate_invoice_columns(cursor)
 
     # Indexes for the invoice list access pattern. The invoices indexes are
     # partial (deleted_at IS NULL) because every read filters out soft-deleted
@@ -264,6 +262,9 @@ def init_db() -> None:
             backfilled_items,
         )
 
-    conn.commit()
-    conn.close()
+
+def init_db() -> None:
+    """Initialize the database schema and apply migrations if needed."""
+    with db_cursor() as cursor:
+        _create_schema(cursor)
     logger.info("Database initialized successfully")
