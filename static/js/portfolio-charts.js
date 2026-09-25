@@ -192,13 +192,14 @@ function seriesPoints(dates, values) {
 
 /**
  * The lines a per-position selection draws, or `[]` for "all". Colors come from
- * the stable slots in `colors`; a position without a slot is skipped rather than
+ * the stable slots in `slots`; a position without a slot is skipped rather than
  * drawn in a repeated color. The invested line stays aggregate-only.
  *
- * @param {Map<number, number>} colors the palette slot per position id
+ * @param {Map<number, number>} slots the palette slot per position id
+ * @param {string[]} palette the chart colours, as `chartColors()` returns them
  * @returns {{label: string, values: number[], color: string}[]}
  */
-export function positionLines(series, selection, colors) {
+export function positionLines(series, selection, slots, palette) {
   if (selection === POSITIONS_ALL || !Array.isArray(selection)) return [];
 
   const chosen = new Set(selection);
@@ -206,7 +207,7 @@ export function positionLines(series, selection, colors) {
   const lines = [];
   entries.forEach((entry) => {
     if (!chosen.has(entry.id)) return;
-    const color = lineColor(colors, entry.id);
+    const color = lineColor(slots, entry.id, palette);
     if (!color) return;
     lines.push({ label: entry.name, values: entry.values, color });
   });
@@ -319,6 +320,7 @@ function renderValueChart(payload) {
     series,
     portfolioState.portfolioPositions,
     positionLineColors,
+    chartColors(),
   );
   const hasBenchmark = series.benchmark.length > 0 && lines.length === 0;
   if (note)

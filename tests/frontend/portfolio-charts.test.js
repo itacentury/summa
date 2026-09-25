@@ -590,15 +590,15 @@ describe("renderPortfolioCharts", () => {
 
 describe("positionLines", () => {
   it("draws nothing of its own while every position is shown", () => {
-    expect(positionLines(chartPayload().series, "all", select("all"))).toEqual(
-      [],
-    );
+    expect(
+      positionLines(chartPayload().series, "all", select("all"), palette),
+    ).toEqual([]);
   });
 
   it("keeps a line's colour when another line is unchecked", () => {
     const { series } = chartPayload();
-    const both = positionLines(series, [21, 12], select([21, 12]));
-    const second = positionLines(series, [12], select([12]));
+    const both = positionLines(series, [21, 12], select([21, 12]), palette);
+    const second = positionLines(series, [12], select([12]), palette);
 
     expect(both.map((line) => line.color)).toEqual([palette[0], palette[1]]);
     // Unchecking the first line must not repaint the one left behind.
@@ -616,7 +616,7 @@ describe("positionLines", () => {
     };
     const ids = series.positions.map((entry) => entry.id);
 
-    const lines = positionLines(series, ids, select(ids));
+    const lines = positionLines(series, ids, select(ids), palette);
     const colors = lines.map((line) => line.color);
 
     expect(colors).toHaveLength(palette.length);
@@ -628,7 +628,7 @@ describe("positionLines", () => {
     // A selection that never went through the filter's cap: 12 gets no slot.
     const colors = new Map([[21, 0]]);
 
-    const lines = positionLines(series, [21, 12], colors);
+    const lines = positionLines(series, [21, 12], colors, palette);
 
     expect(lines.map((line) => line.label)).toEqual(["Deka Industrie 0"]);
   });
@@ -638,6 +638,7 @@ describe("positionLines", () => {
       chartPayload().series,
       [12, 21],
       select([12, 21]),
+      palette,
     );
 
     expect(lines.map((line) => line.label)).toEqual([
@@ -647,16 +648,21 @@ describe("positionLines", () => {
   });
 
   it("draws the value line alone, never a second invested one", () => {
-    const lines = positionLines(chartPayload().series, [12], select([12]));
+    const lines = positionLines(
+      chartPayload().series,
+      [12],
+      select([12]),
+      palette,
+    );
 
     expect(lines.map((line) => line.label)).toEqual(["FTSE All-World"]);
     expect(lines[0].values).toEqual([1803.0, 1801.69]);
   });
 
   it("ignores an id the payload no longer carries", () => {
-    expect(positionLines(chartPayload().series, [999], select([999]))).toEqual(
-      [],
-    );
+    expect(
+      positionLines(chartPayload().series, [999], select([999]), palette),
+    ).toEqual([]);
   });
 });
 
