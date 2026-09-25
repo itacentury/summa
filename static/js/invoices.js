@@ -6,7 +6,7 @@
  * reverts the local snapshot without ever touching the server.
  */
 
-import { state, selectedInvoices } from "./state.js";
+import { invoiceState, selectedInvoices } from "./state.js";
 import { loadCategories, loadInvoices, loadStores } from "./api.js";
 import { closeAddModal, validateInvoiceDate } from "./modals.js";
 import { getCombobox } from "./combobox.js";
@@ -60,7 +60,7 @@ export async function saveInvoice() {
     0,
   );
 
-  const editingId = state.editingInvoiceId;
+  const editingId = invoiceState.editingInvoiceId;
   const payload = { date, store, category: type, total, items };
 
   if (editingId) {
@@ -101,11 +101,11 @@ async function createInvoice(payload) {
  * visible row is replaced (not mutated) so the snapshot keeps the old values.
  */
 function deferInvoiceUpdate(id, payload) {
-  const index = state.invoices.findIndex((invoice) => invoice.id === id);
-  const previous = index !== -1 ? state.invoices[index] : null;
+  const index = invoiceState.invoices.findIndex((invoice) => invoice.id === id);
+  const previous = index !== -1 ? invoiceState.invoices[index] : null;
   if (index !== -1) {
-    state.invoices[index] = {
-      ...state.invoices[index],
+    invoiceState.invoices[index] = {
+      ...invoiceState.invoices[index],
       date: payload.date,
       store: payload.store,
       category: payload.category,
@@ -153,15 +153,17 @@ function refreshLookupsFor(store, category) {
  * undo just restores the local snapshot.
  */
 export function deleteInvoice(id) {
-  const index = state.invoices.findIndex((invoice) => invoice.id === id);
+  const index = invoiceState.invoices.findIndex((invoice) => invoice.id === id);
   if (index === -1) return;
-  const removed = state.invoices[index];
+  const removed = invoiceState.invoices[index];
   const wasSelected = selectedInvoices.has(id);
 
-  state.invoices = state.invoices.filter((invoice) => invoice.id !== id);
+  invoiceState.invoices = invoiceState.invoices.filter(
+    (invoice) => invoice.id !== id,
+  );
   selectedInvoices.delete(id);
-  state.totalCount -= 1;
-  state.totalSum -= Number(removed.total);
+  invoiceState.totalCount -= 1;
+  invoiceState.totalSum -= Number(removed.total);
   adjustUncategorizedCount(-countUncategorized([removed]));
   renderInvoices();
 

@@ -3,7 +3,7 @@
  * plus the dynamic item rows of the add/edit form.
  */
 
-import { state } from "./state.js";
+import { invoiceState } from "./state.js";
 import {
   escapeHtml,
   formatCurrency,
@@ -82,7 +82,7 @@ export function hideOverlay(overlay) {
 }
 
 export function openAddModal() {
-  state.editingInvoiceId = null;
+  invoiceState.editingInvoiceId = null;
   document.querySelector(
     '[data-el="add-invoice-modal"] .modal-title',
   ).textContent = "New Invoice";
@@ -111,13 +111,13 @@ export function validateInvoiceDate() {
 
 export function closeAddModal() {
   hideOverlay(document.querySelector('[data-el="add-invoice-modal"]'));
-  state.editingInvoiceId = null;
+  invoiceState.editingInvoiceId = null;
   resetAddForm();
 }
 
 export async function editInvoice(id) {
-  state.editingInvoiceId = id;
-  const invoice = state.invoices.find((inv) => inv.id === id);
+  invoiceState.editingInvoiceId = id;
+  const invoice = invoiceState.invoices.find((inv) => inv.id === id);
 
   if (!invoice) {
     showErrorToast("Invoice not found");
@@ -142,14 +142,14 @@ export async function editInvoice(id) {
     items = await fetchInvoiceItems(id);
   } catch {
     // A newer editInvoice() superseded this one; that call owns the error surface.
-    if (state.editingInvoiceId !== id) return;
+    if (invoiceState.editingInvoiceId !== id) return;
     showErrorToast("Failed to load invoice");
     return;
   }
 
   // A newer editInvoice() superseded this one while items were loading; its
   // header and editingInvoiceId now own the modal, so don't inject stale items.
-  if (state.editingInvoiceId !== id) return;
+  if (invoiceState.editingInvoiceId !== id) return;
 
   const itemsContainer = document.querySelector('[data-el="items-container"]');
   itemsContainer.innerHTML = "";
@@ -181,7 +181,7 @@ export function closeImportModal() {
   hideOverlay(document.querySelector('[data-el="import-modal"]'));
   document.querySelector('[data-el="json-input"]').value = "";
   document.querySelector('[data-el="file-input"]').value = "";
-  state.pendingFiles = [];
+  invoiceState.pendingFiles = [];
   document
     .querySelector('[data-el="selected-files"]')
     .classList.add("is-hidden");
@@ -190,7 +190,7 @@ export function closeImportModal() {
   const importErrors = document.querySelector('[data-el="import-errors"]');
   importErrors.innerHTML = "";
   importErrors.classList.add("is-hidden");
-  state.importErrors = [];
+  invoiceState.importErrors = [];
 
   // Restore the fresh-input controls hidden while in correction mode.
   setImportCorrectionMode(false);

@@ -10,7 +10,7 @@
  */
 
 import {
-  state,
+  invoiceState,
   PAGE_SIZE_OPTIONS,
   ALL_PAGE_SIZE,
   PAGE_SIZE_STORAGE_KEY,
@@ -27,7 +27,9 @@ function optionValues() {
 
 /** The value string matching the current state ("all" or a numeric string). */
 function currentValue() {
-  return state.pageSize === ALL_PAGE_SIZE ? ALL_VALUE : String(state.pageSize);
+  return invoiceState.pageSize === ALL_PAGE_SIZE
+    ? ALL_VALUE
+    : String(invoiceState.pageSize);
 }
 
 /** Human label for an option value: "25 / page" for numbers, "All" otherwise. */
@@ -42,7 +44,7 @@ function optionLabel(value) {
 export function renderPageSizeControl() {
   const active = currentValue();
   const buttonLabel =
-    active === ALL_VALUE ? "All" : `${state.pageSize}<em> / page</em>`;
+    active === ALL_VALUE ? "All" : `${invoiceState.pageSize}<em> / page</em>`;
 
   const options = optionValues()
     .map((value, index) => {
@@ -150,7 +152,8 @@ function closeMenu({ focusButton = false } = {}) {
 function selectValue(value) {
   // goToPage replaces the markup this was anchored to, closed.
   releaseMenu();
-  state.pageSize = value === ALL_VALUE ? ALL_PAGE_SIZE : parseInt(value, 10);
+  invoiceState.pageSize =
+    value === ALL_VALUE ? ALL_PAGE_SIZE : parseInt(value, 10);
   localStorage.setItem(PAGE_SIZE_STORAGE_KEY, value);
   goToPage(1);
 }

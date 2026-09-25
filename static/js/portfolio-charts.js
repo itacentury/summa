@@ -4,7 +4,7 @@
  * blocks style attributes. Every switch re-enters here, so charts are destroyed first.
  */
 
-import { state, chartColors, positionLineColors } from "./state.js";
+import { portfolioState, chartColors, positionLineColors } from "./state.js";
 import { lineColor } from "./portfolio-line-colors.js";
 import { mobileViewport, withEuro } from "./dom.js";
 import {
@@ -311,13 +311,13 @@ function renderValueChart(payload) {
   const note = document.querySelector('[data-el="portfolio-chart-note"]');
   if (!canvas) return;
 
-  if (state.portfolioChart) state.portfolioChart.destroy();
-  state.portfolioChart = null;
+  if (portfolioState.portfolioChart) portfolioState.portfolioChart.destroy();
+  portfolioState.portfolioChart = null;
 
   const { series } = payload;
   const lines = positionLines(
     series,
-    state.portfolioPositions,
+    portfolioState.portfolioPositions,
     positionLineColors,
   );
   const hasBenchmark = series.benchmark.length > 0 && lines.length === 0;
@@ -354,7 +354,7 @@ function renderValueChart(payload) {
   const { values: tickValues, daily } = axisTicks(min, max, tickLimit);
   let valueLabels = [];
 
-  state.portfolioChart = new Chart(canvas, {
+  portfolioState.portfolioChart = new Chart(canvas, {
     type: "line",
     data: { datasets: valueDatasets(series, lines) },
     options: {
@@ -427,8 +427,8 @@ function renderAllocationChart(allocation) {
   );
   if (!canvas || !legend) return;
 
-  if (state.allocationChart) state.allocationChart.destroy();
-  state.allocationChart = null;
+  if (portfolioState.allocationChart) portfolioState.allocationChart.destroy();
+  portfolioState.allocationChart = null;
 
   legend.innerHTML = allocationLegendHtml(allocation);
   // CSSOM, not a style attribute, for the strict style-src CSP; order matches the data.
@@ -441,7 +441,7 @@ function renderAllocationChart(allocation) {
   canvas.parentElement.classList.toggle("is-hidden", isEmpty);
   if (isEmpty) return;
 
-  state.allocationChart = new Chart(canvas, {
+  portfolioState.allocationChart = new Chart(canvas, {
     type: "doughnut",
     data: {
       labels: allocation.map((slice) => slice.label),

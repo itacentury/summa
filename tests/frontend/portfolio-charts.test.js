@@ -33,7 +33,7 @@ import {
   valueAxisLabels,
 } from "../../static/js/portfolio-charts.js";
 import {
-  state,
+  portfolioState,
   chartColors,
   positionLineColors,
 } from "../../static/js/state.js";
@@ -117,7 +117,7 @@ const barFills = () =>
  * what makes a deselection observable.
  */
 const select = (ids) => {
-  state.portfolioPositions = ids;
+  portfolioState.portfolioPositions = ids;
   const next = assignLineColors(positionLineColors, ids);
   positionLineColors.clear();
   next.forEach((slot, id) => positionLineColors.set(id, slot));
@@ -127,9 +127,9 @@ const select = (ids) => {
 beforeEach(() => {
   document.body.innerHTML = markup;
   mobileViewport.matches = false;
-  state.portfolioChart = null;
-  state.allocationChart = null;
-  state.portfolioPositions = "all";
+  portfolioState.portfolioChart = null;
+  portfolioState.allocationChart = null;
+  portfolioState.portfolioPositions = "all";
   positionLineColors.clear();
   instances = [];
   vi.clearAllMocks();
@@ -571,7 +571,7 @@ describe("renderPortfolioCharts", () => {
 
     expect(body.classList.contains("is-hidden")).toBe(true);
     expect(empty.classList.contains("is-hidden")).toBe(false);
-    expect(state.portfolioChart).toBeNull();
+    expect(portfolioState.portfolioChart).toBeNull();
   });
 
   it("paints the legend swatches through the CSSOM, in the donut's own order", () => {

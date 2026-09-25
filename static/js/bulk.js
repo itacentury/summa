@@ -2,7 +2,7 @@
  * Multi-select, bulk-edit and bulk-delete behavior over the invoice list.
  */
 
-import { state, selectedInvoices } from "./state.js";
+import { invoiceState, selectedInvoices } from "./state.js";
 import { fetchFilteredIds, loadLookups } from "./api.js";
 import {
   renderInvoices,
@@ -72,7 +72,10 @@ export function deselectAllInvoices() {
  * selection when everything is already selected.
  */
 function toggleSelectAllButton() {
-  if (state.totalCount > 0 && selectedInvoices.size >= state.totalCount) {
+  if (
+    invoiceState.totalCount > 0 &&
+    selectedInvoices.size >= invoiceState.totalCount
+  ) {
     deselectAllInvoices();
   } else {
     selectAllInvoices();
@@ -88,7 +91,7 @@ export function openBulkEditModal() {
   // value shared here might not hold for off-page selections.
   const selectedStores = new Set();
   const selectedCategories = new Set();
-  const visibleSelected = state.invoices.filter((invoice) =>
+  const visibleSelected = invoiceState.invoices.filter((invoice) =>
     selectedInvoices.has(invoice.id),
   );
   visibleSelected.forEach((invoice) => {
@@ -169,8 +172,10 @@ export function saveBulkEdit() {
   // Apply optimistically to the visible selected rows (replace, don't mutate, so
   // the snapshot keeps the old values). Off-page selected rows are updated on
   // the server at commit time; the deferred PUT carries every selected id.
-  const previous = state.invoices.filter((invoice) => idSet.has(invoice.id));
-  state.invoices = state.invoices.map((invoice) => {
+  const previous = invoiceState.invoices.filter((invoice) =>
+    idSet.has(invoice.id),
+  );
+  invoiceState.invoices = invoiceState.invoices.map((invoice) => {
     if (!idSet.has(invoice.id)) return invoice;
     const updated = { ...invoice };
     if (newStore) updated.store = newStore;
@@ -248,9 +253,11 @@ export function bulkDeleteInvoices() {
   // selection (may span pages); totalSum can only subtract the visible rows'
   // totals — reloadCurrentPage on commit reconciles both with the server.
   const removed = captureRows(idSet);
-  state.invoices = state.invoices.filter((invoice) => !idSet.has(invoice.id));
-  state.totalCount -= ids.length;
-  state.totalSum -= removed.reduce(
+  invoiceState.invoices = invoiceState.invoices.filter(
+    (invoice) => !idSet.has(invoice.id),
+  );
+  invoiceState.totalCount -= ids.length;
+  invoiceState.totalSum -= removed.reduce(
     (sum, { invoice }) => sum + Number(invoice.total),
     0,
   );

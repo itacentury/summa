@@ -9,7 +9,7 @@
  * called at runtime, never during module evaluation.
  */
 
-import { state, selectedInvoices } from "./state.js";
+import { invoiceState, selectedInvoices } from "./state.js";
 import {
   els,
   escapeHtml,
@@ -52,7 +52,7 @@ export function itemRowsHtml(items) {
  */
 export function captureRows(idSet) {
   const rows = [];
-  state.invoices.forEach((invoice, index) => {
+  invoiceState.invoices.forEach((invoice, index) => {
     if (idSet.has(invoice.id)) rows.push({ invoice, index });
   });
   return rows;
@@ -60,7 +60,7 @@ export function captureRows(idSet) {
 
 /**
  * How many of `invoices` carry no category — the amount an optimistic mutation
- * has to take off `state.uncategorizedCount`.
+ * has to take off `invoiceState.uncategorizedCount`.
  */
 export function countUncategorized(invoices) {
   return invoices.filter((invoice) => !invoice.category).length;
@@ -75,7 +75,10 @@ export function countUncategorized(invoices) {
  * page, and the next `fetchInvoices` replaces the count outright.
  */
 export function adjustUncategorizedCount(delta) {
-  state.uncategorizedCount = Math.max(state.uncategorizedCount + delta, 0);
+  invoiceState.uncategorizedCount = Math.max(
+    invoiceState.uncategorizedCount + delta,
+    0,
+  );
 }
 
 /**
@@ -92,13 +95,18 @@ export function adjustUncategorizedCount(delta) {
 export function reinsertRows(removed, extraCount = 0) {
   const reinserted = [];
   removed.forEach(({ invoice, index }) => {
-    if (state.invoices.some((existing) => existing.id === invoice.id)) return;
-    state.invoices.splice(Math.min(index, state.invoices.length), 0, invoice);
-    state.totalCount += 1;
-    state.totalSum += Number(invoice.total);
+    if (invoiceState.invoices.some((existing) => existing.id === invoice.id))
+      return;
+    invoiceState.invoices.splice(
+      Math.min(index, invoiceState.invoices.length),
+      0,
+      invoice,
+    );
+    invoiceState.totalCount += 1;
+    invoiceState.totalSum += Number(invoice.total);
     reinserted.push(invoice);
   });
-  state.totalCount += extraCount;
+  invoiceState.totalCount += extraCount;
   adjustUncategorizedCount(countUncategorized(reinserted));
   renderInvoices();
 }
@@ -114,12 +122,14 @@ export function reinsertRows(removed, extraCount = 0) {
 export function restoreRows(previous) {
   let delta = 0;
   previous.forEach((invoice) => {
-    const index = state.invoices.findIndex((row) => row.id === invoice.id);
+    const index = invoiceState.invoices.findIndex(
+      (row) => row.id === invoice.id,
+    );
     if (index === -1) return;
-    const current = state.invoices[index];
+    const current = invoiceState.invoices[index];
     if (!invoice.category && current.category) delta += 1;
     if (invoice.category && !current.category) delta -= 1;
-    state.invoices[index] = invoice;
+    invoiceState.invoices[index] = invoice;
   });
   adjustUncategorizedCount(delta);
   renderInvoices();
@@ -140,7 +150,7 @@ export function renderInvoices() {
   const hadRowFocus =
     activeRow !== null && activeRow === document.activeElement;
 
-  if (state.invoices.length === 0) {
+  if (invoiceState.invoices.length === 0) {
     invoiceList.innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">📋</div>
@@ -149,7 +159,7 @@ export function renderInvoices() {
             </div>
         `;
   } else {
-    invoiceList.innerHTML = state.invoices
+    invoiceList.innerHTML = invoiceState.invoices
       .map(
         (invoice, index) => `
             <div class="invoice-item ${
@@ -235,10 +245,10 @@ export function renderInvoices() {
 
   // Summary reflects the whole filtered set (server totals), not just this page
   document.querySelector('[data-el="results-count"]').textContent = `${
-    state.totalCount
-  } invoice${state.totalCount !== 1 ? "s" : ""}`;
+    invoiceState.totalCount
+  } invoice${invoiceState.totalCount !== 1 ? "s" : ""}`;
   document.querySelector('[data-el="results-total"]').textContent =
-    formatCurrency(state.totalSum);
+    formatCurrency(invoiceState.totalSum);
 
   renderPagination();
   updateBulkActionToolbar();
@@ -257,25 +267,25 @@ function renderPagination() {
   const container = document.querySelector('[data-el="pagination"]');
   if (!container) return;
 
-  if (state.totalCount === 0) {
+  if (invoiceState.totalCount === 0) {
     container.innerHTML = "";
     return;
   }
 
   const totalPages = Math.max(
     1,
-    Math.ceil(state.totalCount / state.effectivePageSize),
+    Math.ceil(invoiceState.totalCount / invoiceState.effectivePageSize),
   );
   container.innerHTML = `
     <button class="btn btn-secondary btn-sm" data-action="page-prev" ${
-      state.page <= 1 ? "disabled" : ""
+      invoiceState.page <= 1 ? "disabled" : ""
     }>Previous</button>
     <span class="pagination-info">
-      <span class="pagination-info-long">Page ${state.page} of ${totalPages}</span>
-      <span class="pagination-info-short">${state.page} / ${totalPages}</span>
+      <span class="pagination-info-long">Page ${invoiceState.page} of ${totalPages}</span>
+      <span class="pagination-info-short">${invoiceState.page} / ${totalPages}</span>
     </span>
     <button class="btn btn-secondary btn-sm" data-action="page-next" ${
-      state.page >= totalPages ? "disabled" : ""
+      invoiceState.page >= totalPages ? "disabled" : ""
     }>Next</button>
     ${renderPageSizeControl()}
   `;
@@ -404,7 +414,8 @@ function handleListKeydown(event) {
 export function updateBulkActionToolbar() {
   const toolbar = document.querySelector('[data-el="bulk-action-toolbar"]');
   const count = selectedInvoices.size;
-  const allSelected = state.totalCount > 0 && count >= state.totalCount;
+  const allSelected =
+    invoiceState.totalCount > 0 && count >= invoiceState.totalCount;
 
   toolbar
     .querySelector('[data-action="select-all"]')
@@ -422,9 +433,10 @@ export function updateBulkActionToolbar() {
   const selectAllCheckbox = document.querySelector(
     '[data-el="select-all-checkbox"] input',
   );
-  if (selectAllCheckbox && state.totalCount > 0) {
-    selectAllCheckbox.checked = count >= state.totalCount;
-    selectAllCheckbox.indeterminate = count > 0 && count < state.totalCount;
+  if (selectAllCheckbox && invoiceState.totalCount > 0) {
+    selectAllCheckbox.checked = count >= invoiceState.totalCount;
+    selectAllCheckbox.indeterminate =
+      count > 0 && count < invoiceState.totalCount;
   } else if (selectAllCheckbox) {
     selectAllCheckbox.checked = false;
     selectAllCheckbox.indeterminate = false;

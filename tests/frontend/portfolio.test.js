@@ -21,7 +21,8 @@ import {
   isCurrencyCode,
 } from "../../static/js/portfolio-format.js";
 import {
-  state,
+  portfolioState,
+  invoiceState,
   collapsedDepots,
   expandedPositions,
   PAGE_SIZE_STORAGE_KEY,
@@ -91,25 +92,25 @@ const clickRange = (range) =>
 describe("restorePortfolioPrefs", () => {
   beforeEach(() => {
     localStorage.clear();
-    state.portfolioRange = "1y";
-    state.depotFilter = "all";
-    state.portfolioPositions = "all";
+    portfolioState.portfolioRange = "1y";
+    portfolioState.depotFilter = "all";
+    portfolioState.portfolioPositions = "all";
     positionLineColors.clear();
   });
 
   it("keeps the defaults when nothing is stored", () => {
     restorePortfolioPrefs();
 
-    expect(state.portfolioRange).toBe("1y");
-    expect(state.depotFilter).toBe("all");
-    expect(state.portfolioPositions).toBe("all");
+    expect(portfolioState.portfolioRange).toBe("1y");
+    expect(portfolioState.depotFilter).toBe("all");
+    expect(portfolioState.portfolioPositions).toBe("all");
   });
 
   it("restores a stored chart selection", () => {
     localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, "[12,21]");
     restorePortfolioPrefs();
 
-    expect(state.portfolioPositions).toEqual([12, 21]);
+    expect(portfolioState.portfolioPositions).toEqual([12, 21]);
   });
 
   it("restores a palette slot per selected position", () => {
@@ -130,25 +131,25 @@ describe("restorePortfolioPrefs", () => {
     localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, JSON.stringify(ids));
     restorePortfolioPrefs();
 
-    expect(state.portfolioPositions).toHaveLength(PORTFOLIO_MAX_LINES);
+    expect(portfolioState.portfolioPositions).toHaveLength(PORTFOLIO_MAX_LINES);
     expect(positionLineColors.size).toBe(PORTFOLIO_MAX_LINES);
   });
 
   it("ignores a chart selection that is not a list of ids", () => {
     for (const stored of ["{", "{}", "[]", '["12"]', "null", "3"]) {
-      state.portfolioPositions = [1];
+      portfolioState.portfolioPositions = [1];
       localStorage.setItem(PORTFOLIO_POSITIONS_STORAGE_KEY, stored);
       restorePortfolioPrefs();
-      expect(state.portfolioPositions).toBe("all");
+      expect(portfolioState.portfolioPositions).toBe("all");
     }
   });
 
   it("restores every allowed period token", () => {
     for (const range of ["3m", "1y", "ytd", "max"]) {
-      state.portfolioRange = "1y";
+      portfolioState.portfolioRange = "1y";
       localStorage.setItem(PORTFOLIO_RANGE_STORAGE_KEY, range);
       restorePortfolioPrefs();
-      expect(state.portfolioRange).toBe(range);
+      expect(portfolioState.portfolioRange).toBe(range);
     }
   });
 
@@ -156,24 +157,24 @@ describe("restorePortfolioPrefs", () => {
     localStorage.setItem(PORTFOLIO_RANGE_STORAGE_KEY, "5y");
     restorePortfolioPrefs();
 
-    expect(state.portfolioRange).toBe("1y");
+    expect(portfolioState.portfolioRange).toBe("1y");
   });
 
   it("restores a depot id and the all-depots token", () => {
     localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, "7");
     restorePortfolioPrefs();
-    expect(state.depotFilter).toBe("7");
+    expect(portfolioState.depotFilter).toBe("7");
 
     localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, "all");
     restorePortfolioPrefs();
-    expect(state.depotFilter).toBe("all");
+    expect(portfolioState.depotFilter).toBe("all");
   });
 
   it("ignores a malformed depot filter", () => {
     localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, "1 OR 1=1");
     restorePortfolioPrefs();
 
-    expect(state.depotFilter).toBe("all");
+    expect(portfolioState.depotFilter).toBe("all");
   });
 });
 
@@ -182,12 +183,12 @@ describe("portfolio period switcher", () => {
     document.body.innerHTML = markup;
     document.body.className = "";
     localStorage.clear();
-    state.portfolioRange = "1y";
-    state.filterMode = "month";
+    portfolioState.portfolioRange = "1y";
+    invoiceState.filterMode = "month";
   });
 
   it("syncs the active pill to the restored period on wiring", () => {
-    state.portfolioRange = "ytd";
+    portfolioState.portfolioRange = "ytd";
     setupPortfolioListeners();
 
     expect(activeRange()).toBe("ytd");
@@ -197,13 +198,13 @@ describe("portfolio period switcher", () => {
     setupPortfolioListeners();
     clickRange("3m");
 
-    expect(state.portfolioRange).toBe("3m");
+    expect(portfolioState.portfolioRange).toBe("3m");
     expect(localStorage.getItem(PORTFOLIO_RANGE_STORAGE_KEY)).toBe("3m");
     expect(activeRange()).toBe("3m");
   });
 
   it("leaves the invoice period and page size untouched", () => {
-    state.filterMode = "week";
+    invoiceState.filterMode = "week";
     localStorage.setItem(PAGE_SIZE_STORAGE_KEY, "50");
     setupPortfolioListeners();
 
@@ -211,7 +212,7 @@ describe("portfolio period switcher", () => {
     clickRange("3m");
     showInvoicesView();
 
-    expect(state.filterMode).toBe("week");
+    expect(invoiceState.filterMode).toBe("week");
     expect(localStorage.getItem(PAGE_SIZE_STORAGE_KEY)).toBe("50");
   });
 
@@ -219,10 +220,10 @@ describe("portfolio period switcher", () => {
     setupPortfolioListeners();
     clickRange("ytd");
 
-    state.filterMode = "year";
+    invoiceState.filterMode = "year";
     showPortfolioView();
 
-    expect(state.portfolioRange).toBe("ytd");
+    expect(portfolioState.portfolioRange).toBe("ytd");
     expect(activeRange()).toBe("ytd");
   });
 });
@@ -511,8 +512,8 @@ describe("portfolio rendering", () => {
     localStorage.clear();
     collapsedDepots.clear();
     expandedPositions.clear();
-    state.portfolioRange = "1y";
-    state.depotFilter = "all";
+    portfolioState.portfolioRange = "1y";
+    portfolioState.depotFilter = "all";
     vi.clearAllMocks();
     // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
     // A function declaration, not an arrow: the charts call it with `new`.
@@ -696,13 +697,13 @@ describe("portfolio rendering", () => {
   it("treats a missing depots collection as empty", async () => {
     const payload = emptyPayload();
     delete payload.depots;
-    state.depotFilter = "99";
+    portfolioState.depotFilter = "99";
     global.fetch = vi.fn(async () => jsonResponse(payload));
 
     await loadPortfolio();
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(state.depotFilter).toBe("all");
+    expect(portfolioState.depotFilter).toBe("all");
     expect(
       document.querySelector('[data-el="portfolio-empty"]').classList,
     ).not.toContain("is-hidden");
@@ -760,8 +761,8 @@ describe("portfolio group collapsing and row expansion", () => {
     localStorage.clear();
     collapsedDepots.clear();
     expandedPositions.clear();
-    state.portfolioRange = "1y";
-    state.depotFilter = "all";
+    portfolioState.portfolioRange = "1y";
+    portfolioState.depotFilter = "all";
     vi.clearAllMocks();
     // happy-dom hands a canvas no 2D context, so the real Chart.js would throw.
     // A function declaration, not an arrow: the charts call it with `new`.
@@ -882,9 +883,9 @@ describe("portfolio position filter", () => {
     localStorage.clear();
     collapsedDepots.clear();
     expandedPositions.clear();
-    state.portfolioRange = "1y";
-    state.depotFilter = "all";
-    state.portfolioPositions = "all";
+    portfolioState.portfolioRange = "1y";
+    portfolioState.depotFilter = "all";
+    portfolioState.portfolioPositions = "all";
     vi.clearAllMocks();
     global.fetch = vi.fn(async () => jsonResponse(portfolioPayload()));
   });
@@ -950,7 +951,7 @@ describe("portfolio position filter", () => {
     clickOption(2);
     await flushUi();
 
-    expect(state.portfolioPositions).toEqual([12]);
+    expect(portfolioState.portfolioPositions).toEqual([12]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[12]");
     // The lines were already in the payload, so nothing was refetched.
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -965,7 +966,7 @@ describe("portfolio position filter", () => {
     clickOption(2);
     await flushUi();
 
-    expect(state.portfolioPositions).toBe("all");
+    expect(portfolioState.portfolioPositions).toBe("all");
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
   });
 
@@ -989,7 +990,7 @@ describe("portfolio position filter", () => {
 
     // 99 is kept: a missing id is either gone for good or merely filtered out,
     // and this side cannot tell the two apart.
-    expect(state.portfolioPositions).toEqual([12, 99]);
+    expect(portfolioState.portfolioPositions).toEqual([12, 99]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[12,99]",
     );
@@ -1006,7 +1007,7 @@ describe("portfolio position filter", () => {
 
     await loadPortfolio();
 
-    expect(state.portfolioPositions).toEqual([98, 99]);
+    expect(portfolioState.portfolioPositions).toEqual([98, 99]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[98,99]",
     );
@@ -1030,7 +1031,7 @@ describe("portfolio position filter", () => {
     // Neither of the two is in this depot, so the chart falls back to the
     // aggregate — but nothing about that is persisted.
     expect(positionsLabel()).toBe("Total portfolio");
-    expect(state.portfolioPositions).toEqual([11, 12]);
+    expect(portfolioState.portfolioPositions).toEqual([11, 12]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[11,12]",
     );
@@ -1038,7 +1039,7 @@ describe("portfolio position filter", () => {
     await pickDepot(0);
 
     expect(positionsLabel()).toBe("2 positions");
-    expect(state.portfolioPositions).toEqual([11, 12]);
+    expect(portfolioState.portfolioPositions).toEqual([11, 12]);
   });
 
   it("keeps the hidden picks when a pick is made in another depot", async () => {
@@ -1059,7 +1060,7 @@ describe("portfolio position filter", () => {
 
     // A toggle edits what is on screen; the two ids this depot hides ride
     // along, so the switch stays as reversible as it was before the pick.
-    expect(state.portfolioPositions).toEqual([21, 11, 12]);
+    expect(portfolioState.portfolioPositions).toEqual([21, 11, 12]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       "[21,11,12]",
     );
@@ -1087,7 +1088,7 @@ describe("portfolio position filter", () => {
     await flushUi();
 
     // The one row that is not a position is a reset, not a toggle.
-    expect(state.portfolioPositions).toBe("all");
+    expect(portfolioState.portfolioPositions).toBe("all");
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
 
     await pickDepot(0);
@@ -1114,7 +1115,7 @@ describe("portfolio position filter", () => {
     // Unchecking the only visible row reads as "all" on the control, but it
     // says nothing about the row this depot does not show.
     expect(positionsLabel()).toBe("Total portfolio");
-    expect(state.portfolioPositions).toEqual([11]);
+    expect(portfolioState.portfolioPositions).toEqual([11]);
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("[11]");
   });
 
@@ -1159,7 +1160,9 @@ describe("portfolio position filter", () => {
     await flushUi();
 
     // The refusal is the point: nothing is evicted behind the user's back.
-    expect(state.portfolioPositions).toEqual(hiddenIds(PORTFOLIO_MAX_LINES));
+    expect(portfolioState.portfolioPositions).toEqual(
+      hiddenIds(PORTFOLIO_MAX_LINES),
+    );
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe(
       JSON.stringify(hiddenIds(PORTFOLIO_MAX_LINES)),
     );
@@ -1179,7 +1182,7 @@ describe("portfolio position filter", () => {
     reset.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     await flushUi();
 
-    expect(state.portfolioPositions).toBe("all");
+    expect(portfolioState.portfolioPositions).toBe("all");
     expect(localStorage.getItem(PORTFOLIO_POSITIONS_STORAGE_KEY)).toBe("all");
     expect(positionsLabel()).toBe("Total portfolio");
 
@@ -1199,7 +1202,7 @@ describe("portfolio position filter", () => {
     clickOption(1);
     await flushUi();
 
-    expect(state.portfolioPositions).toEqual([21, ...hidden]);
+    expect(portfolioState.portfolioPositions).toEqual([21, ...hidden]);
     expect(positionLineColors.has(21)).toBe(true);
 
     // And it took the last slot: the hint says so, counting the seven it
@@ -1218,8 +1221,8 @@ describe("portfolio depot filter", () => {
     localStorage.clear();
     collapsedDepots.clear();
     expandedPositions.clear();
-    state.portfolioRange = "1y";
-    state.depotFilter = "all";
+    portfolioState.portfolioRange = "1y";
+    portfolioState.depotFilter = "all";
     vi.clearAllMocks();
     global.fetch = vi.fn(async () => jsonResponse(portfolioPayload()));
   });
@@ -1267,7 +1270,7 @@ describe("portfolio depot filter", () => {
       .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     await flushUi();
 
-    expect(state.depotFilter).toBe("2");
+    expect(portfolioState.depotFilter).toBe("2");
     expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBe("2");
     expect(lastRequest()).toBe("/api/portfolio?range=1y&depot=2");
     expect(document.querySelector(".portfolio-depot-label").textContent).toBe(
@@ -1282,7 +1285,7 @@ describe("portfolio depot filter", () => {
 
     await loadPortfolio();
 
-    expect(state.depotFilter).toBe("all");
+    expect(portfolioState.depotFilter).toBe("all");
     expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBeNull();
     expect(lastRequest()).toBe("/api/portfolio?range=1y");
     expect(showErrorToast).not.toHaveBeenCalled();
@@ -1300,7 +1303,7 @@ describe("portfolio depot filter", () => {
 
     await loadPortfolio();
 
-    expect(state.depotFilter).toBe("all");
+    expect(portfolioState.depotFilter).toBe("all");
     expect(lastRequest()).toBe("/api/portfolio?range=1y");
     expect(showErrorToast).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".portfolio-row")).toHaveLength(4);
@@ -1316,7 +1319,7 @@ describe("portfolio depot filter", () => {
 
     await loadPortfolio();
 
-    expect(state.depotFilter).toBe("2");
+    expect(portfolioState.depotFilter).toBe("2");
     expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBe("2");
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(showErrorToast).toHaveBeenCalled();
@@ -1332,7 +1335,7 @@ describe("portfolio depot filter", () => {
 
     await loadPortfolio();
 
-    expect(state.depotFilter).toBe("2");
+    expect(portfolioState.depotFilter).toBe("2");
     expect(localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY)).toBe("2");
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(showErrorToast).toHaveBeenCalled();

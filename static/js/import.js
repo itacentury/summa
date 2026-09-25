@@ -3,7 +3,7 @@
  * sending them to the import endpoint.
  */
 
-import { state } from "./state.js";
+import { invoiceState } from "./state.js";
 import { escapeHtml, todayIso } from "./dom.js";
 import { showNoticeToast, showErrorToast } from "./toast.js";
 import { refreshAllData } from "./api.js";
@@ -11,20 +11,20 @@ import { closeImportModal } from "./modals.js";
 import { sendJson } from "./http.js";
 
 export function handleMultipleFiles(files) {
-  state.pendingFiles = Array.from(files).filter((f) =>
+  invoiceState.pendingFiles = Array.from(files).filter((f) =>
     f.name.endsWith(".json"),
   );
   updateSelectedFilesDisplay();
 
   // If files were selected, load them all into the textarea
-  if (state.pendingFiles.length > 0) {
+  if (invoiceState.pendingFiles.length > 0) {
     loadFilesIntoTextarea();
   }
 }
 
 function updateSelectedFilesDisplay() {
   const container = document.querySelector('[data-el="selected-files"]');
-  if (state.pendingFiles.length === 0) {
+  if (invoiceState.pendingFiles.length === 0) {
     container.classList.add("is-hidden");
     return;
   }
@@ -33,9 +33,9 @@ function updateSelectedFilesDisplay() {
   container.innerHTML = `
         <div class="selected-files-card">
             <div class="selected-files-title">
-                ${state.pendingFiles.length} file(s) selected
+                ${invoiceState.pendingFiles.length} file(s) selected
             </div>
-            ${state.pendingFiles
+            ${invoiceState.pendingFiles
               .map(
                 (f, i) => `
                 <div class="selected-file-row">
@@ -52,7 +52,7 @@ function updateSelectedFilesDisplay() {
 }
 
 export function removeFile(index) {
-  state.pendingFiles.splice(index, 1);
+  invoiceState.pendingFiles.splice(index, 1);
   updateSelectedFilesDisplay();
   loadFilesIntoTextarea();
 }
@@ -103,14 +103,14 @@ export function setupImportListeners() {
 }
 
 async function loadFilesIntoTextarea() {
-  if (state.pendingFiles.length === 0) {
+  if (invoiceState.pendingFiles.length === 0) {
     document.querySelector('[data-el="json-input"]').value = "";
     return;
   }
 
   const allData = [];
 
-  for (const file of state.pendingFiles) {
+  for (const file of invoiceState.pendingFiles) {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -244,7 +244,7 @@ async function sendImport(data, originalIndices = null) {
  * cards, with a "+N more" note pointing at the download for the remainder.
  */
 function renderImportErrors(errors) {
-  state.importErrors = errors;
+  invoiceState.importErrors = errors;
   const container = document.querySelector('[data-el="import-errors"]');
 
   const visible = errors.slice(0, MAX_VISIBLE_ERRORS);
@@ -314,9 +314,9 @@ export function setImportCorrectionMode(on) {
 /**
  * Re-import the full current failure set, applying the edits from the visible
  * error cards. Hidden overflow entries (beyond MAX_VISIBLE_ERRORS) are re-sent
- * unchanged so they survive in state.importErrors instead of being clobbered by
+ * unchanged so they survive in invoiceState.importErrors instead of being clobbered by
  * the response. This is the current failure set, not the original full payload:
- * already-imported valid rows are not in state.importErrors.
+ * already-imported valid rows are not in invoiceState.importErrors.
  */
 async function reimportCorrected() {
   const editedByIndex = new Map();
@@ -332,8 +332,8 @@ async function reimportCorrected() {
   }
   // Built in the same order as `data`, so response position i maps back to the
   // original upload position via originalIndices[i].
-  const originalIndices = state.importErrors.map((error) => error.index);
-  const data = state.importErrors.map((error) =>
+  const originalIndices = invoiceState.importErrors.map((error) => error.index);
+  const data = invoiceState.importErrors.map((error) =>
     editedByIndex.has(error.index)
       ? editedByIndex.get(error.index)
       : error.value,
@@ -346,8 +346,8 @@ async function reimportCorrected() {
  * Download every invalid entry (not just the visible cards) as a JSON file.
  */
 function downloadInvalid() {
-  if (state.importErrors.length === 0) return;
-  const entries = state.importErrors.map((error) => error.value);
+  if (invoiceState.importErrors.length === 0) return;
+  const entries = invoiceState.importErrors.map((error) => error.value);
   const blob = new Blob([JSON.stringify(entries, null, 2)], {
     type: "application/json",
   });

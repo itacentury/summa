@@ -1,6 +1,6 @@
 /**
  * Frontend unit tests for applying AI categories end-to-end: the optimistic
- * update must take the applied rows off `state.uncategorizedCount` (the whole
+ * update must take the applied rows off `invoiceState.uncategorizedCount` (the whole
  * filtered set, across pages) and the undo must put them back, so the AI
  * trigger's "N on other pages" label stays honest inside the undo window —
  * before any server reload reconciles it.
@@ -43,7 +43,7 @@ import {
   runAnalysis,
   setupCategorizeListeners,
 } from "../../static/js/categorize.js";
-import { state, selectedInvoices } from "../../static/js/state.js";
+import { invoiceState, selectedInvoices } from "../../static/js/state.js";
 
 /**
  * The invoice list, the AI trigger and the categorize modal in one body: apply
@@ -130,7 +130,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  Object.assign(state, {
+  Object.assign(invoiceState, {
     invoices: [
       {
         id: 1,
@@ -177,7 +177,7 @@ describe("applyCategories", () => {
       suggestion(3, "Groceries"),
     ]);
 
-    expect(state.uncategorizedCount).toBe(3);
+    expect(invoiceState.uncategorizedCount).toBe(3);
     // The label is the reason the count has to be right: it would otherwise
     // still claim the five the server last reported.
     expect(badge().textContent).toBe("0");
@@ -194,7 +194,7 @@ describe("applyCategories", () => {
 
     undoToast.onUndo();
 
-    expect(state.uncategorizedCount).toBe(5);
+    expect(invoiceState.uncategorizedCount).toBe(5);
     expect(badge().textContent).toBe("2");
     expect(trigger().title).toBe("AI Categories");
   });

@@ -3,7 +3,7 @@
  * (the global `Chart` UMD from the CDN). View switching lives in views.js.
  */
 
-import { state, chartColors } from "./state.js";
+import { chartColors } from "./state.js";
 import {
   els,
   escapeHtml,
@@ -14,6 +14,10 @@ import {
 import { showErrorToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { apiFetch } from "./http.js";
+
+// Chart.js instances, kept so a re-render can destroy the previous one.
+let categoryChart = null;
+let storeChart = null;
 
 /**
  * Sync the scrim class and body scroll lock to the filter panel's current
@@ -149,8 +153,8 @@ function renderCategoryChart(data) {
   const ctx = document.querySelector('[data-el="category-chart"]');
   if (!ctx) return;
 
-  if (state.categoryChart) {
-    state.categoryChart.destroy();
+  if (categoryChart) {
+    categoryChart.destroy();
   }
 
   const legendEl = document.querySelector('[data-el="category-legend"]');
@@ -174,7 +178,7 @@ function renderCategoryChart(data) {
     swatch.style.background = chartColors[i % chartColors.length];
   });
 
-  state.categoryChart = new Chart(ctx, {
+  categoryChart = new Chart(ctx, {
     type: "doughnut",
     data: {
       labels: data.map((item) => item.category),
@@ -225,14 +229,14 @@ function renderStoreChart(data) {
   const ctx = document.querySelector('[data-el="store-chart"]');
   if (!ctx) return;
 
-  if (state.storeChart) {
-    state.storeChart.destroy();
+  if (storeChart) {
+    storeChart.destroy();
   }
 
   // Design 6a: thinner bars, 82px ellipsized label column, smaller mono ticks.
   const mobile = mobileViewport.matches;
 
-  state.storeChart = new Chart(ctx, {
+  storeChart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: data.map((item) => item.store),

@@ -16,7 +16,7 @@ import {
   renderInvoices,
   restoreRows,
 } from "../../static/js/render.js";
-import { state, selectedInvoices } from "../../static/js/state.js";
+import { invoiceState, selectedInvoices } from "../../static/js/state.js";
 
 const listEl = () => document.querySelector('[data-el="invoice-list"]');
 
@@ -25,7 +25,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  Object.assign(state, {
+  Object.assign(invoiceState, {
     invoices: [],
     page: 1,
     effectivePageSize: 25,
@@ -48,7 +48,7 @@ describe("renderInvoices", () => {
   });
 
   it("renders one row per invoice with escaped, formatted fields", () => {
-    state.invoices = [
+    invoiceState.invoices = [
       {
         id: 1,
         date: "2026-01-05",
@@ -58,8 +58,8 @@ describe("renderInvoices", () => {
       },
       { id: 2, date: "2026-02-10", store: "Rewe", category: "", total: "3.00" },
     ];
-    state.totalCount = 2;
-    state.totalSum = 15.5;
+    invoiceState.totalCount = 2;
+    invoiceState.totalSum = 15.5;
     selectedInvoices.add(1);
 
     renderInvoices();
@@ -100,7 +100,7 @@ describe("renderInvoices", () => {
     button.innerHTML = '<span data-el="ai-categories-badge"></span>';
     document.body.appendChild(button);
 
-    state.invoices = [
+    invoiceState.invoices = [
       { id: 1, date: "2026-01-05", store: "Aldi", category: null, total: "1" },
       {
         id: 2,
@@ -111,7 +111,7 @@ describe("renderInvoices", () => {
       },
       { id: 3, date: "2026-01-07", store: "Lidl", category: null, total: "3" },
     ];
-    state.totalCount = 3;
+    invoiceState.totalCount = 3;
 
     renderInvoices();
 
@@ -135,7 +135,7 @@ describe("itemRowsHtml", () => {
 
 describe("row reconciliation", () => {
   it("captureRows records removed rows with their positions", () => {
-    state.invoices = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    invoiceState.invoices = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
     const captured = captureRows(new Set([2]));
 
@@ -143,38 +143,40 @@ describe("row reconciliation", () => {
   });
 
   it("reinsertRows restores rows at their captured index and re-adds count/sum", () => {
-    state.invoices = [{ id: 1 }, { id: 3 }];
-    state.totalCount = 2;
-    state.totalSum = 10;
+    invoiceState.invoices = [{ id: 1 }, { id: 3 }];
+    invoiceState.totalCount = 2;
+    invoiceState.totalSum = 10;
 
     reinsertRows([{ invoice: { id: 2, total: "5" }, index: 1 }], 2);
 
-    expect(state.invoices.map((invoice) => invoice.id)).toEqual([1, 2, 3]);
-    expect(state.totalCount).toBe(5); // 2 existing + 1 reinserted + 2 extra
-    expect(state.totalSum).toBe(15);
+    expect(invoiceState.invoices.map((invoice) => invoice.id)).toEqual([
+      1, 2, 3,
+    ]);
+    expect(invoiceState.totalCount).toBe(5); // 2 existing + 1 reinserted + 2 extra
+    expect(invoiceState.totalSum).toBe(15);
   });
 
   it("reinsertRows skips an id a concurrent action already kept", () => {
-    state.invoices = [{ id: 1 }, { id: 2 }];
-    state.totalCount = 2;
-    state.totalSum = 10;
+    invoiceState.invoices = [{ id: 1 }, { id: 2 }];
+    invoiceState.totalCount = 2;
+    invoiceState.totalSum = 10;
 
     reinsertRows([{ invoice: { id: 2, total: "5" }, index: 1 }]);
 
-    expect(state.invoices.map((invoice) => invoice.id)).toEqual([1, 2]);
-    expect(state.totalCount).toBe(2);
-    expect(state.totalSum).toBe(10);
+    expect(invoiceState.invoices.map((invoice) => invoice.id)).toEqual([1, 2]);
+    expect(invoiceState.totalCount).toBe(2);
+    expect(invoiceState.totalSum).toBe(10);
   });
 
   it("restoreRows replaces a present row and never resurrects a removed one", () => {
-    state.invoices = [{ id: 1, store: "New" }];
+    invoiceState.invoices = [{ id: 1, store: "New" }];
 
     restoreRows([
       { id: 1, store: "Old" },
       { id: 9, store: "Ghost" },
     ]);
 
-    expect(state.invoices).toEqual([{ id: 1, store: "Old" }]);
+    expect(invoiceState.invoices).toEqual([{ id: 1, store: "Old" }]);
   });
 });
 
@@ -184,8 +186,8 @@ describe("row reconciliation", () => {
 // next list load, which the pending-toast guards can defer indefinitely.
 describe("uncategorized count reconciliation", () => {
   it("reinsertRows restores only the uncategorized rows it brings back", () => {
-    state.invoices = [];
-    state.uncategorizedCount = 1;
+    invoiceState.invoices = [];
+    invoiceState.uncategorizedCount = 1;
 
     // extraCount rows (off-page bulk selection) stay out: their categories were
     // never known, exactly as their sum was never subtracted.
@@ -197,55 +199,55 @@ describe("uncategorized count reconciliation", () => {
       3,
     );
 
-    expect(state.uncategorizedCount).toBe(2);
+    expect(invoiceState.uncategorizedCount).toBe(2);
   });
 
   it("reinsertRows counts nothing for an id a concurrent action already kept", () => {
-    state.invoices = [{ id: 1, category: null }];
-    state.uncategorizedCount = 1;
+    invoiceState.invoices = [{ id: 1, category: null }];
+    invoiceState.uncategorizedCount = 1;
 
     reinsertRows([
       { invoice: { id: 1, total: "5", category: null }, index: 0 },
     ]);
 
-    expect(state.uncategorizedCount).toBe(1);
+    expect(invoiceState.uncategorizedCount).toBe(1);
   });
 
   it("restoreRows gives the count back when the edit had added a category", () => {
-    state.invoices = [{ id: 1, category: "Food" }];
-    state.uncategorizedCount = 4;
+    invoiceState.invoices = [{ id: 1, category: "Food" }];
+    invoiceState.uncategorizedCount = 4;
 
     restoreRows([{ id: 1, category: null }]);
 
-    expect(state.uncategorizedCount).toBe(5);
+    expect(invoiceState.uncategorizedCount).toBe(5);
   });
 
   it("restoreRows takes the count away when the edit had cleared a category", () => {
-    state.invoices = [{ id: 1, category: null }];
-    state.uncategorizedCount = 4;
+    invoiceState.invoices = [{ id: 1, category: null }];
+    invoiceState.uncategorizedCount = 4;
 
     restoreRows([{ id: 1, category: "Food" }]);
 
-    expect(state.uncategorizedCount).toBe(3);
+    expect(invoiceState.uncategorizedCount).toBe(3);
   });
 
   it("restoreRows leaves the count alone for a row that is no longer present", () => {
-    state.invoices = [{ id: 1, category: "Food" }];
-    state.uncategorizedCount = 4;
+    invoiceState.invoices = [{ id: 1, category: "Food" }];
+    invoiceState.uncategorizedCount = 4;
 
     // The concurrent action that removed id 9 already accounted for it in its
     // post-edit shape, so undoing the edit must not re-add it.
     restoreRows([{ id: 9, category: null }]);
 
-    expect(state.uncategorizedCount).toBe(4);
+    expect(invoiceState.uncategorizedCount).toBe(4);
   });
 
   it("clamps at zero when the server count is already behind the page", () => {
-    state.invoices = [{ id: 1, category: null }];
-    state.uncategorizedCount = 0;
+    invoiceState.invoices = [{ id: 1, category: null }];
+    invoiceState.uncategorizedCount = 0;
 
     restoreRows([{ id: 1, category: "Food" }]);
 
-    expect(state.uncategorizedCount).toBe(0);
+    expect(invoiceState.uncategorizedCount).toBe(0);
   });
 });

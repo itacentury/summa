@@ -8,7 +8,7 @@
  * feature behaves exactly like a bulk edit.
  */
 
-import { state } from "./state.js";
+import { invoiceState } from "./state.js";
 import { loadLookups } from "./api.js";
 import { escapeHtml, formatCurrency, withEuro } from "./dom.js";
 import { flushPendingToast } from "./toast.js";
@@ -33,12 +33,12 @@ let existingLower = new Set(); // lowercased existing categories, for is-new rec
 
 /**
  * How many uncategorized invoices the active filters hold beyond the ones a run
- * covers. `state.uncategorizedCount` spans every page of the filtered set, so the
+ * covers. `invoiceState.uncategorizedCount` spans every page of the filtered set, so the
  * remainder is what the other pages hold. Clamped: the two numbers arrive in
  * separate responses, and an edit between them could otherwise go negative.
  */
 function invoicesElsewhere(onThisPage) {
-  return Math.max(state.uncategorizedCount - onThisPage, 0);
+  return Math.max(invoiceState.uncategorizedCount - onThisPage, 0);
 }
 
 /**
@@ -55,7 +55,7 @@ function triggerLabel(onThisPage) {
 
 /**
  * Update the trigger button's badge and damped state from the uncategorized
- * invoices on the current page (`state.invoices`), matching what the AI action
+ * invoices on the current page (`invoiceState.invoices`), matching what the AI action
  * analyzes. Called after every invoice-list load so it stays live. When nothing
  * is uncategorized the button is greyed out (`is-empty`) but stays clickable and
  * enabled: a disabled button could not open the dialog, and the dialog's empty
@@ -64,7 +64,9 @@ function triggerLabel(onThisPage) {
 export function updateAiTriggerBadge() {
   const button = document.querySelector('[data-el="ai-categories-trigger"]');
   if (!button) return;
-  const count = state.invoices.filter((invoice) => !invoice.category).length;
+  const count = invoiceState.invoices.filter(
+    (invoice) => !invoice.category,
+  ).length;
   button.classList.toggle("is-empty", count === 0);
   // aria-label wins the accessible name over title, so both carry the hint.
   const label = triggerLabel(count);
@@ -448,7 +450,7 @@ export async function runAnalysis() {
   controller?.abort();
   controller = null;
   // Scope the analysis to exactly the uncategorized invoices on the current page.
-  const ids = state.invoices
+  const ids = invoiceState.invoices
     .filter((invoice) => !invoice.category)
     .map((invoice) => invoice.id);
 
@@ -531,8 +533,10 @@ function applyCategories() {
   // Optimistically categorize any of these rows visible on the current page;
   // snapshot the old versions so undo can restore them (off-page rows reconcile
   // via the list reload on commit).
-  const previous = state.invoices.filter((invoice) => idSet.has(invoice.id));
-  state.invoices = state.invoices.map((invoice) =>
+  const previous = invoiceState.invoices.filter((invoice) =>
+    idSet.has(invoice.id),
+  );
+  invoiceState.invoices = invoiceState.invoices.map((invoice) =>
     idSet.has(invoice.id)
       ? { ...invoice, category: idToCategory.get(invoice.id) }
       : invoice,

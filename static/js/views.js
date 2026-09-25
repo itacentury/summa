@@ -15,7 +15,7 @@
  * through its own event.
  */
 
-import { state } from "./state.js";
+import { viewState } from "./state.js";
 import { closeMobileSearch } from "./drawer.js";
 import { loadInvoicesOnce } from "./api.js";
 import { loadStats } from "./stats.js";
@@ -40,7 +40,7 @@ const BODY_CLASSES = new Map([
  * the matching state.
  */
 function setView(name, title) {
-  state.currentView = name;
+  viewState.currentView = name;
 
   for (const [view, className] of BODY_CLASSES) {
     document.body.classList.toggle(className, view === name);

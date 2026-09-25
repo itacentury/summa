@@ -41,7 +41,7 @@ import { setupPageSizeListeners } from "./pagesize.js";
 import { getAuthStatus, renderLoginView, setupSignOut } from "./auth.js";
 import { clearAuthExpired, onAuthExpired } from "./http.js";
 import {
-  state,
+  invoiceState,
   PAGE_SIZE_OPTIONS,
   ALL_PAGE_SIZE,
   PAGE_SIZE_STORAGE_KEY,
@@ -56,11 +56,11 @@ function restorePageSize() {
   const stored = localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
   if (stored === null) return;
   if (stored === "all") {
-    state.pageSize = ALL_PAGE_SIZE;
+    invoiceState.pageSize = ALL_PAGE_SIZE;
     return;
   }
   const parsed = parseInt(stored, 10);
-  if (PAGE_SIZE_OPTIONS.includes(parsed)) state.pageSize = parsed;
+  if (PAGE_SIZE_OPTIONS.includes(parsed)) invoiceState.pageSize = parsed;
 }
 
 // Register Service Worker for PWA

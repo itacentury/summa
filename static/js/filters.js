@@ -3,15 +3,15 @@
  * including the ISO-week date helpers used only here.
  */
 
-import { state } from "./state.js";
+import { invoiceState } from "./state.js";
 import { els, debounce, dateToIso, capAtToday } from "./dom.js";
 import { loadInvoices } from "./api.js";
 import { getCombobox } from "./combobox.js";
 
 // Apply a specific filter mode
 export function applyFilter(mode) {
-  state.filterMode = mode;
-  state.currentDate = new Date();
+  invoiceState.filterMode = mode;
+  invoiceState.currentDate = new Date();
   updateFilterDisplay();
   setDateFiltersForMode();
   updateQuickFilterButtons();
@@ -20,17 +20,22 @@ export function applyFilter(mode) {
 
 // Navigate to previous period based on filter mode
 export function navigateToPrevious() {
-  if (state.filterMode === "all" || state.filterMode === "custom") return;
+  if (invoiceState.filterMode === "all" || invoiceState.filterMode === "custom")
+    return;
 
-  switch (state.filterMode) {
+  switch (invoiceState.filterMode) {
     case "week":
-      state.currentDate.setDate(state.currentDate.getDate() - 7);
+      invoiceState.currentDate.setDate(invoiceState.currentDate.getDate() - 7);
       break;
     case "month":
-      state.currentDate.setMonth(state.currentDate.getMonth() - 1);
+      invoiceState.currentDate.setMonth(
+        invoiceState.currentDate.getMonth() - 1,
+      );
       break;
     case "year":
-      state.currentDate.setFullYear(state.currentDate.getFullYear() - 1);
+      invoiceState.currentDate.setFullYear(
+        invoiceState.currentDate.getFullYear() - 1,
+      );
       break;
   }
   updateFilterDisplay();
@@ -40,18 +45,23 @@ export function navigateToPrevious() {
 
 // Navigate to next period based on filter mode
 export function navigateToNext() {
-  if (state.filterMode === "all" || state.filterMode === "custom") return;
+  if (invoiceState.filterMode === "all" || invoiceState.filterMode === "custom")
+    return;
   if (isViewingCurrentPeriod()) return;
 
-  switch (state.filterMode) {
+  switch (invoiceState.filterMode) {
     case "week":
-      state.currentDate.setDate(state.currentDate.getDate() + 7);
+      invoiceState.currentDate.setDate(invoiceState.currentDate.getDate() + 7);
       break;
     case "month":
-      state.currentDate.setMonth(state.currentDate.getMonth() + 1);
+      invoiceState.currentDate.setMonth(
+        invoiceState.currentDate.getMonth() + 1,
+      );
       break;
     case "year":
-      state.currentDate.setFullYear(state.currentDate.getFullYear() + 1);
+      invoiceState.currentDate.setFullYear(
+        invoiceState.currentDate.getFullYear() + 1,
+      );
       break;
   }
   updateFilterDisplay();
@@ -61,7 +71,7 @@ export function navigateToNext() {
 
 // Reset to current period for active filter mode
 export function resetToCurrent() {
-  state.currentDate = new Date();
+  invoiceState.currentDate = new Date();
   updateFilterDisplay();
   setDateFiltersForMode();
   loadInvoices();
@@ -350,7 +360,7 @@ export function updateFilterBadge() {
   let count = 0;
   if (storeFilter.value) count += 1;
   if (typeFilter.value) count += 1;
-  if (state.filterMode === "custom") count += 1;
+  if (invoiceState.filterMode === "custom") count += 1;
 
   const badge = document.querySelector('[data-el="filter-badge"]');
   if (!badge) return;
@@ -360,8 +370,8 @@ export function updateFilterBadge() {
 
 // Switch to custom filter mode when a date input is edited directly
 function switchToCustomMode() {
-  if (state.filterMode !== "custom") {
-    state.filterMode = "custom";
+  if (invoiceState.filterMode !== "custom") {
+    invoiceState.filterMode = "custom";
     updateFilterDisplay();
     updateQuickFilterButtons();
     updateFilterBadge();
@@ -391,23 +401,23 @@ export function updateFilterDisplay() {
   const todayBtn = document.querySelector('[data-action="nav-today"]');
   const nextBtn = document.querySelector('[data-action="nav-next"]');
 
-  switch (state.filterMode) {
+  switch (invoiceState.filterMode) {
     case "week": {
-      const weekNum = getISOWeek(state.currentDate);
-      const weekYear = getISOWeekYear(state.currentDate);
+      const weekNum = getISOWeek(invoiceState.currentDate);
+      const weekYear = getISOWeekYear(invoiceState.currentDate);
       monthDisplay.textContent = `W${weekNum} / ${weekYear}`;
       navButtons.forEach((btn) => (btn.style.visibility = "visible"));
       break;
     }
     case "month": {
-      const monthName = monthNames[state.currentDate.getMonth()];
-      const year = state.currentDate.getFullYear();
+      const monthName = monthNames[invoiceState.currentDate.getMonth()];
+      const year = invoiceState.currentDate.getFullYear();
       monthDisplay.textContent = `${monthName} ${year}`;
       navButtons.forEach((btn) => (btn.style.visibility = "visible"));
       break;
     }
     case "year":
-      monthDisplay.textContent = `${state.currentDate.getFullYear()}`;
+      monthDisplay.textContent = `${invoiceState.currentDate.getFullYear()}`;
       navButtons.forEach((btn) => (btn.style.visibility = "visible"));
       break;
     case "all":
@@ -423,7 +433,7 @@ export function updateFilterDisplay() {
   // The jump-to-today button is hidden only where navigation is meaningless
   // (all/custom); otherwise it stays visible but disabled on the current period.
   const navigationActive =
-    state.filterMode !== "all" && state.filterMode !== "custom";
+    invoiceState.filterMode !== "all" && invoiceState.filterMode !== "custom";
   todayBtn.classList.toggle("is-hidden", !navigationActive);
   // The forward arrow stops at the current period — there are no future invoices.
   nextBtn.disabled = navigationActive && isViewingCurrentPeriod();
@@ -432,22 +442,22 @@ export function updateFilterDisplay() {
   }
 }
 
-// Whether state.currentDate falls in the same period as today for the active mode
+// Whether invoiceState.currentDate falls in the same period as today for the active mode
 function isViewingCurrentPeriod() {
   const today = new Date();
-  switch (state.filterMode) {
+  switch (invoiceState.filterMode) {
     case "week":
       return (
-        getISOWeek(state.currentDate) === getISOWeek(today) &&
-        getISOWeekYear(state.currentDate) === getISOWeekYear(today)
+        getISOWeek(invoiceState.currentDate) === getISOWeek(today) &&
+        getISOWeekYear(invoiceState.currentDate) === getISOWeekYear(today)
       );
     case "month":
       return (
-        state.currentDate.getMonth() === today.getMonth() &&
-        state.currentDate.getFullYear() === today.getFullYear()
+        invoiceState.currentDate.getMonth() === today.getMonth() &&
+        invoiceState.currentDate.getFullYear() === today.getFullYear()
       );
     case "year":
-      return state.currentDate.getFullYear() === today.getFullYear();
+      return invoiceState.currentDate.getFullYear() === today.getFullYear();
     default:
       return true;
   }
@@ -458,22 +468,22 @@ export function updateQuickFilterButtons() {
   const buttons = document.querySelectorAll(".quick-filter-btn");
   buttons.forEach((btn) => {
     const btnMode = btn.getAttribute("data-filter");
-    btn.classList.toggle("active", btnMode === state.filterMode);
+    btn.classList.toggle("active", btnMode === invoiceState.filterMode);
   });
 }
 
 // Set date filters based on current mode
 function setDateFiltersForMode() {
   const { dateFrom, dateTo } = els();
-  switch (state.filterMode) {
+  switch (invoiceState.filterMode) {
     case "week":
-      setDateFiltersForWeek(state.currentDate);
+      setDateFiltersForWeek(invoiceState.currentDate);
       break;
     case "month":
-      setDateFiltersForMonth(state.currentDate);
+      setDateFiltersForMonth(invoiceState.currentDate);
       break;
     case "year":
-      setDateFiltersForYear(state.currentDate);
+      setDateFiltersForYear(invoiceState.currentDate);
       break;
     case "all":
       dateFrom.value = "";
