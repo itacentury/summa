@@ -16,9 +16,10 @@
         <span data-el="bulk-edit-count">0</span> invoice(s) selected
       </p>
       <div class="form-group">
-        <label class="form-label">New Store Name</label>
+        <label class="form-label" for="bulk-edit-store">New Store Name</label>
         <input
           type="text"
+          id="bulk-edit-store"
           class="form-input"
           data-el="bulk-edit-store"
           data-autofocus
@@ -26,7 +27,9 @@
         />
       </div>
       <div class="form-group">
-        <label class="form-label">New Category</label>
+        <label class="form-label" for="bulk-edit-category-input"
+          >New Category</label
+        >
         {{ combobox("bulk-edit-category") }}
       </div>
     </div>

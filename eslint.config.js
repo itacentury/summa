@@ -83,6 +83,9 @@ export default [
       // Catch within-partial heading skips at lint time; cross-partial continuity
       // is enforced by scripts/check-heading-levels.mjs (npm run lint:headings).
       "@html-eslint/no-skip-heading-levels": "error",
+      // Only checks that some label mechanism exists; that a `for` matches an
+      // `id` is still up to review.
+      "@html-eslint/require-input-label": "error",
     },
   },
   {

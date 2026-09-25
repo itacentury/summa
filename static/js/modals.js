@@ -18,23 +18,29 @@ import { fetchInvoiceItems } from "./api.js";
 import { importJson, setImportCorrectionMode } from "./import.js";
 import { getCombobox } from "./combobox.js";
 
+// Rows come and go, so each gets a fresh id suffix to tie its labels to its inputs.
+let itemRowSequence = 0;
+
 /**
  * Build the inner markup for one add/edit item row (name, price, remove button).
  * Pre-fills the inputs when an existing item is passed.
  */
 export function itemRowInnerHtml(item = null) {
+  itemRowSequence += 1;
+  const nameId = `item-name-${itemRowSequence}`;
+  const priceId = `item-price-${itemRowSequence}`;
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
   const priceValue = item ? ` value="${item.item_price}"` : "";
   return `
     <div class="form-group">
-      <label class="form-label">Item Name</label>
-      <input type="text" class="form-input item-name" placeholder="Product name"${nameValue}>
+      <label class="form-label" for="${nameId}">Item Name</label>
+      <input type="text" id="${nameId}" class="form-input item-name" placeholder="Product name"${nameValue}>
     </div>
     <div class="form-group">
-      <label class="form-label">Price</label>
-      <input type="number" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <label class="form-label" for="${priceId}">Price</label>
+      <input type="number" id="${priceId}" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
     </div>
-    <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
+    <button type="button" class="btn btn-danger btn-sm" data-action="remove-item" aria-label="Remove item">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>

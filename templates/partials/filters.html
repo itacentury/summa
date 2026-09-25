@@ -107,6 +107,7 @@
           type="text"
           class="filter-search-input"
           data-el="search"
+          aria-label="Search store or item"
           placeholder="Search store or item…"
         />
         <span
@@ -228,23 +229,33 @@
       </div>
       <div class="filters-panel">
         <div class="form-group">
-          <label class="form-label">Store</label>
+          <label class="form-label" for="store-filter-input">Store</label>
           {{ combobox("store-filter", "filter", "store") }}
         </div>
         <div class="form-group">
-          <label class="form-label">Category</label>
+          <label class="form-label" for="type-filter-input">Category</label>
           {{ combobox("type-filter", "filter") }}
         </div>
         <div class="form-group">
-          <label class="form-label">From</label>
-          <input type="date" class="form-input" data-el="date-from" />
+          <label class="form-label" for="date-from">From</label>
+          <input
+            type="date"
+            id="date-from"
+            class="form-input"
+            data-el="date-from"
+          />
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
-          <input type="date" class="form-input" data-el="date-to" />
+          <label class="form-label" for="date-to">To</label>
+          <input
+            type="date"
+            id="date-to"
+            class="form-input"
+            data-el="date-to"
+          />
         </div>
         <div class="form-group">
-          <label class="form-label">Sort By</label>
+          <span class="form-label">Sort By</span>
           <input type="hidden" data-el="sort-by" value="date" />
           <div class="pill-group" role="group" aria-label="Sort by">
             <button type="button" class="pill active" data-sort="date">
@@ -255,7 +266,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Order</label>
+          <span class="form-label">Order</span>
           <input type="hidden" data-el="sort-order" value="desc" />
           <div class="pill-group" role="group" aria-label="Order">
             <button type="button" class="pill active" data-order="desc">
