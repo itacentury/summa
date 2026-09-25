@@ -17,7 +17,13 @@ from summa.ai import (
     suggest_categories,
     suggestions_available,
 )
-from summa.db import chunked, db_cursor, insert_invoice_items, placeholders_for
+from summa.db import (
+    chunked,
+    db_cursor,
+    insert_invoice,
+    insert_invoice_items,
+    placeholders_for,
+)
 from summa.helpers import (
     ApiResponse,
     ImportValidation,
@@ -41,6 +47,8 @@ invoices_bp: Blueprint = Blueprint("invoices", __name__)
 DEFAULT_PAGE_SIZE: Final[int] = 25
 MAX_PAGE_SIZE: Final[int] = 200
 ALL_PAGE_SIZE_TOKEN: Final[str] = "all"
+# The only guard between the client's sort_by and the ORDER BY f-string.
+SORT_COLUMNS: Final[frozenset[str]] = frozenset({"date", "store", "total"})
 # Cap per categorize-suggest run to bound Claude token use and cost. The AI
 # layer's fully-budgeted batch is the term that binds today (170 < 200), keeping a
 # run inside the token budget so the response is never truncated; MAX_PAGE_SIZE is
@@ -93,6 +101,26 @@ def _build_invoice_filter(args: Any) -> tuple[str, list[str]]:
     return where, params
 
 
+def _invoice_summary(row: sqlite3.Row) -> dict[str, Any]:
+    """Serialize an invoice row without its line items."""
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "store": row["store"],
+        "category": row["category"],
+        "total": row["total"],
+    }
+
+
+def _existing_categories(cursor: sqlite3.Cursor) -> list[str]:
+    """Return every category in use on an active invoice, sorted."""
+    cursor.execute(
+        "SELECT DISTINCT category FROM invoices "
+        "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
+    )
+    return [row["category"] for row in cursor.fetchall()]
+
+
 @invoices_bp.route("/api/invoices", methods=["GET"])
 def get_invoices() -> Response:
     """Retrieve a page of invoices with optional filtering and sorting.
@@ -107,7 +135,7 @@ def get_invoices() -> Response:
     # sort value keep a stable relative order across LIMIT/OFFSET page
     # boundaries (otherwise paging can skip or duplicate rows).
     sort_by: str = request.args.get("sort_by", "date")
-    if sort_by in ["date", "store", "total"]:
+    if sort_by in SORT_COLUMNS:
         direction: str = (
             "DESC" if request.args.get("sort_order", "desc") == "desc" else "ASC"
         )
@@ -157,16 +185,7 @@ def get_invoices() -> Response:
 
     # The list is intentionally compact: line items are loaded on demand via
     # the single-invoice detail endpoint (on first expand / edit), not here.
-    result: list[dict[str, Any]] = [
-        {
-            "id": invoice["id"],
-            "date": invoice["date"],
-            "store": invoice["store"],
-            "category": invoice["category"],
-            "total": invoice["total"],
-        }
-        for invoice in invoices
-    ]
+    result: list[dict[str, Any]] = [_invoice_summary(invoice) for invoice in invoices]
     return jsonify(
         {
             "invoices": result,
@@ -220,16 +239,7 @@ def get_invoice(invoice_id: int) -> ApiResponse:
             for item in cursor.fetchall()
         ]
 
-    return jsonify(
-        {
-            "id": invoice["id"],
-            "date": invoice["date"],
-            "store": invoice["store"],
-            "category": invoice["category"],
-            "total": invoice["total"],
-            "items": items,
-        }
-    )
+    return jsonify({**_invoice_summary(invoice), "items": items})
 
 
 @invoices_bp.route("/api/stores", methods=["GET"])
@@ -247,11 +257,7 @@ def get_stores() -> Response:
 def get_categories() -> Response:
     """Return a list of all unique invoice categories."""
     with db_cursor() as cursor:
-        cursor.execute(
-            "SELECT DISTINCT category FROM invoices "
-            "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
-        )
-        categories: list[str] = [row["category"] for row in cursor.fetchall()]
+        categories: list[str] = _existing_categories(cursor)
     return jsonify(categories)
 
 
@@ -385,11 +391,7 @@ def categorize_suggest() -> ApiResponse:
                     }
                 )
 
-        cursor.execute(
-            "SELECT DISTINCT category FROM invoices "
-            "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
-        )
-        existing_categories: list[str] = [row["category"] for row in cursor.fetchall()]
+        existing_categories: list[str] = _existing_categories(cursor)
 
         # Previously cached suggestions for exactly these invoices, so only
         # new/edited ones (or a model change) need a fresh Claude call below.
@@ -485,12 +487,7 @@ def add_invoice() -> ApiResponse:
         return error_response(e.message, 400)
 
     with db_cursor() as cursor:
-        cursor.execute(
-            "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-            (invoice.date, invoice.store, invoice.category, invoice.total),
-        )
-        invoice_id: int | None = cursor.lastrowid
-        insert_invoice_items(cursor, invoice_id, invoice.items)
+        invoice_id: int | None = insert_invoice(cursor, invoice)
     logger.info(
         "Invoice created: id=%s, store='%s', total=%.2f, items=%d",
         invoice_id,
@@ -531,11 +528,7 @@ def import_invoices() -> ApiResponse:
                 skipped_count += 1
                 continue
 
-            cursor.execute(
-                "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-                (invoice.date, invoice.store, invoice.category, invoice.total),
-            )
-            insert_invoice_items(cursor, cursor.lastrowid, invoice.items)
+            insert_invoice(cursor, invoice)
             imported_count += 1
 
     logger.info(
@@ -642,11 +635,12 @@ def bulk_update_invoices() -> ApiResponse:
         # length-caps so no client can persist an oversized category.
         params.append(clean_category(new_category))
 
+    set_clause: str = ", ".join(set_clauses)
     with db_cursor() as cursor:
         updated_count: int = 0
         for chunk in chunked(invoice_ids):
             cursor.execute(
-                f"UPDATE invoices SET {', '.join(set_clauses)} "
+                f"UPDATE invoices SET {set_clause} "
                 f"WHERE id IN ({placeholders_for(len(chunk))}) "
                 "AND deleted_at IS NULL",
                 [*params, *chunk],

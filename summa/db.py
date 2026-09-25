@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Final
 
-from summa.helpers import InvoiceItem
+from summa.helpers import Invoice, InvoiceItem
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -50,6 +50,17 @@ def insert_invoice_items(
         "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
         [(invoice_id, item.item_name, item.item_price) for item in items],
     )
+
+
+def insert_invoice(cursor: sqlite3.Cursor, invoice: Invoice) -> int | None:
+    """Insert an invoice together with its line items and return the new id."""
+    cursor.execute(
+        "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
+        (invoice.date, invoice.store, invoice.category, invoice.total),
+    )
+    invoice_id: int | None = cursor.lastrowid
+    insert_invoice_items(cursor, invoice_id, invoice.items)
+    return invoice_id
 
 
 def placeholders_for(count: int) -> str:
