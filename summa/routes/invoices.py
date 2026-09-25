@@ -31,7 +31,6 @@ from summa.helpers import (
     ValidationError,
     clean_category,
     error_response,
-    escape_like,
     parse_bounded_int,
     parse_id_list,
     parse_invoice,
@@ -39,6 +38,7 @@ from summa.helpers import (
     require_optional_str,
     strip_text,
 )
+from summa.queries import build_invoice_filter
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -58,47 +58,6 @@ SORT_COLUMNS: Final[frozenset[str]] = frozenset({"date", "store", "total"})
 CATEGORIZE_SUGGEST_LIMIT: Final[int] = min(MAX_PAGE_SIZE, MAX_FULLY_BUDGETED_BATCH)
 # How many ids a bulk log line names; select-all can post thousands.
 LOG_ID_SAMPLE: Final[int] = 5
-
-
-def _build_invoice_filter(args: Any) -> tuple[str, list[str]]:
-    """Build the shared WHERE clause and params for invoice list filtering.
-
-    Excludes soft-deleted invoices. Kept separate from ORDER BY/LIMIT so the same
-    clause and params can drive the list, count/sum and id-list queries alike.
-    """
-    where: str = "WHERE deleted_at IS NULL"
-    params: list[str] = []
-
-    search: str = args.get("search", "")
-    if search:
-        where += (
-            " AND (store LIKE ? ESCAPE '\\' OR id IN "
-            "(SELECT invoice_id FROM invoice_items WHERE item_name LIKE ? ESCAPE '\\'))"
-        )
-        escaped: str = escape_like(search)
-        params.extend([f"%{escaped}%", f"%{escaped}%"])
-
-    store: str = args.get("store", "")
-    if store:
-        where += " AND store = ?"
-        params.append(store)
-
-    category: str = args.get("category", "")
-    if category:
-        where += " AND category = ?"
-        params.append(category)
-
-    date_from: str = args.get("date_from", "")
-    if date_from:
-        where += " AND date >= ?"
-        params.append(date_from)
-
-    date_to: str = args.get("date_to", "")
-    if date_to:
-        where += " AND date <= ?"
-        params.append(date_to)
-
-    return where, params
 
 
 def _invoice_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -129,7 +88,7 @@ def get_invoices() -> Response:
     returned page, so the client can say how many uncategorized invoices the other
     pages still hold -- the page's own share is countable from ``invoices``.
     """
-    where, params = _build_invoice_filter(request.args)
+    where, params = build_invoice_filter(request.args)
 
     # Sorting. Always include `id` as a unique tie-breaker so rows sharing a
     # sort value keep a stable relative order across LIMIT/OFFSET page
@@ -206,7 +165,7 @@ def get_invoice_ids() -> Response:
     which the paginated list endpoint does not expose. Reuses the same filter
     clause so both endpoints always agree on what "matching" means.
     """
-    where, params = _build_invoice_filter(request.args)
+    where, params = build_invoice_filter(request.args)
     with db_cursor() as cursor:
         cursor.execute(f"SELECT id FROM invoices {where} ORDER BY id", params)
         ids: list[int] = [row["id"] for row in cursor.fetchall()]
