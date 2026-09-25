@@ -31,6 +31,7 @@
   --accent-subtle: rgb(201 141 107 / 15%); /* focus ring */
   --accent-text-on: #fdf9f1;
   --ai-accent: #a5643c; /* AI categorization trigger and dialog */
+  --ai-accent-border: #d9b8a2; /* AI categorization trigger outline */
   --amount: #7c6b3f; /* monetary amounts (instead of green) */
   --success-subtle-bg: #d7e4d2;
   --success-subtle-text: #54744a;

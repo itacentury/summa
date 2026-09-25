@@ -19,7 +19,7 @@
   white-space: nowrap;
   cursor: pointer;
   background: var(--bg-card);
-  border: 1px solid var(--border-search-open);
+  border: 1px solid var(--ai-accent-border);
   border-radius: var(--radius-md);
   transition: all var(--transition);
 }
