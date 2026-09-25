@@ -151,7 +151,12 @@ def create_app() -> Flask:
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(_: BadRequest) -> ApiResponse:
-        """Return a malformed request's 400 as JSON instead of Werkzeug's HTML page."""
+        """Return a malformed request's 400 as JSON instead of Werkzeug's HTML page.
+
+        Every 400 app-wide gets the fixed message, because Werkzeug's own
+        descriptions carry parser detail — so ``abort(400, msg)`` would lose
+        ``msg``; a route returns ``error_response(msg, 400)`` instead.
+        """
         return error_response("Malformed request", 400)
 
     @app.errorhandler(sqlite3.Error)
