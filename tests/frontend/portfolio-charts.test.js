@@ -32,12 +32,11 @@ import {
   renderPortfolioCharts,
   valueAxisLabels,
 } from "../../static/js/portfolio-charts.js";
-import {
-  portfolioState,
-  chartColors,
-  positionLineColors,
-} from "../../static/js/state.js";
+import { portfolioState, positionLineColors } from "../../static/js/state.js";
 import { assignLineColors } from "../../static/js/portfolio-line-colors.js";
+import { applyChartTokens } from "./helpers.js";
+
+const palette = applyChartTokens();
 
 const markup = `
   <div data-el="portfolio-chart-card">
@@ -578,8 +577,8 @@ describe("renderPortfolioCharts", () => {
     renderPortfolioCharts(chartPayload());
     const swatches = document.querySelectorAll(".portfolio-alloc-color");
 
-    expect(swatches[0].style.background).toBe(chartColors[0]);
-    expect(swatches[1].style.background).toBe(chartColors[1]);
+    expect(swatches[0].style.background).toBe(palette[0]);
+    expect(swatches[1].style.background).toBe(palette[1]);
   });
 
   it("paints the bar widths through the CSSOM rather than a style attribute", () => {
@@ -601,18 +600,15 @@ describe("positionLines", () => {
     const both = positionLines(series, [21, 12], select([21, 12]));
     const second = positionLines(series, [12], select([12]));
 
-    expect(both.map((line) => line.color)).toEqual([
-      chartColors[0],
-      chartColors[1],
-    ]);
+    expect(both.map((line) => line.color)).toEqual([palette[0], palette[1]]);
     // Unchecking the first line must not repaint the one left behind.
-    expect(second[0].color).toBe(chartColors[1]);
+    expect(second[0].color).toBe(palette[1]);
   });
 
   it("never draws two lines in the same colour", () => {
     const series = {
       dates: ["2026-09-06"],
-      positions: Array.from({ length: chartColors.length }, (_, index) => ({
+      positions: Array.from({ length: palette.length }, (_, index) => ({
         id: index + 1,
         name: `Position ${index + 1}`,
         values: [100],
@@ -623,8 +619,8 @@ describe("positionLines", () => {
     const lines = positionLines(series, ids, select(ids));
     const colors = lines.map((line) => line.color);
 
-    expect(colors).toHaveLength(chartColors.length);
-    expect(new Set(colors).size).toBe(chartColors.length);
+    expect(colors).toHaveLength(palette.length);
+    expect(new Set(colors).size).toBe(palette.length);
   });
 
   it("skips a position the palette has no colour left for", () => {
@@ -706,8 +702,8 @@ describe("renderPortfolioCharts with a position selection", () => {
       '[data-el="portfolio-legend-series"] .portfolio-legend-bar',
     );
 
-    expect(bars[0].style.background).toBe(chartColors[0]);
-    expect(bars[1].style.background).toBe(chartColors[1]);
+    expect(bars[0].style.background).toBe(palette[0]);
+    expect(bars[1].style.background).toBe(palette[1]);
   });
 
   it("legends a single position with its own color and nothing else", () => {
@@ -718,7 +714,7 @@ describe("renderPortfolioCharts with a position selection", () => {
     );
 
     expect(bars).toHaveLength(1);
-    expect(bars[0].style.background).toBe(chartColors[0]);
+    expect(bars[0].style.background).toBe(palette[0]);
   });
 
   it("escapes a position name in the legend rather than trusting it", () => {

@@ -4,9 +4,9 @@
  * blocks style attributes. Every switch re-enters here, so charts are destroyed first.
  */
 
-import { portfolioState, chartColors, positionLineColors } from "./state.js";
+import { portfolioState, positionLineColors } from "./state.js";
 import { lineColor } from "./portfolio-line-colors.js";
-import { mobileViewport, withEuro } from "./dom.js";
+import { chartColors, mobileViewport, withEuro } from "./dom.js";
 import {
   allocationLegendHtml,
   benchmarkDisplayName,
@@ -431,9 +431,10 @@ function renderAllocationChart(allocation) {
   portfolioState.allocationChart = null;
 
   legend.innerHTML = allocationLegendHtml(allocation);
+  const colors = chartColors();
   // CSSOM, not a style attribute, for the strict style-src CSP; order matches the data.
   legend.querySelectorAll(".portfolio-alloc-color").forEach((swatch, index) => {
-    swatch.style.background = chartColors[index % chartColors.length];
+    swatch.style.background = colors[index % colors.length];
   });
   refreshTruncation(legend);
 
@@ -449,7 +450,7 @@ function renderAllocationChart(allocation) {
         {
           data: allocation.map((slice) => slice.value_eur),
           backgroundColor: allocation.map(
-            (_, index) => chartColors[index % chartColors.length],
+            (_, index) => colors[index % colors.length],
           ),
           borderWidth: 0,
           hoverOffset: 4,

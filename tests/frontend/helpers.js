@@ -5,7 +5,26 @@
  * file and mutate values/state between cases rather than re-mounting.
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { dateToIso } from "../../static/js/dom.js";
+
+/**
+ * Put the `--chart-N` tokens from variables.css on the root element, as the
+ * stylesheet would in the browser, and return them in palette order.
+ */
+export function applyChartTokens() {
+  // Relative to the Vitest root (the repository), where vitest.config.js lives.
+  const css = readFileSync(resolve("static/css/variables.css"), "utf8");
+  const palette = [...css.matchAll(/--chart-\d+:\s*([^;]+);/g)].map(
+    ([, value]) => value.trim(),
+  );
+  palette.forEach((value, index) =>
+    document.documentElement.style.setProperty(`--chart-${index + 1}`, value),
+  );
+  return palette;
+}
 
 /**
  * A stand-in for a `fetch` Response carrying a JSON body. Only the members the

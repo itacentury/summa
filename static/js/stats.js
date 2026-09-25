@@ -3,8 +3,8 @@
  * (the global `Chart` UMD from the CDN). View switching lives in views.js.
  */
 
-import { chartColors } from "./state.js";
 import {
+  chartColors,
   els,
   escapeHtml,
   formatCurrency,
@@ -172,10 +172,11 @@ function renderCategoryChart(data) {
       `;
     })
     .join("");
+  const colors = chartColors();
   // Paint the swatches via the CSSOM (not a style attribute) so a strict
   // style-src CSP does not block them; order matches the chart data.
   legendEl.querySelectorAll(".legend-color").forEach((swatch, i) => {
-    swatch.style.background = chartColors[i % chartColors.length];
+    swatch.style.background = colors[i % colors.length];
   });
 
   categoryChart = new Chart(ctx, {
@@ -185,9 +186,7 @@ function renderCategoryChart(data) {
       datasets: [
         {
           data: data.map((item) => item.amount),
-          backgroundColor: data.map(
-            (_, i) => chartColors[i % chartColors.length],
-          ),
+          backgroundColor: data.map((_, i) => colors[i % colors.length]),
           borderWidth: 0,
           hoverOffset: 4,
         },
@@ -235,6 +234,7 @@ function renderStoreChart(data) {
 
   // Design 6a: thinner bars, 82px ellipsized label column, smaller mono ticks.
   const mobile = mobileViewport.matches;
+  const colors = chartColors();
 
   storeChart = new Chart(ctx, {
     type: "bar",
@@ -243,9 +243,7 @@ function renderStoreChart(data) {
       datasets: [
         {
           data: data.map((item) => item.amount),
-          backgroundColor: data.map(
-            (_, i) => chartColors[i % chartColors.length],
-          ),
+          backgroundColor: data.map((_, i) => colors[i % colors.length]),
           borderRadius: 5,
           barThickness: mobile ? 15 : 16,
         },

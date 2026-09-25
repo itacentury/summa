@@ -6,6 +6,8 @@
  * but it can mutate a property of an imported object.
  */
 
+import { CHART_PALETTE_SIZE } from "./dom.js";
+
 // The invoice list, its filters, the add/edit dialog and the import staging.
 export const invoiceState = {
   invoices: [],
@@ -67,24 +69,12 @@ export const PORTFOLIO_DEPOT_STORAGE_KEY = "summa.portfolio.depot";
 // above it holds JSON, because the value is either a sentinel or a list of ids.
 export const PORTFOLIO_POSITIONS_STORAGE_KEY = "summa.portfolio.positions";
 
-// Chart.js color palette: warm-sand chart tones (--chart-1…8), donut/bar order.
-export const chartColors = [
-  "#c9a87c",
-  "#a8bfa0",
-  "#d9a48a",
-  "#b5a184",
-  "#c4b3d6",
-  "#d6bfa0",
-  "#a3c2c2",
-  "#e0cdb0",
-];
-
 // How many positions the chart draws at once. The palette is the limit, not the
 // other way round: a ninth line could only repeat a colour the legend already
 // spends on another holding.
-export const PORTFOLIO_MAX_LINES = chartColors.length;
+export const PORTFOLIO_MAX_LINES = CHART_PALETTE_SIZE;
 
 // Which palette slot each selected position draws in (position id -> index into
-// chartColors). Session-only and rebuilt from the restored selection, like the
+// chartColors()). Session-only and rebuilt from the restored selection, like the
 // two sets above: mutated, never reassigned.
 export const positionLineColors = new Map();

@@ -8,6 +8,20 @@
 /** Shared mobile breakpoint — keep in sync with the CSS `(width <= 640px)` media queries. */
 export const mobileViewport = window.matchMedia("(width <= 640px)");
 
+// Slots in the chart palette: the --chart-1…8 tokens in variables.css.
+export const CHART_PALETTE_SIZE = 8;
+
+/**
+ * Return the chart palette in donut/bar order, read from the `--chart-N` tokens
+ * so variables.css stays its only definition.
+ */
+export function chartColors() {
+  const root = getComputedStyle(document.documentElement);
+  return Array.from({ length: CHART_PALETTE_SIZE }, (_, index) =>
+    root.getPropertyValue(`--chart-${index + 1}`).trim(),
+  );
+}
+
 let cachedEls = null;
 
 /**

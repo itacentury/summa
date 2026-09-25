@@ -4,6 +4,8 @@ import {
   applyCategoryBadge,
   capAtToday,
   categoryColorVar,
+  CHART_PALETTE_SIZE,
+  chartColors,
   dateToIso,
   debounce,
   escapeHtml,
@@ -15,7 +17,16 @@ import {
   withBusyButton,
   withEuro,
 } from "../../static/js/dom.js";
-import { dayOffset } from "./helpers.js";
+import { applyChartTokens, dayOffset } from "./helpers.js";
+
+describe("chartColors", () => {
+  it("reads the palette from the --chart-N tokens, in order", () => {
+    const tokens = applyChartTokens();
+
+    expect(tokens).toHaveLength(CHART_PALETTE_SIZE);
+    expect(chartColors()).toEqual(tokens);
+  });
+});
 
 describe("formatDate / formatDateShort", () => {
   it("renders a bare ISO day as DD/MM/YYYY", () => {
