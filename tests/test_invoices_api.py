@@ -86,6 +86,24 @@ def _valid_items() -> list[dict[str, Any]]:
     return [{"item_name": "Line item", "item_price": 1.0}]
 
 
+@pytest.mark.parametrize("path", ["create", "update", "import"])
+def test_write_paths_clean_category(
+    client: FlaskClient, seed_invoice: SeedInvoice, path: str
+) -> None:
+    """Create, update and import all collapse and length-cap the category."""
+    payload: dict[str, Any] = _payload_with("category", "Food\n\nStuff" + "x" * 200)
+    if path == "create":
+        client.post("/api/invoices", json=payload)
+    elif path == "update":
+        client.put(f"/api/invoices/{seed_invoice()}", json=payload)
+    else:
+        client.post("/api/invoices/import", json=[payload])
+
+    stored: str = _list(client)[0]["category"]
+    assert stored.startswith("Food Stuff")
+    assert len(stored) <= helpers.MAX_CATEGORY_LENGTH
+
+
 # --- POST /api/invoices -------------------------------------------------------
 
 

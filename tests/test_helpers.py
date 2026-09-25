@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from summa.helpers import (
+    MAX_CATEGORY_LENGTH,
     ValidationError,
     escape_like,
     parse_id_list,
@@ -18,6 +19,22 @@ from summa.helpers import (
 def _valid_items() -> list[dict[str, Any]]:
     """Return a minimal valid items list for invoice parsing tests."""
     return [{"item_name": "Item", "item_price": 1.0}]
+
+
+def test_parse_invoice_cleans_category() -> None:
+    """parse_invoice collapses inner whitespace and caps the category length."""
+    invoice = parse_invoice(
+        {
+            "date": "2024-01-01",
+            "store": "A",
+            "category": "  Food\n\n  Stuff " + "x" * 200,
+            "total": 1.0,
+            "items": _valid_items(),
+        }
+    )
+    assert invoice.category is not None
+    assert invoice.category.startswith("Food Stuff")
+    assert len(invoice.category) <= MAX_CATEGORY_LENGTH
 
 
 @pytest.mark.parametrize(
