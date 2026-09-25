@@ -128,7 +128,7 @@
   gap: 0.25rem;
   padding: 0.25rem;
   margin-bottom: 1.5rem;
-  background: var(--bg-tertiary);
+  background: var(--bg-inset);
   border-radius: var(--radius-sm);
 }
 
@@ -281,7 +281,7 @@
 /* Staged-file list (shown after picking/dropping files) */
 .selected-files-card {
   padding: 0.75rem;
-  background: var(--bg-tertiary);
+  background: var(--bg-inset);
   border-radius: var(--radius-sm);
 }
 
@@ -317,13 +317,13 @@
   margin-bottom: 0.75rem;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--danger);
+  color: var(--danger-solid);
 }
 
 .import-error-card {
   padding: 0.75rem;
   margin-bottom: 0.75rem;
-  background: var(--danger-subtle);
+  background: var(--danger-subtle-bg);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
@@ -340,7 +340,7 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--danger);
+  color: var(--danger-solid);
 }
 
 .import-error-message {

@@ -1097,7 +1097,7 @@ body.portfolio-no-positions .portfolio-snapshot-btn {
 }
 
 .snapshot-input:has(.is-invalid) {
-  border-color: var(--danger);
+  border-color: var(--danger-solid);
 }
 
 .snapshot-input-prefix {

@@ -44,7 +44,7 @@ body {
 
 .btn-secondary {
   color: var(--text-primary);
-  background: var(--bg-tertiary);
+  background: var(--bg-inset);
   border: 1px solid var(--border-color);
 }
 
@@ -53,14 +53,14 @@ body {
 }
 
 .btn-danger {
-  color: var(--danger);
-  background: var(--danger-subtle);
+  color: var(--danger-solid);
+  background: var(--danger-subtle-bg);
   border: 1px solid transparent;
 }
 
 .btn-danger:hover {
   color: white;
-  background: var(--danger);
+  background: var(--danger-solid);
 }
 
 .btn-sm {
@@ -101,7 +101,7 @@ body {
   font-family: inherit;
   font-size: 0.875rem;
   color: var(--text-primary);
-  background: var(--bg-tertiary);
+  background: var(--bg-inset);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   transition: all var(--transition);
@@ -120,7 +120,7 @@ body {
 
 .field-error {
   font-size: 0.8125rem;
-  color: var(--danger);
+  color: var(--danger-solid);
 }
 
 /* Scrollbar */

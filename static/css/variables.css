@@ -7,6 +7,7 @@
   --bg-inset: #f7f1e4; /* inputs, inset surfaces */
   --bg-hover: #f9f4e8; /* row hover, expanded row, modal footer */
   --bg-selected: #f0e6d2; /* selected row, active dropdown entry */
+  --bg-inset-warm: #faf5e9; /* insets in the AI categorization dialog */
   --bg-hero: #e8dcc6; /* filled headline card (invoice total, portfolio value) */
   --bg-toolbar: #322c24; /* dark bulk-action pill */
   --bg-toolbar-text: #f3ede2; /* text on the dark pill */
@@ -26,7 +27,10 @@
 
   /* Accents */
   --accent: #c98d6b; /* terracotta: active pills, primary buttons */
+  --accent-hover: #b87d5c;
+  --accent-subtle: rgb(201 141 107 / 15%); /* focus ring */
   --accent-text-on: #fdf9f1;
+  --ai-accent: #a5643c; /* AI categorization trigger and dialog */
   --amount: #7c6b3f; /* monetary amounts (instead of green) */
   --success-subtle-bg: #d7e4d2;
   --success-subtle-text: #54744a;
@@ -90,17 +94,4 @@
 
   /* Typography */
   --font-mono: "JetBrains Mono", monospace;
-
-  /* Legacy compatibility shim — remapped to warm equivalents so component
-     stylesheets keep rendering until each is restyled in its own milestone.
-     Pruned in the final polish milestone once no rule references them. */
-  --bg-secondary: #ebe2d0;
-  --bg-tertiary: #f7f1e4;
-  --accent-hover: #b87d5c;
-  --accent-subtle: rgb(201 141 107 / 15%);
-  --success: #54744a;
-  --success-subtle: #d7e4d2;
-  --danger: #b3573f;
-  --danger-subtle: #eed9d3;
-  --shadow-lg: 0 10px 28px rgb(90 70 40 / 16%);
 }
