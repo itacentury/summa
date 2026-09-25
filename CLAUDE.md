@@ -132,6 +132,10 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   are done inline by
   inspecting `PRAGMA table_info` and conditionally `ALTER TABLE`-ing new columns
   (e.g. `deleted_at`, `category`). Add future column migrations the same way.
+  `init_db()` runs the whole schema setup in one `BEGIN IMMEDIATE` transaction,
+  because gunicorn's workers (no `--preload`) each call it at the same time: the
+  write lock lets the second worker see the finished migration, so a new column
+  needs no guard of its own, only a row in `_INVOICE_COLUMN_MIGRATIONS`.
 - **Soft deletes (invoice side only):** invoice rows are never physically deleted.
   Delete endpoints set `deleted_at = CURRENT_TIMESTAMP`, and every read query on
   `invoices` filters `WHERE deleted_at IS NULL` — preserve this filter in any new

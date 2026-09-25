@@ -245,5 +245,7 @@ def _create_schema(cursor: sqlite3.Cursor) -> None:
 def init_db() -> None:
     """Initialize the database schema and apply migrations if needed."""
     with db_cursor() as cursor:
+        # gunicorn workers run this in parallel; the write lock makes check + ALTER atomic.
+        cursor.execute("BEGIN IMMEDIATE")
         _create_schema(cursor)
     logger.info("Database initialized successfully")
