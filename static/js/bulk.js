@@ -4,6 +4,7 @@
 
 import { invoiceState, selectedInvoices } from "./state.js";
 import { fetchFilteredIds, loadLookups } from "./api.js";
+import { pluralize } from "./dom.js";
 import {
   renderInvoices,
   updateBulkActionToolbar,
@@ -131,7 +132,7 @@ export function openBulkEditModal() {
   }
 
   document.querySelector('[data-el="bulk-edit-count"]').textContent =
-    selectedInvoices.size;
+    `${pluralize(selectedInvoices.size, "invoice")} selected`;
   showOverlay(document.querySelector('[data-el="bulk-edit-modal"]'));
   storeInput.focus();
 }
@@ -195,7 +196,7 @@ export function saveBulkEdit() {
     restoreRows(previous);
   };
 
-  deferCommit(`${count} invoice${count !== 1 ? "s" : ""} updated`, {
+  deferCommit(`${pluralize(count, "invoice")} updated`, {
     send: (init) => sendJson("/api/invoices/bulk-update", "PUT", payload, init),
     onUndo: revert,
     errorText: "Failed to update",
@@ -276,7 +277,7 @@ export function bulkDeleteInvoices() {
   };
 
   // Stale lookup options self-heal, as after a single delete.
-  deferCommit(`${count} invoice${count !== 1 ? "s" : ""} deleted`, {
+  deferCommit(`${pluralize(count, "invoice")} deleted`, {
     send: (init) =>
       sendJson("/api/invoices/bulk-delete", "POST", { ids }, init),
     onUndo: revert,

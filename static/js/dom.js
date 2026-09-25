@@ -189,6 +189,11 @@ export function escapeHtml(text) {
     .replace(/'/g, "&#39;");
 }
 
+/** Return "1 invoice" / "3 invoices": the count with an English regular plural. */
+export function pluralize(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 /** Swap `button` for a disabled spinner while `task` runs, then restore it. */
 export async function withBusyButton(button, task) {
   const originalContent = button.innerHTML;

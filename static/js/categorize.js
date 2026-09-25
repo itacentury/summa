@@ -10,7 +10,7 @@
 
 import { invoiceState } from "./state.js";
 import { loadLookups } from "./api.js";
-import { escapeHtml, formatCurrency, withEuro } from "./dom.js";
+import { escapeHtml, formatCurrency, pluralize, withEuro } from "./dom.js";
 import { flushPendingToast } from "./toast.js";
 import { deferCommit } from "./deferred.js";
 import {
@@ -191,7 +191,7 @@ function renderPageScopedEmpty(elsewhere) {
 
 function setSubtitle(total) {
   document.querySelector('[data-el="categorize-subtitle"]').textContent =
-    `${total} uncategorized invoice${total !== 1 ? "s" : ""} on this page`;
+    `${pluralize(total, "uncategorized invoice")} on this page`;
 }
 
 function rowHtml(row, index) {
@@ -270,7 +270,7 @@ function renderReview(data, categories) {
   const elsewhere = invoicesElsewhere(data.total);
   if (elsewhere > 0) {
     notes.push(
-      `${elsewhere} more uncategorized invoice${elsewhere !== 1 ? "s" : ""} on other pages matching the current filters.`,
+      `${pluralize(elsewhere, "more uncategorized invoice")} on other pages matching the current filters.`,
     );
   }
   const note =
@@ -550,7 +550,7 @@ function applyCategories() {
 
   const revert = () => restoreRows(previous);
 
-  deferCommit(`${count} invoice${count !== 1 ? "s" : ""} categorized`, {
+  deferCommit(`${pluralize(count, "invoice")} categorized`, {
     send: (init) =>
       Promise.all(
         [...idsByCategory.entries()].map(([category, ids]) =>

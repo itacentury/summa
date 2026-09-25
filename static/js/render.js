@@ -17,6 +17,7 @@ import {
   formatDate,
   formatDateShort,
   applyCategoryBadge,
+  pluralize,
   withEuro,
 } from "./dom.js";
 import { editInvoice } from "./modals.js";
@@ -244,9 +245,10 @@ export function renderInvoices() {
   }
 
   // Summary reflects the whole filtered set (server totals), not just this page
-  document.querySelector('[data-el="results-count"]').textContent = `${
-    invoiceState.totalCount
-  } invoice${invoiceState.totalCount !== 1 ? "s" : ""}`;
+  document.querySelector('[data-el="results-count"]').textContent = pluralize(
+    invoiceState.totalCount,
+    "invoice",
+  );
   document.querySelector('[data-el="results-total"]').textContent =
     formatCurrency(invoiceState.totalSum);
 

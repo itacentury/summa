@@ -13,6 +13,7 @@ import {
   formatDate,
   formatDateShort,
   isFutureIsoDate,
+  pluralize,
   todayIso,
   withBusyButton,
   withEuro,
@@ -25,6 +26,16 @@ describe("chartColors", () => {
 
     expect(tokens).toHaveLength(CHART_PALETTE_SIZE);
     expect(chartColors()).toEqual(tokens);
+  });
+});
+
+describe("pluralize", () => {
+  it.each([
+    [0, "0 invoices"],
+    [1, "1 invoice"],
+    [2, "2 invoices"],
+  ])("counts %i as %s", (count, expected) => {
+    expect(pluralize(count, "invoice")).toBe(expected);
   });
 });
 
