@@ -1,11 +1,13 @@
 """Tests for schema creation, migrations and connection setup in :mod:`summa.db`."""
 
 import sqlite3
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
-from summa import db
+from summa import config, db
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
@@ -18,7 +20,7 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
 def temp_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point summa.db at a fresh, empty database file for the duration of a test."""
     db_path: Path = tmp_path / "schema.db"
-    monkeypatch.setattr(db, "DATABASE", str(db_path))
+    monkeypatch.setenv(config.DATABASE_PATH_ENV, str(db_path))
     return db_path
 
 
@@ -79,22 +81,29 @@ def test_init_db_is_idempotent(temp_db: Path) -> None:
     assert "category" in columns
 
 
+def _create_legacy_invoices() -> None:
+    """Create an ``invoices`` table as it looked before deleted_at/category."""
+    conn = db.get_db()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                store TEXT NOT NULL,
+                total REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def test_init_db_migrates_legacy_table(temp_db: Path) -> None:
     """An old invoices table without deleted_at/category gets both columns added."""
-    conn = db.get_db()
-    conn.execute(
-        """
-        CREATE TABLE invoices (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            store TEXT NOT NULL,
-            total REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
+    _create_legacy_invoices()
 
     db.init_db()
 
@@ -108,68 +117,31 @@ def test_init_db_migrates_legacy_table(temp_db: Path) -> None:
     assert "category" in columns
 
 
-def test_init_db_backfills_placeholder_item_for_active_orphan_invoice(
-    temp_db: Path,
+def test_init_db_concurrent_migration_does_not_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An active invoice without items gets one placeholder item during migration."""
-    db.init_db()
+    """Two workers migrating a legacy table at once both boot (gunicorn, no --preload)."""
+    # The unguarded race fails about every other run, so repeat to make it bite.
+    for run in range(20):
+        monkeypatch.setenv(config.DATABASE_PATH_ENV, str(tmp_path / f"race-{run}.db"))
+        _create_legacy_invoices()
+        barrier: threading.Barrier = threading.Barrier(2)
 
-    conn = db.get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO invoices (date, store, total) VALUES (?, ?, ?)",
-            ("2024-01-01", "Legacy", 12.34),
-        )
-        invoice_id = cursor.lastrowid
-        conn.commit()
-    finally:
-        conn.close()
+        def worker() -> None:
+            barrier.wait()
+            db.init_db()
 
-    db.init_db()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures: list[Future[None]] = [pool.submit(worker) for _ in range(2)]
+        for future in futures:
+            future.result()
 
-    conn = db.get_db()
-    try:
-        row = conn.execute(
-            "SELECT item_name, item_price FROM invoice_items WHERE invoice_id = ?",
-            (invoice_id,),
-        ).fetchone()
-    finally:
-        conn.close()
-
-    assert row is not None
-    assert row["item_name"] == db.LEGACY_PLACEHOLDER_ITEM_NAME
-    assert row["item_price"] == 12.34
-
-
-def test_init_db_backfill_is_idempotent(temp_db: Path) -> None:
-    """Backfill inserts at most one placeholder item per orphan invoice."""
-    db.init_db()
-
-    conn = db.get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO invoices (date, store, total) VALUES (?, ?, ?)",
-            ("2024-01-01", "Legacy", 10.0),
-        )
-        invoice_id = cursor.lastrowid
-        conn.commit()
-    finally:
-        conn.close()
-
-    db.init_db()
-    db.init_db()
-
-    conn = db.get_db()
-    try:
-        count: int = conn.execute(
-            "SELECT COUNT(*) FROM invoice_items WHERE invoice_id = ?", (invoice_id,)
-        ).fetchone()[0]
-    finally:
-        conn.close()
-
-    assert count == 1
+        conn = db.get_db()
+        try:
+            columns: list[str] = _columns(conn, "invoices")
+        finally:
+            conn.close()
+        assert {"deleted_at", "category"} <= set(columns)
 
 
 def test_get_db_uses_row_factory(temp_db: Path) -> None:

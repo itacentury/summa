@@ -2,13 +2,9 @@
  * Multi-select, bulk-edit and bulk-delete behavior over the invoice list.
  */
 
-import { state, selectedInvoices } from "./state.js";
-import {
-  fetchFilteredIds,
-  loadCategories,
-  loadStores,
-  reloadCurrentPage,
-} from "./api.js";
+import { invoiceState, selectedInvoices } from "./state.js";
+import { fetchFilteredIds, loadLookups } from "./api.js";
+import { pluralize } from "./dom.js";
 import {
   renderInvoices,
   updateBulkActionToolbar,
@@ -20,7 +16,8 @@ import {
 } from "./render.js";
 import { hideOverlay, showOverlay } from "./modals.js";
 import { getCombobox } from "./combobox.js";
-import { showUndoToast, showErrorToast, hasPendingToast } from "./toast.js";
+import { showErrorToast } from "./toast.js";
+import { deferCommit } from "./deferred.js";
 import { sendJson } from "./http.js";
 
 export function toggleInvoiceSelection(invoiceId, isSelected) {
@@ -76,7 +73,10 @@ export function deselectAllInvoices() {
  * selection when everything is already selected.
  */
 function toggleSelectAllButton() {
-  if (state.totalCount > 0 && selectedInvoices.size >= state.totalCount) {
+  if (
+    invoiceState.totalCount > 0 &&
+    selectedInvoices.size >= invoiceState.totalCount
+  ) {
     deselectAllInvoices();
   } else {
     selectAllInvoices();
@@ -92,7 +92,7 @@ export function openBulkEditModal() {
   // value shared here might not hold for off-page selections.
   const selectedStores = new Set();
   const selectedCategories = new Set();
-  const visibleSelected = state.invoices.filter((invoice) =>
+  const visibleSelected = invoiceState.invoices.filter((invoice) =>
     selectedInvoices.has(invoice.id),
   );
   visibleSelected.forEach((invoice) => {
@@ -132,7 +132,7 @@ export function openBulkEditModal() {
   }
 
   document.querySelector('[data-el="bulk-edit-count"]').textContent =
-    selectedInvoices.size;
+    `${pluralize(selectedInvoices.size, "invoice")} selected`;
   showOverlay(document.querySelector('[data-el="bulk-edit-modal"]'));
   storeInput.focus();
 }
@@ -173,8 +173,10 @@ export function saveBulkEdit() {
   // Apply optimistically to the visible selected rows (replace, don't mutate, so
   // the snapshot keeps the old values). Off-page selected rows are updated on
   // the server at commit time; the deferred PUT carries every selected id.
-  const previous = state.invoices.filter((invoice) => idSet.has(invoice.id));
-  state.invoices = state.invoices.map((invoice) => {
+  const previous = invoiceState.invoices.filter((invoice) =>
+    idSet.has(invoice.id),
+  );
+  invoiceState.invoices = invoiceState.invoices.map((invoice) => {
     if (!idSet.has(invoice.id)) return invoice;
     const updated = { ...invoice };
     if (newStore) updated.store = newStore;
@@ -194,40 +196,13 @@ export function saveBulkEdit() {
     restoreRows(previous);
   };
 
-  const commit = async () => {
-    try {
-      const response = await sendJson(
-        "/api/invoices/bulk-update",
-        "PUT",
-        payload,
-        // Survive page unload: a beforeunload-triggered commit must reach the
-        // server even as the document tears down.
-        { keepalive: true },
-      );
-      const result = await response.json();
-      if (!result.success) {
-        showErrorToast("Failed to update");
-        revert();
-        return;
-      }
-      // A bulk edit can rename stores / add or remove categories, so the lookup
-      // dropdowns always need refreshing — no superseding action reconciles
-      // THIS edit's values. Only the invoice-list reconcile is skipped while a
-      // newer deferred action is still pending (it reconciles on its own
-      // commit), so this earlier commit's reload can't cut short the newer
-      // action's undo window or flicker its rows back in.
-      loadStores();
-      loadCategories();
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to update");
-      revert();
-    }
-  };
-
-  showUndoToast(`${count} invoice${count !== 1 ? "s" : ""} updated`, {
+  deferCommit(`${pluralize(count, "invoice")} updated`, {
+    send: (init) => sendJson("/api/invoices/bulk-update", "PUT", payload, init),
     onUndo: revert,
-    onCommit: commit,
+    errorText: "Failed to update",
+    // A bulk edit can rename stores and add or drop categories, and no later
+    // action reconciles this edit's values, so the lookups always reload.
+    onSuccess: loadLookups,
   });
 }
 
@@ -279,9 +254,11 @@ export function bulkDeleteInvoices() {
   // selection (may span pages); totalSum can only subtract the visible rows'
   // totals — reloadCurrentPage on commit reconciles both with the server.
   const removed = captureRows(idSet);
-  state.invoices = state.invoices.filter((invoice) => !idSet.has(invoice.id));
-  state.totalCount -= ids.length;
-  state.totalSum -= removed.reduce(
+  invoiceState.invoices = invoiceState.invoices.filter(
+    (invoice) => !idSet.has(invoice.id),
+  );
+  invoiceState.totalCount -= ids.length;
+  invoiceState.totalSum -= removed.reduce(
     (sum, { invoice }) => sum + Number(invoice.total),
     0,
   );
@@ -299,35 +276,11 @@ export function bulkDeleteInvoices() {
     reinsertRows(removed, extraCount);
   };
 
-  const commit = async () => {
-    try {
-      const response = await sendJson(
-        "/api/invoices/bulk-delete",
-        "POST",
-        { ids },
-        // Survive page unload: a beforeunload-triggered commit must reach the
-        // server even as the document tears down.
-        { keepalive: true },
-      );
-      const result = await response.json();
-      if (!result.success) {
-        showErrorToast("Failed to delete");
-        revert();
-        return;
-      }
-      // Reload the list only; stale lookup options self-heal (see deleteInvoice).
-      // Skip the reconcile if a newer deferred action is still pending — it
-      // reconciles on its own commit. Prevents this earlier commit's reload from
-      // cutting short the newer action's undo window (and flickering its rows back in).
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to delete");
-      revert();
-    }
-  };
-
-  showUndoToast(`${count} invoice${count !== 1 ? "s" : ""} deleted`, {
+  // Stale lookup options self-heal, as after a single delete.
+  deferCommit(`${pluralize(count, "invoice")} deleted`, {
+    send: (init) =>
+      sendJson("/api/invoices/bulk-delete", "POST", { ids }, init),
     onUndo: revert,
-    onCommit: commit,
+    errorText: "Failed to delete",
   });
 }

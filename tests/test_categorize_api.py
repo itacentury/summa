@@ -7,7 +7,7 @@ from flask.testing import FlaskClient
 
 from summa import ai, db
 from summa.routes import invoices as invoices_route
-from tests.conftest import SeedInvoice
+from tests.conftest import DB_ERROR_DETAIL, SeedInvoice, broken_db_cursor
 
 
 def _enable_ai(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -65,6 +65,40 @@ def test_returns_503_when_master_switch_is_disabled(
 
     assert response.status_code == 503
     assert response.get_json()["error"] == "AI categorization not configured"
+
+
+def test_database_error_returns_generic_500(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A database failure is logged, not echoed: the body names no table."""
+    _enable_ai(monkeypatch)
+    monkeypatch.setattr(invoices_route, "db_cursor", broken_db_cursor)
+
+    response = client.post("/api/invoices/categorize-suggest", json={"ids": [1]})
+
+    assert response.status_code == 500
+    assert response.get_json() == {"success": False, "error": "Internal server error"}
+    assert DB_ERROR_DETAIL not in response.get_data(as_text=True)
+
+
+def test_model_failure_returns_its_message_as_502(
+    client: FlaskClient, seed_invoice: SeedInvoice, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A model failure reaches the client as the error's user-facing message."""
+    _enable_ai(monkeypatch)
+
+    def _fail(*_: Any, **__: Any) -> list[ai.CategorySuggestion]:
+        raise ai.AiCategorizationError("Claude request failed")
+
+    monkeypatch.setattr(invoices_route, "suggest_categories", _fail)
+    invoice_id = seed_invoice(category=None)
+
+    response = client.post(
+        "/api/invoices/categorize-suggest", json={"ids": [invoice_id]}
+    )
+
+    assert response.status_code == 502
+    assert response.get_json()["error"] == "Claude request failed"
 
 
 def test_only_uncategorized_are_sent(
@@ -423,3 +457,41 @@ def test_categorize_limit_is_fully_budgeted() -> None:
     assert ai._max_tokens_for(limit) == (
         ai._TOKEN_BUDGET_BASE + ai._TOKENS_PER_INVOICE * limit
     )
+
+
+def _invoice(invoice_id: int, store: str = "Shop") -> dict[str, Any]:
+    """Return an invoice dict shaped like the route assembles it."""
+    return {"id": invoice_id, "store": store, "total": 1.0, "items": []}
+
+
+def test_partition_by_cache_reuses_only_exact_matches() -> None:
+    """A hit needs the same fingerprint and model; anything else is a miss."""
+    cache = {
+        1: invoices_route.CachedSuggestion("Food", "m", "fp1"),
+        2: invoices_route.CachedSuggestion("Food", "m", "stale"),
+        3: invoices_route.CachedSuggestion("Food", "other", "fp3"),
+    }
+    invoices = [_invoice(1), _invoice(2), _invoice(3), _invoice(4)]
+    fingerprints = {1: "fp1", 2: "fp2", 3: "fp3", 4: "fp4"}
+
+    resolved, misses = invoices_route._partition_by_cache(
+        invoices, cache, fingerprints, "m"
+    )
+
+    assert resolved == {1: "Food"}
+    assert [invoice["id"] for invoice in misses] == [2, 3, 4]
+
+
+def test_build_suggestions_keeps_order_and_omits_unresolved() -> None:
+    """Suggestions follow load order, skip unanswered invoices and flag new ones."""
+    invoices = [_invoice(1, "A"), _invoice(2, "B"), _invoice(3, "C")]
+
+    suggestions = invoices_route._build_suggestions(
+        invoices, {3: "Food", 1: "Travel"}, {"food"}
+    )
+
+    assert [(s["invoice_id"], s["category"], s["is_new"]) for s in suggestions] == [
+        (1, "Travel", True),
+        (3, "Food", False),
+    ]
+    assert suggestions[0]["store"] == "A"

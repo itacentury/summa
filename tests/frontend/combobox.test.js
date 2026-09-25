@@ -151,7 +151,8 @@ describe('data-menu-float="true"', () => {
     openMenu(input);
     expect(scrollListenerCalls(documentAdd)).toHaveLength(1);
     expect(scrollListenerCalls(documentAdd)[0][2]).toBe(true);
-    expect(resizeListenerCalls(windowAdd)).toHaveLength(1);
+    // One re-places the floating menu, the other re-decides whether it floats.
+    expect(resizeListenerCalls(windowAdd)).toHaveLength(2);
 
     closeMenu(input);
     expect(scrollListenerCalls(documentRemove)).toHaveLength(1);

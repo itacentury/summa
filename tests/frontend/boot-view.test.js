@@ -15,7 +15,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { showPortfolioView } from "../../static/js/views.js";
-import { state } from "../../static/js/state.js";
+import { viewState } from "../../static/js/state.js";
 
 vi.mock("../../static/js/stats.js", () => ({ loadStats: vi.fn() }));
 vi.mock("../../static/js/portfolio.js", () => ({ loadPortfolio: vi.fn() }));
@@ -84,7 +84,7 @@ const activeViews = () =>
 describe("pre-paint view selection", () => {
   beforeEach(() => {
     mount();
-    state.currentView = "invoices";
+    viewState.currentView = "invoices";
     clearHash();
   });
 

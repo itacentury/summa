@@ -1,3 +1,4 @@
+{% from "partials/_macros.html" import icon_close %}
 <!-- Undo Toast -->
 <div
   class="toast"
@@ -9,10 +10,7 @@
   <span class="toast-message" data-el="toastMessage"></span>
   <button type="button" class="toast-action" data-el="toastUndo">Undo</button>
   <button type="button" class="toast-close" data-el="toastClose" title="Close">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
+    {{ icon_close(16) }}
   </button>
   <div class="toast-progress" data-el="toastProgress"></div>
 </div>
@@ -30,10 +28,7 @@
     data-el="errorToastClose"
     title="Close"
   >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
+    {{ icon_close(16) }}
   </button>
   <div class="toast-progress" data-el="errorToastProgress"></div>
 </div>

@@ -20,7 +20,7 @@ import {
   showPortfolioView,
   showStatsView,
 } from "../../static/js/views.js";
-import { state } from "../../static/js/state.js";
+import { viewState } from "../../static/js/state.js";
 import { loadInvoicesOnce } from "../../static/js/api.js";
 import { loadStats } from "../../static/js/stats.js";
 import { loadPortfolio } from "../../static/js/portfolio.js";
@@ -75,7 +75,7 @@ describe("view switching", () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
     document.body.className = "";
-    state.currentView = "invoices";
+    viewState.currentView = "invoices";
     clearHash();
     vi.clearAllMocks();
   });
@@ -83,7 +83,7 @@ describe("view switching", () => {
   it("shows only the portfolio view", () => {
     showPortfolioView();
 
-    expect(state.currentView).toBe("portfolio");
+    expect(viewState.currentView).toBe("portfolio");
     expect(visibleViews()).toEqual(["portfolio-view"]);
     expect(activeViews()).toEqual(["portfolio"]);
     expect(title()).toBe("Portfolio");
@@ -95,7 +95,7 @@ describe("view switching", () => {
     showPortfolioView();
     showStatsView();
 
-    expect(state.currentView).toBe("stats");
+    expect(viewState.currentView).toBe("stats");
     expect(visibleViews()).toEqual(["stats-view"]);
     expect(activeViews()).toEqual(["stats"]);
     expect(title()).toBe("Statistics");
@@ -107,7 +107,7 @@ describe("view switching", () => {
     showStatsView();
     showInvoicesView();
 
-    expect(state.currentView).toBe("invoices");
+    expect(viewState.currentView).toBe("invoices");
     expect(visibleViews()).toEqual(["invoices-view"]);
     expect(activeViews()).toEqual(["invoices"]);
     expect(title()).toBe("Invoices");
@@ -120,15 +120,15 @@ describe("view switching", () => {
 
     await clickNav("portfolio");
     expect(location.hash).toBe("#portfolio");
-    expect(state.currentView).toBe("portfolio");
+    expect(viewState.currentView).toBe("portfolio");
 
     await clickNav("stats");
     expect(location.hash).toBe("#stats");
-    expect(state.currentView).toBe("stats");
+    expect(viewState.currentView).toBe("stats");
 
     await clickNav("invoices");
     expect(location.hash).toBe("#invoices");
-    expect(state.currentView).toBe("invoices");
+    expect(viewState.currentView).toBe("invoices");
   });
 
   it("ignores a nav item with an unknown view", () => {
@@ -137,7 +137,7 @@ describe("view switching", () => {
 
     document.querySelector('[data-view="nonsense"]').click();
 
-    expect(state.currentView).toBe("portfolio");
+    expect(viewState.currentView).toBe("portfolio");
     expect(visibleViews()).toEqual(["portfolio-view"]);
     expect(location.hash).toBe("");
   });
@@ -150,7 +150,7 @@ describe("view switching", () => {
     // view's loader would never re-run.
     document.querySelector('[data-view="portfolio"]').click();
 
-    expect(state.currentView).toBe("portfolio");
+    expect(viewState.currentView).toBe("portfolio");
     expect(visibleViews()).toEqual(["portfolio-view"]);
   });
 
@@ -159,7 +159,7 @@ describe("view switching", () => {
 
     applyViewFromHash();
 
-    expect(state.currentView).toBe("portfolio");
+    expect(viewState.currentView).toBe("portfolio");
     expect(visibleViews()).toEqual(["portfolio-view"]);
     expect(activeViews()).toEqual(["portfolio"]);
   });
@@ -169,7 +169,7 @@ describe("view switching", () => {
 
     applyViewFromHash();
 
-    expect(state.currentView).toBe("invoices");
+    expect(viewState.currentView).toBe("invoices");
     expect(visibleViews()).toEqual(["invoices-view"]);
   });
 
@@ -179,7 +179,7 @@ describe("view switching", () => {
 
     applyViewFromHash();
 
-    expect(state.currentView).toBe("invoices");
+    expect(viewState.currentView).toBe("invoices");
     expect(visibleViews()).toEqual(["invoices-view"]);
   });
 

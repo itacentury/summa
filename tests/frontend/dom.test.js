@@ -4,6 +4,7 @@ import {
   applyCategoryBadge,
   capAtToday,
   categoryColorVar,
+  chartColors,
   dateToIso,
   debounce,
   escapeHtml,
@@ -11,11 +12,32 @@ import {
   formatDate,
   formatDateShort,
   isFutureIsoDate,
+  pluralize,
   todayIso,
   withBusyButton,
   withEuro,
 } from "../../static/js/dom.js";
-import { dayOffset } from "./helpers.js";
+import { CHART_PALETTE_SIZE } from "../../static/js/chart-palette.js";
+import { applyChartTokens, dayOffset } from "./helpers.js";
+
+describe("chartColors", () => {
+  it("reads the palette from the --chart-N tokens, in order", () => {
+    const tokens = applyChartTokens();
+
+    expect(tokens).toHaveLength(CHART_PALETTE_SIZE);
+    expect(chartColors()).toEqual(tokens);
+  });
+});
+
+describe("pluralize", () => {
+  it.each([
+    [0, "0 invoices"],
+    [1, "1 invoice"],
+    [2, "2 invoices"],
+  ])("counts %i as %s", (count, expected) => {
+    expect(pluralize(count, "invoice")).toBe(expected);
+  });
+});
 
 describe("formatDate / formatDateShort", () => {
   it("renders a bare ISO day as DD/MM/YYYY", () => {

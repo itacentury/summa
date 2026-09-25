@@ -48,6 +48,24 @@ class _AutofocusCollector(HTMLParser):
         self._depth -= 1
 
 
+class _LabelTargetCollector(HTMLParser):
+    """Collect every element id and every `label[for]` target of a page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ids: set[str] = set()
+        self.label_targets: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes: Attributes = dict(attrs)
+        element_id: str | None = attributes.get("id")
+        if element_id:
+            self.ids.add(element_id)
+        target: str | None = attributes.get("for")
+        if tag == "label" and target:
+            self.label_targets.append(target)
+
+
 def autofocus_targets(markup: str) -> dict[str, list[tuple[str, Attributes]]]:
     """Map each modal's `data-el` to the `[data-autofocus]` elements inside it."""
     collector: _AutofocusCollector = _AutofocusCollector()
@@ -160,6 +178,25 @@ def test_security_headers_present_on_every_response(client: FlaskClient) -> None
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["X-Frame-Options"] == "DENY"
         assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_every_label_points_at_an_element(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every `label[for]` on the page names the id of an element that exists."""
+    monkeypatch.setenv("ENABLE_AI_SUGGESTIONS", "1")
+
+    response = client.get("/")
+    assert response.status_code == 200
+
+    collector: _LabelTargetCollector = _LabelTargetCollector()
+    collector.feed(response.get_data(as_text=True))
+
+    assert collector.label_targets, "the page renders no labels at all"
+    dangling: list[str] = [
+        target for target in collector.label_targets if target not in collector.ids
+    ]
+    assert dangling == []
 
 
 @pytest.mark.parametrize(

@@ -12,13 +12,14 @@
       {{ modal_close_button() }}
     </div>
     <div class="modal-body">
-      <p class="bulk-edit-note">
-        <span data-el="bulk-edit-count">0</span> invoice(s) selected
+      <p class="bulk-edit-note" data-el="bulk-edit-count">
+        0 invoices selected
       </p>
       <div class="form-group">
-        <label class="form-label">New Store Name</label>
+        <label class="form-label" for="bulk-edit-store">New Store Name</label>
         <input
           type="text"
+          id="bulk-edit-store"
           class="form-input"
           data-el="bulk-edit-store"
           data-autofocus
@@ -26,8 +27,7 @@
         />
       </div>
       <div class="form-group">
-        <label class="form-label">New Category</label>
-        {{ combobox("bulk-edit-category") }}
+        {{ combobox("bulk-edit-category", "New Category") }}
       </div>
     </div>
     <div class="modal-footer">

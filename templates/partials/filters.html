@@ -1,4 +1,4 @@
-{% from "partials/_macros.html" import combobox %}
+{% from "partials/_macros.html" import combobox, icon_close %}
 <!-- Filters -->
 <div class="filters">
   <div class="filters-row">
@@ -107,6 +107,7 @@
           type="text"
           class="filter-search-input"
           data-el="search"
+          aria-label="Search store or item"
           placeholder="Search store or item…"
         />
         <span
@@ -120,17 +121,7 @@
           data-el="search-close"
           aria-label="Close search"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
+          {{ icon_close(12) }}
         </button>
       </div>
 
@@ -139,7 +130,7 @@
            the page is uncategorized, but never disabled — it must stay clickable
            so the dialog can explain that the count is page-scoped. Ships the
            damped state with a 0 badge; updateAiTriggerBadge (categorize.js) owns
-           class, title, aria-label and badge from state.invoices after every
+           class, title, aria-label and badge from invoiceState.invoices after every
            invoice render — the values here are only the pre-render default.
            aria-label carries the name when the label is hidden on mobile. #}
         <button
@@ -213,38 +204,36 @@
           data-action="close-filter-sheet"
           aria-label="Close filters"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
+          {{ icon_close(12) }}
         </button>
       </div>
       <div class="filters-panel">
         <div class="form-group">
-          <label class="form-label">Store</label>
-          {{ combobox("store-filter", "filter", "store") }}
+          {{ combobox("store-filter", "Store", "filter", "store") }}
         </div>
         <div class="form-group">
-          <label class="form-label">Category</label>
-          {{ combobox("type-filter", "filter") }}
+          {{ combobox("type-filter", "Category", "filter") }}
         </div>
         <div class="form-group">
-          <label class="form-label">From</label>
-          <input type="date" class="form-input" data-el="date-from" />
+          <label class="form-label" for="date-from">From</label>
+          <input
+            type="date"
+            id="date-from"
+            class="form-input"
+            data-el="date-from"
+          />
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
-          <input type="date" class="form-input" data-el="date-to" />
+          <label class="form-label" for="date-to">To</label>
+          <input
+            type="date"
+            id="date-to"
+            class="form-input"
+            data-el="date-to"
+          />
         </div>
         <div class="form-group">
-          <label class="form-label">Sort By</label>
+          <span class="form-label">Sort By</span>
           <input type="hidden" data-el="sort-by" value="date" />
           <div class="pill-group" role="group" aria-label="Sort by">
             <button type="button" class="pill active" data-sort="date">
@@ -255,7 +244,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Order</label>
+          <span class="form-label">Order</span>
           <input type="hidden" data-el="sort-order" value="desc" />
           <div class="pill-group" role="group" aria-label="Order">
             <button type="button" class="pill active" data-order="desc">

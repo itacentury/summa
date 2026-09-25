@@ -4,9 +4,9 @@
  * blocks style attributes. Every switch re-enters here, so charts are destroyed first.
  */
 
-import { state, chartColors, positionLineColors } from "./state.js";
+import { portfolioState, positionLineColors } from "./state.js";
 import { lineColor } from "./portfolio-line-colors.js";
-import { mobileViewport, withEuro } from "./dom.js";
+import { chartColors, mobileViewport, withEuro } from "./dom.js";
 import {
   allocationLegendHtml,
   benchmarkDisplayName,
@@ -192,13 +192,14 @@ function seriesPoints(dates, values) {
 
 /**
  * The lines a per-position selection draws, or `[]` for "all". Colors come from
- * the stable slots in `colors`; a position without a slot is skipped rather than
+ * the stable slots in `slots`; a position without a slot is skipped rather than
  * drawn in a repeated color. The invested line stays aggregate-only.
  *
- * @param {Map<number, number>} colors the palette slot per position id
+ * @param {Map<number, number>} slots the palette slot per position id
+ * @param {string[]} palette the chart colours, as `chartColors()` returns them
  * @returns {{label: string, values: number[], color: string}[]}
  */
-export function positionLines(series, selection, colors) {
+export function positionLines(series, selection, slots, palette) {
   if (selection === POSITIONS_ALL || !Array.isArray(selection)) return [];
 
   const chosen = new Set(selection);
@@ -206,7 +207,7 @@ export function positionLines(series, selection, colors) {
   const lines = [];
   entries.forEach((entry) => {
     if (!chosen.has(entry.id)) return;
-    const color = lineColor(colors, entry.id);
+    const color = lineColor(slots, entry.id, palette);
     if (!color) return;
     lines.push({ label: entry.name, values: entry.values, color });
   });
@@ -311,14 +312,15 @@ function renderValueChart(payload) {
   const note = document.querySelector('[data-el="portfolio-chart-note"]');
   if (!canvas) return;
 
-  if (state.portfolioChart) state.portfolioChart.destroy();
-  state.portfolioChart = null;
+  if (portfolioState.portfolioChart) portfolioState.portfolioChart.destroy();
+  portfolioState.portfolioChart = null;
 
   const { series } = payload;
   const lines = positionLines(
     series,
-    state.portfolioPositions,
+    portfolioState.portfolioPositions,
     positionLineColors,
+    chartColors(),
   );
   const hasBenchmark = series.benchmark.length > 0 && lines.length === 0;
   if (note)
@@ -354,7 +356,7 @@ function renderValueChart(payload) {
   const { values: tickValues, daily } = axisTicks(min, max, tickLimit);
   let valueLabels = [];
 
-  state.portfolioChart = new Chart(canvas, {
+  portfolioState.portfolioChart = new Chart(canvas, {
     type: "line",
     data: { datasets: valueDatasets(series, lines) },
     options: {
@@ -427,13 +429,14 @@ function renderAllocationChart(allocation) {
   );
   if (!canvas || !legend) return;
 
-  if (state.allocationChart) state.allocationChart.destroy();
-  state.allocationChart = null;
+  if (portfolioState.allocationChart) portfolioState.allocationChart.destroy();
+  portfolioState.allocationChart = null;
 
   legend.innerHTML = allocationLegendHtml(allocation);
+  const colors = chartColors();
   // CSSOM, not a style attribute, for the strict style-src CSP; order matches the data.
   legend.querySelectorAll(".portfolio-alloc-color").forEach((swatch, index) => {
-    swatch.style.background = chartColors[index % chartColors.length];
+    swatch.style.background = colors[index % colors.length];
   });
   refreshTruncation(legend);
 
@@ -441,7 +444,7 @@ function renderAllocationChart(allocation) {
   canvas.parentElement.classList.toggle("is-hidden", isEmpty);
   if (isEmpty) return;
 
-  state.allocationChart = new Chart(canvas, {
+  portfolioState.allocationChart = new Chart(canvas, {
     type: "doughnut",
     data: {
       labels: allocation.map((slice) => slice.label),
@@ -449,7 +452,7 @@ function renderAllocationChart(allocation) {
         {
           data: allocation.map((slice) => slice.value_eur),
           backgroundColor: allocation.map(
-            (_, index) => chartColors[index % chartColors.length],
+            (_, index) => colors[index % colors.length],
           ),
           borderWidth: 0,
           hoverOffset: 4,

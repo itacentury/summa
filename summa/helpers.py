@@ -170,7 +170,7 @@ def parse_invoice(data: Any) -> Invoice:
     _reject_future_date(invoice_date)
 
     store: str = require_non_empty_str(_require(data, "store"), "store")
-    category: str | None = strip_text(
+    category: str | None = clean_category(
         require_optional_str(data.get("category"), "category")
     )
     total: float = parse_float(_require(data, "total"), "total")

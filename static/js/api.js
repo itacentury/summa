@@ -2,7 +2,7 @@
  * Server I/O for the invoice list and the store/category filter dropdowns.
  */
 
-import { state, selectedInvoices } from "./state.js";
+import { invoiceState, selectedInvoices, viewState } from "./state.js";
 import { els, getSearchValue } from "./dom.js";
 import { showErrorToast, commitPendingToast, hideUndoToast } from "./toast.js";
 import { renderInvoices } from "./render.js";
@@ -60,7 +60,7 @@ export async function loadInvoices() {
   // reloadCurrentPage) drops out-of-view ids on filter/search/sort/period
   // changes while preserving cross-page "select all" within a fixed filter set.
   selectedInvoices.clear();
-  state.page = 1;
+  invoiceState.page = 1;
   await fetchInvoices();
 }
 
@@ -68,7 +68,7 @@ export async function loadInvoices() {
  * Load a specific invoice-list page without touching the active filters.
  */
 export async function goToPage(page) {
-  state.page = page;
+  invoiceState.page = page;
   await fetchInvoices();
 }
 
@@ -80,10 +80,10 @@ export async function reloadCurrentPage() {
   await fetchInvoices();
   const totalPages = Math.max(
     1,
-    Math.ceil(state.totalCount / state.effectivePageSize),
+    Math.ceil(invoiceState.totalCount / invoiceState.effectivePageSize),
   );
-  if (state.page > totalPages) {
-    state.page = totalPages;
+  if (invoiceState.page > totalPages) {
+    invoiceState.page = totalPages;
     await fetchInvoices();
   }
 }
@@ -139,8 +139,8 @@ async function fetchInvoices() {
   if (commitPendingToast()) hideUndoToast();
 
   const params = buildFilterParams();
-  params.set("page", state.page);
-  params.set("page_size", state.pageSize);
+  params.set("page", invoiceState.page);
+  params.set("page_size", invoiceState.pageSize);
 
   inFlightController?.abort();
   const controller = new AbortController();
@@ -152,17 +152,17 @@ async function fetchInvoices() {
     });
     if (!response.ok) throw new Error(`Request failed: ${response.status}`);
     const data = await response.json();
-    state.invoices = data.invoices;
-    state.page = data.page;
-    state.effectivePageSize = data.page_size;
-    state.totalCount = data.total_count;
-    state.totalSum = data.total_sum;
-    state.uncategorizedCount = data.uncategorized_count;
+    invoiceState.invoices = data.invoices;
+    invoiceState.page = data.page;
+    invoiceState.effectivePageSize = data.page_size;
+    invoiceState.totalCount = data.total_count;
+    invoiceState.totalSum = data.total_sum;
+    invoiceState.uncategorizedCount = data.uncategorized_count;
     invoicesLoaded = true;
     renderInvoices();
 
     // Also refresh stats if in stats view
-    if (state.currentView === "stats") {
+    if (viewState.currentView === "stats") {
       loadStats();
     }
   } catch (error) {
@@ -183,8 +183,9 @@ export function setupPaginationListeners() {
   container.addEventListener("click", (event) => {
     const button = event.target.closest("[data-action]");
     if (!button || button.disabled) return;
-    if (button.dataset.action === "page-prev") goToPage(state.page - 1);
-    else if (button.dataset.action === "page-next") goToPage(state.page + 1);
+    if (button.dataset.action === "page-prev") goToPage(invoiceState.page - 1);
+    else if (button.dataset.action === "page-next")
+      goToPage(invoiceState.page + 1);
   });
 }
 

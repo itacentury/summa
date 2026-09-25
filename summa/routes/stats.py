@@ -2,12 +2,13 @@
 
 import logging
 import sqlite3
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import date, timedelta
+from typing import Any, cast
 
 from flask import Blueprint, Response, jsonify, request
 
 from summa.db import db_cursor
+from summa.queries import build_invoice_filter
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -26,21 +27,23 @@ def _calculate_comparison(
         return comparison
 
     try:
-        start: datetime = datetime.strptime(date_from, "%Y-%m-%d")
-        end: datetime = datetime.strptime(date_to, "%Y-%m-%d")
+        start: date = date.fromisoformat(date_from)
+        end: date = date.fromisoformat(date_to)
+        # fromisoformat also takes basic/week forms the string-compared main query filters differently.
+        if start.isoformat() != date_from or end.isoformat() != date_to:
+            raise ValueError("dates must be YYYY-MM-DD")
         period_days: int = (end - start).days + 1
 
-        prev_end: datetime = start - timedelta(days=1)
-        prev_start: datetime = prev_end - timedelta(days=period_days - 1)
+        prev_end: date = start - timedelta(days=1)
+        prev_start: date = prev_end - timedelta(days=period_days - 1)
 
         cursor.execute(
-            "SELECT SUM(total) as sum FROM invoices "
+            "SELECT COALESCE(SUM(total), 0) as sum FROM invoices "
             "WHERE deleted_at IS NULL AND date >= ? AND date <= ?",
-            (prev_start.strftime("%Y-%m-%d"), prev_end.strftime("%Y-%m-%d")),
+            (prev_start.isoformat(), prev_end.isoformat()),
         )
-        prev_row: sqlite3.Row | None = cursor.fetchone()
-        assert prev_row is not None  # SUM aggregate always returns exactly one row
-        prev_total: float = prev_row["sum"] or 0
+        # An aggregate without GROUP BY always yields exactly one row.
+        prev_total: float = cast(sqlite3.Row, cursor.fetchone())["sum"]
         comparison["previous_total"] = round(prev_total, 2)
 
         if prev_total > 0:
@@ -62,34 +65,24 @@ def get_stats() -> Response:
     """Return aggregate statistics about invoices with optional date filtering."""
     date_from: str = request.args.get("date_from", "")
     date_to: str = request.args.get("date_to", "")
-
-    # Build base query conditions
-    base_conditions: str = "deleted_at IS NULL"
-    params: list[str] = []
-
-    if date_from:
-        base_conditions += " AND date >= ?"
-        params.append(date_from)
-    if date_to:
-        base_conditions += " AND date <= ?"
-        params.append(date_to)
+    where, params = build_invoice_filter({"date_from": date_from, "date_to": date_to})
 
     with db_cursor() as cursor:
         # Summary statistics
         cursor.execute(
-            f"SELECT COUNT(*) as count, SUM(total) as sum FROM invoices WHERE {base_conditions}",
+            f"SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as sum "
+            f"FROM invoices {where}",
             params,
         )
-        row: sqlite3.Row | None = cursor.fetchone()
-        assert row is not None  # COUNT(*)/SUM aggregate always returns exactly one row
+        row: sqlite3.Row = cast(sqlite3.Row, cursor.fetchone())
         total_invoices: int = row["count"]
-        total_amount: float = row["sum"] or 0
+        total_amount: float = row["sum"]
 
         # Category breakdown
         cursor.execute(
             f"""SELECT COALESCE(category, 'Uncategorized') as category,
                        SUM(total) as amount, COUNT(*) as count
-                FROM invoices WHERE {base_conditions}
+                FROM invoices {where}
                 GROUP BY category ORDER BY amount DESC""",
             params,
         )
@@ -105,7 +98,7 @@ def get_stats() -> Response:
         # Store breakdown (top 10)
         cursor.execute(
             f"""SELECT store, SUM(total) as amount, COUNT(*) as count
-                FROM invoices WHERE {base_conditions}
+                FROM invoices {where}
                 GROUP BY store ORDER BY amount DESC LIMIT 10""",
             params,
         )

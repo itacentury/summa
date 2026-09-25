@@ -6,7 +6,7 @@
 import { escapeHtml } from "./dom.js";
 import { bindListboxTrigger } from "./listbox.js";
 
-// Also the value `state.depotFilter` carries when nothing is filtered.
+// Also the value `portfolioState.depotFilter` carries when nothing is filtered.
 export const DEPOT_ALL = "all";
 const ALL_LABEL = "All depots";
 

@@ -3,8 +3,8 @@
  * (the global `Chart` UMD from the CDN). View switching lives in views.js.
  */
 
-import { state, chartColors } from "./state.js";
 import {
+  chartColors,
   els,
   escapeHtml,
   formatCurrency,
@@ -14,6 +14,10 @@ import {
 import { showErrorToast } from "./toast.js";
 import { lockScroll, unlockScroll } from "./modals.js";
 import { apiFetch } from "./http.js";
+
+// Chart.js instances, kept so a re-render can destroy the previous one.
+let categoryChart = null;
+let storeChart = null;
 
 /**
  * Sync the scrim class and body scroll lock to the filter panel's current
@@ -149,8 +153,8 @@ function renderCategoryChart(data) {
   const ctx = document.querySelector('[data-el="category-chart"]');
   if (!ctx) return;
 
-  if (state.categoryChart) {
-    state.categoryChart.destroy();
+  if (categoryChart) {
+    categoryChart.destroy();
   }
 
   const legendEl = document.querySelector('[data-el="category-legend"]');
@@ -168,22 +172,21 @@ function renderCategoryChart(data) {
       `;
     })
     .join("");
+  const colors = chartColors();
   // Paint the swatches via the CSSOM (not a style attribute) so a strict
   // style-src CSP does not block them; order matches the chart data.
   legendEl.querySelectorAll(".legend-color").forEach((swatch, i) => {
-    swatch.style.background = chartColors[i % chartColors.length];
+    swatch.style.background = colors[i % colors.length];
   });
 
-  state.categoryChart = new Chart(ctx, {
+  categoryChart = new Chart(ctx, {
     type: "doughnut",
     data: {
       labels: data.map((item) => item.category),
       datasets: [
         {
           data: data.map((item) => item.amount),
-          backgroundColor: data.map(
-            (_, i) => chartColors[i % chartColors.length],
-          ),
+          backgroundColor: data.map((_, i) => colors[i % colors.length]),
           borderWidth: 0,
           hoverOffset: 4,
         },
@@ -225,23 +228,22 @@ function renderStoreChart(data) {
   const ctx = document.querySelector('[data-el="store-chart"]');
   if (!ctx) return;
 
-  if (state.storeChart) {
-    state.storeChart.destroy();
+  if (storeChart) {
+    storeChart.destroy();
   }
 
   // Design 6a: thinner bars, 82px ellipsized label column, smaller mono ticks.
   const mobile = mobileViewport.matches;
+  const colors = chartColors();
 
-  state.storeChart = new Chart(ctx, {
+  storeChart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: data.map((item) => item.store),
       datasets: [
         {
           data: data.map((item) => item.amount),
-          backgroundColor: data.map(
-            (_, i) => chartColors[i % chartColors.length],
-          ),
+          backgroundColor: data.map((_, i) => colors[i % colors.length]),
           borderRadius: 5,
           barThickness: mobile ? 15 : 16,
         },

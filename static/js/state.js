@@ -1,12 +1,15 @@
 /**
- * Shared mutable application state.
+ * Shared mutable application state, one object per concern.
  *
- * Reassigned values live as properties on the `state` object because ES module
+ * Reassigned values live as properties on these objects because ES module
  * import bindings are read-only — a module cannot reassign an imported `let`,
  * but it can mutate a property of an imported object.
  */
 
-export const state = {
+import { CHART_PALETTE_SIZE } from "./chart-palette.js";
+
+// The invoice list, its filters, the add/edit dialog and the import staging.
+export const invoiceState = {
   invoices: [],
   page: 1, // Current invoice-list page (1-based)
   pageSize: 25, // Invoices requested per page
@@ -17,11 +20,17 @@ export const state = {
   currentDate: new Date(), // Current date for navigation reference
   editingInvoiceId: null, // Track if we're editing an invoice
   filterMode: "month", // 'week', 'month', 'year', 'all', 'custom'
-  currentView: "invoices", // 'invoices', 'stats' or 'portfolio'
-  categoryChart: null, // Chart.js instance for category doughnut
-  storeChart: null, // Chart.js instance for store bar chart
   pendingFiles: [], // Staged JSON files for import
   importErrors: [], // Invalid entries from the last import (index/field/message/value)
+};
+
+// Which of the three views is shown; set only by views.js.
+export const viewState = {
+  currentView: "invoices", // 'invoices', 'stats' or 'portfolio'
+};
+
+// The portfolio view's filters and its Chart.js instances.
+export const portfolioState = {
   portfolioRange: "1y", // Portfolio period: '3m', '1y', 'ytd', 'max'
   depotFilter: "all", // 'all' or a depot id as a string
   portfolioPositions: "all", // 'all', or an array of position ids the chart draws
@@ -60,24 +69,12 @@ export const PORTFOLIO_DEPOT_STORAGE_KEY = "summa.portfolio.depot";
 // above it holds JSON, because the value is either a sentinel or a list of ids.
 export const PORTFOLIO_POSITIONS_STORAGE_KEY = "summa.portfolio.positions";
 
-// Chart.js color palette: warm-sand chart tones (--chart-1…8), donut/bar order.
-export const chartColors = [
-  "#c9a87c",
-  "#a8bfa0",
-  "#d9a48a",
-  "#b5a184",
-  "#c4b3d6",
-  "#d6bfa0",
-  "#a3c2c2",
-  "#e0cdb0",
-];
-
 // How many positions the chart draws at once. The palette is the limit, not the
 // other way round: a ninth line could only repeat a colour the legend already
 // spends on another holding.
-export const PORTFOLIO_MAX_LINES = chartColors.length;
+export const PORTFOLIO_MAX_LINES = CHART_PALETTE_SIZE;
 
 // Which palette slot each selected position draws in (position id -> index into
-// chartColors). Session-only and rebuilt from the restored selection, like the
+// chartColors()). Session-only and rebuilt from the restored selection, like the
 // two sets above: mutated, never reassigned.
 export const positionLineColors = new Map();

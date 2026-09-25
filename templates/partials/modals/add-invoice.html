@@ -16,9 +16,10 @@
       <form data-el="add-form">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Date</label>
+            <label class="form-label" for="invoice-date">Date</label>
             <input
               type="date"
+              id="invoice-date"
               class="form-input"
               data-el="invoice-date"
               data-autofocus
@@ -35,9 +36,10 @@
             </p>
           </div>
           <div class="form-group">
-            <label class="form-label">Store</label>
+            <label class="form-label" for="invoice-store">Store</label>
             <input
               type="text"
+              id="invoice-store"
               class="form-input"
               data-el="invoice-store"
               placeholder="e.g. Amazon"
@@ -46,8 +48,7 @@
           </div>
         </div>
         <div class="form-group mb-1">
-          <label class="form-label">Category</label>
-          {{ combobox("invoice-type") }}
+          {{ combobox("invoice-type", "Category") }}
         </div>
 
         <div class="items-input-section">
@@ -72,44 +73,8 @@
               Add Item
             </button>
           </div>
-          <div data-el="items-container">
-            <div class="item-input-row">
-              <div class="form-group">
-                <label class="form-label">Item Name</label>
-                <input
-                  type="text"
-                  class="form-input item-name"
-                  placeholder="Product name"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Price</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  class="form-input item-price"
-                  placeholder="0.00"
-                />
-              </div>
-              <button
-                type="button"
-                class="btn btn-danger btn-sm"
-                data-action="remove-item"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          {# Rendered by itemRowInnerHtml() (modals.js) on every open and reset. #}
+          <div data-el="items-container"></div>
           <div class="calculated-total">
             <span class="calculated-total-label">Calculated Total</span>
             <span class="calculated-total-value" data-el="calculated-total"

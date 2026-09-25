@@ -40,14 +40,18 @@
             type="file"
             class="is-hidden"
             data-el="file-input"
+            aria-label="Select JSON files"
             accept=".json"
             multiple
           />
         </div>
         <div class="is-hidden mb-1" data-el="selected-files"></div>
         <div class="form-group">
-          <label class="form-label">Or paste JSON directly</label>
+          <label class="form-label" for="json-input"
+            >Or paste JSON directly</label
+          >
           <textarea
+            id="json-input"
             class="form-input json-textarea"
             data-el="json-input"
             data-autofocus

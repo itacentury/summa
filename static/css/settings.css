@@ -9,9 +9,9 @@
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--danger);
+  color: var(--danger-solid);
   cursor: pointer;
-  background: var(--danger-subtle);
+  background: var(--danger-subtle-bg);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   transition:
@@ -33,8 +33,8 @@
 
 .settings-action:hover {
   color: #fff;
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-solid);
+  border-color: var(--danger-solid);
 }
 
 /* A titled block of rows, separated from what stands above it. */

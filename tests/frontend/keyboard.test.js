@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupKeyboardListeners } from "../../static/js/keyboard.js";
 import { openAddModal } from "../../static/js/modals.js";
 import { openSnapshotModal } from "../../static/js/portfolio-snapshot.js";
-import { state } from "../../static/js/state.js";
+import { viewState } from "../../static/js/state.js";
 
 vi.mock("../../static/js/modals.js", () => ({
   openAddModal: vi.fn(),
@@ -124,7 +124,7 @@ describe("the N shortcut", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "n" }));
 
   it("opens the new-invoice dialog on the invoice view", () => {
-    state.currentView = "invoices";
+    viewState.currentView = "invoices";
     pressN();
 
     expect(openAddModal).toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe("the N shortcut", () => {
   it("opens the snapshot form on the portfolio view", () => {
     // One key, dispatched on the active view — not a second listener that would
     // have both dialogs racing for the same keystroke.
-    state.currentView = "portfolio";
+    viewState.currentView = "portfolio";
     pressN();
 
     expect(openSnapshotModal).toHaveBeenCalled();

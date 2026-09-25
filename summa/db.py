@@ -1,23 +1,20 @@
 """Database connection management and schema initialization."""
 
 import logging
-import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Final
 
-from summa.helpers import InvoiceItem
+from summa import config
+from summa.helpers import Invoice, InvoiceItem
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-DATABASE: Final[str] = os.environ.get("DATABASE_PATH", "invoices.db")
-LEGACY_PLACEHOLDER_ITEM_NAME: Final[str] = "Placeholder"
 
 
 def get_db() -> sqlite3.Connection:
     """Create and return a database connection with WAL mode and foreign keys on."""
-    conn: sqlite3.Connection = sqlite3.connect(DATABASE, timeout=30.0)
+    conn: sqlite3.Connection = sqlite3.connect(config.database_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
     # Enable WAL mode for better concurrency
     conn.execute("PRAGMA journal_mode=WAL")
@@ -50,6 +47,17 @@ def insert_invoice_items(
         "INSERT INTO invoice_items (invoice_id, item_name, item_price) VALUES (?, ?, ?)",
         [(invoice_id, item.item_name, item.item_price) for item in items],
     )
+
+
+def insert_invoice(cursor: sqlite3.Cursor, invoice: Invoice) -> int | None:
+    """Insert an invoice together with its line items and return the new id."""
+    cursor.execute(
+        "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
+        (invoice.date, invoice.store, invoice.category, invoice.total),
+    )
+    invoice_id: int | None = cursor.lastrowid
+    insert_invoice_items(cursor, invoice_id, invoice.items)
+    return invoice_id
 
 
 def placeholders_for(count: int) -> str:
@@ -144,11 +152,26 @@ def create_portfolio_schema(cursor: sqlite3.Cursor) -> None:
     )
 
 
-def init_db() -> None:
-    """Initialize the database schema and apply migrations if needed."""
-    conn: sqlite3.Connection = get_db()
-    cursor: sqlite3.Cursor = conn.cursor()
+# Columns added to `invoices` after its first release, with the DDL that adds them.
+_INVOICE_COLUMN_MIGRATIONS: Final[tuple[tuple[str, str], ...]] = (
+    ("deleted_at", "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"),
+    ("category", "ALTER TABLE invoices ADD COLUMN category TEXT DEFAULT NULL"),
+)
 
+
+def _migrate_invoice_columns(cursor: sqlite3.Cursor) -> None:
+    """Add every column from the migration table that the database still lacks."""
+    cursor.execute("PRAGMA table_info(invoices)")
+    columns: set[str] = {column[1] for column in cursor.fetchall()}
+    for column, ddl in _INVOICE_COLUMN_MIGRATIONS:
+        if column in columns:
+            continue
+        cursor.execute(ddl)
+        logger.info("Migration applied: added '%s' column", column)
+
+
+def _create_schema(cursor: sqlite3.Cursor) -> None:
+    """Create every table and index, migrating older databases on the way."""
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS invoices (
@@ -194,24 +217,7 @@ def init_db() -> None:
     """
     )
 
-    # Migration: Add deleted_at column if it doesn't exist (for existing databases)
-    cursor.execute("PRAGMA table_info(invoices)")
-    columns: list[str] = [column[1] for column in cursor.fetchall()]
-    if "deleted_at" not in columns:
-        try:
-            cursor.execute(
-                "ALTER TABLE invoices ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
-            )
-            logger.info("Migration applied: added 'deleted_at' column")
-        except sqlite3.OperationalError:
-            logger.debug("Column 'deleted_at' already exists, skipping migration")
-
-    if "category" not in columns:
-        try:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN category TEXT DEFAULT NULL")
-            logger.info("Migration applied: added 'category' column")
-        except sqlite3.OperationalError:
-            logger.debug("Column 'category' already exists, skipping migration")
+    _migrate_invoice_columns(cursor)
 
     # Indexes for the invoice list access pattern. The invoices indexes are
     # partial (deleted_at IS NULL) because every read filters out soft-deleted
@@ -235,24 +241,11 @@ def init_db() -> None:
 
     create_portfolio_schema(cursor)
 
-    # Backfill legacy active invoices that predate the items constraint.
-    cursor.execute(
-        "INSERT INTO invoice_items (invoice_id, item_name, item_price) "
-        "SELECT invoices.id, ?, invoices.total "
-        "FROM invoices "
-        "WHERE invoices.deleted_at IS NULL "
-        "AND NOT EXISTS ("
-        "SELECT 1 FROM invoice_items WHERE invoice_items.invoice_id = invoices.id"
-        ")",
-        (LEGACY_PLACEHOLDER_ITEM_NAME,),
-    )
-    backfilled_items: int = cursor.rowcount if cursor.rowcount != -1 else 0
-    if backfilled_items:
-        logger.info(
-            "Migration applied: backfilled %d placeholder invoice items",
-            backfilled_items,
-        )
 
-    conn.commit()
-    conn.close()
+def init_db() -> None:
+    """Initialize the database schema and apply migrations if needed."""
+    with db_cursor() as cursor:
+        # gunicorn workers run this in parallel; the write lock makes check + ALTER atomic.
+        cursor.execute("BEGIN IMMEDIATE")
+        _create_schema(cursor)
     logger.info("Database initialized successfully")

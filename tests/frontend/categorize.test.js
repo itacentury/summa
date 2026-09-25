@@ -1,14 +1,14 @@
 /**
  * Frontend unit tests for the AI-categorize trigger badge and the run's scope
  * messaging. The badge must count only the uncategorized invoices on the current
- * page (`state.invoices`), so it matches exactly what the AI action analyzes,
- * while `state.uncategorizedCount` (the whole filtered set) is what lets the
+ * page (`invoiceState.invoices`), so it matches exactly what the AI action analyzes,
+ * while `invoiceState.uncategorizedCount` (the whole filtered set) is what lets the
  * dialog name how many the other pages still hold.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { state } from "../../static/js/state.js";
+import { invoiceState } from "../../static/js/state.js";
 import {
   runAnalysis,
   updateAiTriggerBadge,
@@ -84,18 +84,18 @@ function badge() {
 describe("updateAiTriggerBadge", () => {
   beforeEach(() => {
     mountTriggerFixture();
-    state.invoices = [];
-    state.uncategorizedCount = 0;
-    state.filterMode = "month";
+    invoiceState.invoices = [];
+    invoiceState.uncategorizedCount = 0;
+    invoiceState.filterMode = "month";
   });
 
   it("counts only the uncategorized invoices on the current page", () => {
-    state.invoices = [
+    invoiceState.invoices = [
       { id: 1, category: null },
       { id: 2, category: "Groceries" },
       { id: 3, category: null },
     ];
-    state.uncategorizedCount = 5;
+    invoiceState.uncategorizedCount = 5;
 
     updateAiTriggerBadge();
 
@@ -108,8 +108,8 @@ describe("updateAiTriggerBadge", () => {
   it("damps but keeps the trigger clickable when the page has none", () => {
     // Never disabled: a disabled button could not open the dialog, and the
     // dialog's empty state is the only place the page-scoping is explained.
-    state.invoices = [{ id: 1, category: "Groceries" }];
-    state.uncategorizedCount = 3;
+    invoiceState.invoices = [{ id: 1, category: "Groceries" }];
+    invoiceState.uncategorizedCount = 3;
 
     updateAiTriggerBadge();
 
@@ -127,8 +127,8 @@ describe("updateAiTriggerBadge", () => {
   });
 
   it("claims nothing about other pages when the filter holds none", () => {
-    state.invoices = [{ id: 1, category: "Groceries" }];
-    state.uncategorizedCount = 0;
+    invoiceState.invoices = [{ id: 1, category: "Groceries" }];
+    invoiceState.uncategorizedCount = 0;
 
     updateAiTriggerBadge();
 
@@ -141,9 +141,9 @@ describe("updateAiTriggerBadge", () => {
   // must not vary with the date mode — under All it would otherwise read as a
   // claim about every invoice while a store or search filter is still on.
   it("keeps the same scope wording under the All filter", () => {
-    state.invoices = [{ id: 1, category: "Groceries" }];
-    state.uncategorizedCount = 3;
-    state.filterMode = "all";
+    invoiceState.invoices = [{ id: 1, category: "Groceries" }];
+    invoiceState.uncategorizedCount = 3;
+    invoiceState.filterMode = "all";
 
     updateAiTriggerBadge();
 
@@ -156,9 +156,9 @@ describe("updateAiTriggerBadge", () => {
 describe("runAnalysis", () => {
   beforeEach(() => {
     mountModalFixture();
-    state.invoices = [];
-    state.uncategorizedCount = 0;
-    state.filterMode = "month";
+    invoiceState.invoices = [];
+    invoiceState.uncategorizedCount = 0;
+    invoiceState.filterMode = "month";
   });
 
   afterEach(() => {
@@ -166,7 +166,7 @@ describe("runAnalysis", () => {
   });
 
   it("posts only the ids of the uncategorized invoices on the current page", async () => {
-    state.invoices = [
+    invoiceState.invoices = [
       { id: 1, category: null },
       { id: 2, category: "Groceries" },
       { id: 3, category: null },
@@ -185,8 +185,8 @@ describe("runAnalysis", () => {
   it("names the other pages' uncategorized invoices on a clean page", async () => {
     // The reachable path for the empty banner: the trigger stays clickable on a
     // clean page, so opening it must land on the explanation, not a blank body.
-    state.invoices = [{ id: 1, category: "Groceries" }];
-    state.uncategorizedCount = 4;
+    invoiceState.invoices = [{ id: 1, category: "Groceries" }];
+    invoiceState.uncategorizedCount = 4;
 
     const fetchMock = stubSuggest({ suggestions: [], total: 0, count: 0 });
 
@@ -207,8 +207,8 @@ describe("runAnalysis", () => {
   });
 
   it("claims no other pages when the whole filter is categorized", async () => {
-    state.invoices = [{ id: 1, category: "Groceries" }];
-    state.uncategorizedCount = 0;
+    invoiceState.invoices = [{ id: 1, category: "Groceries" }];
+    invoiceState.uncategorizedCount = 0;
 
     await runAnalysis();
 
@@ -218,9 +218,9 @@ describe("runAnalysis", () => {
   });
 
   it("notes the uncategorized invoices this run's page does not cover", async () => {
-    state.invoices = [{ id: 1, category: null }];
+    invoiceState.invoices = [{ id: 1, category: null }];
     // One on this page, three in the filter — two of them on other pages.
-    state.uncategorizedCount = 3;
+    invoiceState.uncategorizedCount = 3;
     stubSuggest({ suggestions: [suggestion(1)], total: 1, count: 1 });
 
     await runAnalysis();
@@ -233,9 +233,9 @@ describe("runAnalysis", () => {
   });
 
   it("keeps the same scope wording in the note under the All filter", async () => {
-    state.invoices = [{ id: 1, category: null }];
-    state.uncategorizedCount = 3;
-    state.filterMode = "all";
+    invoiceState.invoices = [{ id: 1, category: null }];
+    invoiceState.uncategorizedCount = 3;
+    invoiceState.filterMode = "all";
     stubSuggest({ suggestions: [suggestion(1)], total: 1, count: 1 });
 
     await runAnalysis();
@@ -246,8 +246,8 @@ describe("runAnalysis", () => {
   });
 
   it("drops the note when the page covers every uncategorized invoice", async () => {
-    state.invoices = [{ id: 1, category: null }];
-    state.uncategorizedCount = 1;
+    invoiceState.invoices = [{ id: 1, category: null }];
+    invoiceState.uncategorizedCount = 1;
     stubSuggest({ suggestions: [suggestion(1)], total: 1, count: 1 });
 
     await runAnalysis();

@@ -1,6 +1,6 @@
 /**
  * Frontend unit tests for applying AI categories end-to-end: the optimistic
- * update must take the applied rows off `state.uncategorizedCount` (the whole
+ * update must take the applied rows off `invoiceState.uncategorizedCount` (the whole
  * filtered set, across pages) and the undo must put them back, so the AI
  * trigger's "N on other pages" label stays honest inside the undo window —
  * before any server reload reconciles it.
@@ -27,8 +27,8 @@ vi.mock("../../static/js/pagesize.js", () => ({
 }));
 
 // The undo toast owns its own DOM; capture the deferred callbacks instead so a
-// test can invoke the undo directly. The commit is never run here: it reloads
-// from the server, which is exactly the reconcile these assertions must not lean on.
+// test can invoke the undo or the commit directly. A pending newer toast keeps
+// the commit from reloading, which is the reconcile these assertions must not lean on.
 const undoToast = vi.hoisted(() => ({ onUndo: null, onCommit: null }));
 vi.mock("../../static/js/toast.js", () => ({
   showUndoToast: vi.fn((message, { onUndo, onCommit }) => {
@@ -37,13 +37,14 @@ vi.mock("../../static/js/toast.js", () => ({
   }),
   showErrorToast: vi.fn(),
   flushPendingToast: vi.fn(),
+  hasPendingToast: () => true,
 }));
 
 import {
   runAnalysis,
   setupCategorizeListeners,
 } from "../../static/js/categorize.js";
-import { state, selectedInvoices } from "../../static/js/state.js";
+import { invoiceState, selectedInvoices } from "../../static/js/state.js";
 
 /**
  * The invoice list, the AI trigger and the categorize modal in one body: apply
@@ -130,7 +131,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  Object.assign(state, {
+  Object.assign(invoiceState, {
     invoices: [
       {
         id: 1,
@@ -177,7 +178,7 @@ describe("applyCategories", () => {
       suggestion(3, "Groceries"),
     ]);
 
-    expect(state.uncategorizedCount).toBe(3);
+    expect(invoiceState.uncategorizedCount).toBe(3);
     // The label is the reason the count has to be right: it would otherwise
     // still claim the five the server last reported.
     expect(badge().textContent).toBe("0");
@@ -194,8 +195,43 @@ describe("applyCategories", () => {
 
     undoToast.onUndo();
 
-    expect(state.uncategorizedCount).toBe(5);
+    expect(invoiceState.uncategorizedCount).toBe(5);
     expect(badge().textContent).toBe("2");
     expect(trigger().title).toBe("AI Categories");
   });
+
+  it.each([
+    ["refused", () => Promise.resolve({ ok: false, status: 500 })],
+    ["lost", () => Promise.reject(new TypeError("Failed to fetch"))],
+  ])(
+    "reverts only the rows whose request was %s",
+    async (_label, failedPut) => {
+      await applyAllSuggestions([
+        suggestion(1, "Electronics"),
+        suggestion(3, "Groceries"),
+      ]);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url, init) =>
+          init?.method === "PUT" &&
+          JSON.parse(init.body).category === "Groceries"
+            ? failedPut()
+            : Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve([]),
+              }),
+        ),
+      );
+
+      await undoToast.onCommit();
+
+      const categoryOf = (id) =>
+        invoiceState.invoices.find((invoice) => invoice.id === id).category;
+      expect(categoryOf(1)).toBe("Electronics");
+      expect(categoryOf(3)).toBeNull();
+      expect(invoiceState.uncategorizedCount).toBe(4);
+      expect(badge().textContent).toBe("1");
+    },
+  );
 });

@@ -1,12 +1,25 @@
 /**
  * DOM element cache and generic UI utilities.
  *
- * Leaf module: imports nothing from the app so it can be imported anywhere
- * without creating cycles.
+ * Leaf module: imports only the chart-palette constant, so it can be imported
+ * anywhere without creating cycles.
  */
+
+import { CHART_PALETTE_SIZE } from "./chart-palette.js";
 
 /** Shared mobile breakpoint — keep in sync with the CSS `(width <= 640px)` media queries. */
 export const mobileViewport = window.matchMedia("(width <= 640px)");
+
+/**
+ * Return the chart palette in donut/bar order, read from the `--chart-N` tokens
+ * so variables.css stays its only definition.
+ */
+export function chartColors() {
+  const root = getComputedStyle(document.documentElement);
+  return Array.from({ length: CHART_PALETTE_SIZE }, (_, index) =>
+    root.getPropertyValue(`--chart-${index + 1}`).trim(),
+  );
+}
 
 let cachedEls = null;
 
@@ -173,6 +186,11 @@ export function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Return "1 invoice" / "3 invoices": the count with an English regular plural. */
+export function pluralize(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** Swap `button` for a disabled spinner while `task` runs, then restore it. */

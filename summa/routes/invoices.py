@@ -2,7 +2,7 @@
 
 import logging
 import sqlite3
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Final
 
 from flask import Blueprint, Response, jsonify, request
@@ -17,7 +17,13 @@ from summa.ai import (
     suggest_categories,
     suggestions_available,
 )
-from summa.db import chunked, db_cursor, insert_invoice_items, placeholders_for
+from summa.db import (
+    chunked,
+    db_cursor,
+    insert_invoice,
+    insert_invoice_items,
+    placeholders_for,
+)
 from summa.helpers import (
     ApiResponse,
     ImportValidation,
@@ -25,7 +31,6 @@ from summa.helpers import (
     ValidationError,
     clean_category,
     error_response,
-    escape_like,
     parse_bounded_int,
     parse_id_list,
     parse_invoice,
@@ -33,6 +38,7 @@ from summa.helpers import (
     require_optional_str,
     strip_text,
 )
+from summa.queries import build_invoice_filter
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -41,6 +47,8 @@ invoices_bp: Blueprint = Blueprint("invoices", __name__)
 DEFAULT_PAGE_SIZE: Final[int] = 25
 MAX_PAGE_SIZE: Final[int] = 200
 ALL_PAGE_SIZE_TOKEN: Final[str] = "all"
+# The only guard between the client's sort_by and the ORDER BY f-string.
+SORT_COLUMNS: Final[frozenset[str]] = frozenset({"date", "store", "total"})
 # Cap per categorize-suggest run to bound Claude token use and cost. The AI
 # layer's fully-budgeted batch is the term that binds today (170 < 200), keeping a
 # run inside the token budget so the response is never truncated; MAX_PAGE_SIZE is
@@ -48,47 +56,28 @@ ALL_PAGE_SIZE_TOKEN: Final[str] = "all"
 # page. The response `total` lets the client prompt a re-run when a larger view is
 # capped.
 CATEGORIZE_SUGGEST_LIMIT: Final[int] = min(MAX_PAGE_SIZE, MAX_FULLY_BUDGETED_BATCH)
+# How many ids a bulk log line names; select-all can post thousands.
+LOG_ID_SAMPLE: Final[int] = 5
 
 
-def _build_invoice_filter(args: Any) -> tuple[str, list[str]]:
-    """Build the shared WHERE clause and params for invoice list filtering.
+def _invoice_summary(row: sqlite3.Row) -> dict[str, Any]:
+    """Serialize an invoice row without its line items."""
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "store": row["store"],
+        "category": row["category"],
+        "total": row["total"],
+    }
 
-    Excludes soft-deleted invoices. Kept separate from ORDER BY/LIMIT so the same
-    clause and params can drive the list, count/sum and id-list queries alike.
-    """
-    where: str = "WHERE deleted_at IS NULL"
-    params: list[str] = []
 
-    search: str = args.get("search", "")
-    if search:
-        where += (
-            " AND (store LIKE ? ESCAPE '\\' OR id IN "
-            "(SELECT invoice_id FROM invoice_items WHERE item_name LIKE ? ESCAPE '\\'))"
-        )
-        escaped: str = escape_like(search)
-        params.extend([f"%{escaped}%", f"%{escaped}%"])
-
-    store: str = args.get("store", "")
-    if store:
-        where += " AND store = ?"
-        params.append(store)
-
-    category: str = args.get("category", "")
-    if category:
-        where += " AND category = ?"
-        params.append(category)
-
-    date_from: str = args.get("date_from", "")
-    if date_from:
-        where += " AND date >= ?"
-        params.append(date_from)
-
-    date_to: str = args.get("date_to", "")
-    if date_to:
-        where += " AND date <= ?"
-        params.append(date_to)
-
-    return where, params
+def _existing_categories(cursor: sqlite3.Cursor) -> list[str]:
+    """Return every category in use on an active invoice, sorted."""
+    cursor.execute(
+        "SELECT DISTINCT category FROM invoices "
+        "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
+    )
+    return [row["category"] for row in cursor.fetchall()]
 
 
 @invoices_bp.route("/api/invoices", methods=["GET"])
@@ -99,13 +88,13 @@ def get_invoices() -> Response:
     returned page, so the client can say how many uncategorized invoices the other
     pages still hold -- the page's own share is countable from ``invoices``.
     """
-    where, params = _build_invoice_filter(request.args)
+    where, params = build_invoice_filter(request.args)
 
     # Sorting. Always include `id` as a unique tie-breaker so rows sharing a
     # sort value keep a stable relative order across LIMIT/OFFSET page
     # boundaries (otherwise paging can skip or duplicate rows).
     sort_by: str = request.args.get("sort_by", "date")
-    if sort_by in ["date", "store", "total"]:
+    if sort_by in SORT_COLUMNS:
         direction: str = (
             "DESC" if request.args.get("sort_order", "desc") == "desc" else "ASC"
         )
@@ -155,16 +144,7 @@ def get_invoices() -> Response:
 
     # The list is intentionally compact: line items are loaded on demand via
     # the single-invoice detail endpoint (on first expand / edit), not here.
-    result: list[dict[str, Any]] = [
-        {
-            "id": invoice["id"],
-            "date": invoice["date"],
-            "store": invoice["store"],
-            "category": invoice["category"],
-            "total": invoice["total"],
-        }
-        for invoice in invoices
-    ]
+    result: list[dict[str, Any]] = [_invoice_summary(invoice) for invoice in invoices]
     return jsonify(
         {
             "invoices": result,
@@ -185,7 +165,7 @@ def get_invoice_ids() -> Response:
     which the paginated list endpoint does not expose. Reuses the same filter
     clause so both endpoints always agree on what "matching" means.
     """
-    where, params = _build_invoice_filter(request.args)
+    where, params = build_invoice_filter(request.args)
     with db_cursor() as cursor:
         cursor.execute(f"SELECT id FROM invoices {where} ORDER BY id", params)
         ids: list[int] = [row["id"] for row in cursor.fetchall()]
@@ -218,16 +198,7 @@ def get_invoice(invoice_id: int) -> ApiResponse:
             for item in cursor.fetchall()
         ]
 
-    return jsonify(
-        {
-            "id": invoice["id"],
-            "date": invoice["date"],
-            "store": invoice["store"],
-            "category": invoice["category"],
-            "total": invoice["total"],
-            "items": items,
-        }
-    )
+    return jsonify({**_invoice_summary(invoice), "items": items})
 
 
 @invoices_bp.route("/api/stores", methods=["GET"])
@@ -245,11 +216,7 @@ def get_stores() -> Response:
 def get_categories() -> Response:
     """Return a list of all unique invoice categories."""
     with db_cursor() as cursor:
-        cursor.execute(
-            "SELECT DISTINCT category FROM invoices "
-            "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
-        )
-        categories: list[str] = [row["category"] for row in cursor.fetchall()]
+        categories: list[str] = _existing_categories(cursor)
     return jsonify(categories)
 
 
@@ -292,6 +259,144 @@ def _cache_suggestions(
         logger.warning("Failed to cache category suggestions: %s", error)
 
 
+@dataclass(frozen=True)
+class CachedSuggestion:
+    """A stored model answer and what it was computed from."""
+
+    category: str | None
+    model: str
+    fingerprint: str
+
+
+def _empty_suggestions() -> Response:
+    """Return the categorize-suggest answer for a page with nothing to categorize."""
+    return jsonify({"suggestions": [], "count": 0, "total": 0})
+
+
+def _load_candidates(
+    cursor: sqlite3.Cursor, requested_ids: list[int]
+) -> tuple[int, list[sqlite3.Row]]:
+    """Count the uncategorized invoices among ``requested_ids`` and load the lowest.
+
+    The id list is client-supplied and unbounded (page_size=all posts the whole
+    table), so it is queried in chunks below SQLite's variable limit, exactly as
+    /bulk-update and /bulk-delete do.
+
+    :returns: the uncategorized count and at most ``CATEGORIZE_SUGGEST_LIMIT``
+        rows (``id``, ``store``, ``total``) in id order.
+    """
+    total: int = 0
+    # Each chunk yields its own lowest-id candidates; the global lowest
+    # CATEGORIZE_SUGGEST_LIMIT are guaranteed among them, so a Python sort + slice
+    # reproduces a single ORDER BY id LIMIT over all ids.
+    candidates: list[sqlite3.Row] = []
+    for chunk in chunked(requested_ids):
+        uncategorized_in_chunk: str = (
+            f"FROM invoices WHERE deleted_at IS NULL AND category IS NULL "
+            f"AND id IN ({placeholders_for(len(chunk))})"
+        )
+        cursor.execute(f"SELECT COUNT(*) AS total {uncategorized_in_chunk}", chunk)
+        total += cursor.fetchone()["total"]
+        cursor.execute(
+            f"SELECT id, store, total {uncategorized_in_chunk} ORDER BY id LIMIT ?",
+            [*chunk, CATEGORIZE_SUGGEST_LIMIT],
+        )
+        candidates.extend(cursor.fetchall())
+    candidates.sort(key=lambda row: row["id"])
+    return total, candidates[:CATEGORIZE_SUGGEST_LIMIT]
+
+
+def _load_items(
+    cursor: sqlite3.Cursor, ids: list[int]
+) -> dict[int, list[dict[str, Any]]]:
+    """Load the line items of ``ids`` in one query, grouped by invoice id.
+
+    ``ids`` must already be capped at ``CATEGORIZE_SUGGEST_LIMIT``, well under
+    SQLite's variable limit.
+    """
+    cursor.execute(
+        f"SELECT invoice_id, item_name, item_price FROM invoice_items "
+        f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
+        ids,
+    )
+    items_by_invoice: dict[int, list[dict[str, Any]]] = {}
+    for item in cursor.fetchall():
+        items_by_invoice.setdefault(item["invoice_id"], []).append(
+            {"item_name": item["item_name"], "item_price": item["item_price"]}
+        )
+    return items_by_invoice
+
+
+def _load_cached(cursor: sqlite3.Cursor, ids: list[int]) -> dict[int, CachedSuggestion]:
+    """Load the cached suggestions for ``ids`` (capped like :func:`_load_items`)."""
+    cursor.execute(
+        f"SELECT invoice_id, category, model, fingerprint "
+        f"FROM invoice_category_suggestions "
+        f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
+        ids,
+    )
+    return {
+        row["invoice_id"]: CachedSuggestion(
+            category=row["category"], model=row["model"], fingerprint=row["fingerprint"]
+        )
+        for row in cursor.fetchall()
+    }
+
+
+def _partition_by_cache(
+    invoices: list[dict[str, Any]],
+    cache_by_id: dict[int, CachedSuggestion],
+    fingerprint_by_id: dict[int, str],
+    model: str,
+) -> tuple[dict[int, str | None], list[dict[str, Any]]]:
+    """Split invoices into cache hits and the misses that need a model call.
+
+    A cached answer is reused only when both the invoice content (fingerprint) and
+    the model match; new, edited and model-switched invoices are misses.
+
+    :returns: the category per hit invoice id, and the missed invoices in order.
+    """
+    resolved_category: dict[int, str | None] = {}
+    misses: list[dict[str, Any]] = []
+    for invoice in invoices:
+        cached: CachedSuggestion | None = cache_by_id.get(invoice["id"])
+        if (
+            cached is not None
+            and cached.fingerprint == fingerprint_by_id[invoice["id"]]
+            and cached.model == model
+        ):
+            resolved_category[invoice["id"]] = cached.category
+        else:
+            misses.append(invoice)
+    return resolved_category, misses
+
+
+def _build_suggestions(
+    invoices: list[dict[str, Any]],
+    resolved_category: dict[int, str | None],
+    existing_lower: set[str],
+) -> list[dict[str, Any]]:
+    """Merge each resolved category with its invoice's display info, in load order.
+
+    Invoices the model returned no entry for are omitted. ``is_new`` is computed
+    live rather than cached, because it depends on the current category set.
+
+    :param existing_lower: the categories in use, lower-cased.
+    """
+    return [
+        {
+            "invoice_id": invoice["id"],
+            "store": invoice["store"],
+            "total": invoice["total"],
+            "items": invoice["items"],
+            "category": resolved_category[invoice["id"]],
+            "is_new": is_category_new(resolved_category[invoice["id"]], existing_lower),
+        }
+        for invoice in invoices
+        if invoice["id"] in resolved_category
+    ]
+
+
 @invoices_bp.route("/api/invoices/categorize-suggest", methods=["POST"])
 def categorize_suggest() -> ApiResponse:
     """Suggest categories for the invoices visible on the caller's current page.
@@ -316,10 +421,10 @@ def categorize_suggest() -> ApiResponse:
     # what tells the two apart, since get_json(silent=True) returns None for both.
     # Everything past the empty case goes through parse_id_list, as /bulk-* do.
     if not request.get_data():
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
+        return _empty_suggestions()
     data: Any = request.get_json(silent=True)
     if isinstance(data, dict) and data.get("ids") == []:
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
+        return _empty_suggestions()
     try:
         # Dedupe once: IN dedupes within a chunk, but the same id split across two
         # chunks would double-count the summed total (and duplicate work).
@@ -327,146 +432,47 @@ def categorize_suggest() -> ApiResponse:
     except ValidationError as error:
         return error_response(error.message, 400)
 
-    # Scope strictly to the requested (visible) rows, uncategorized only. The id
-    # list is client-supplied and unbounded (page_size=all posts the whole table),
-    # so query in chunks below SQLite's variable limit rather than binding every id
-    # in one statement, exactly as /bulk-update and /bulk-delete do.
-    try:
-        with db_cursor() as cursor:
-            total: int = 0
-            # Each chunk yields its own lowest-id candidates; the global lowest
-            # CATEGORIZE_SUGGEST_LIMIT are guaranteed among them, so a Python
-            # sort + slice reproduces a single ORDER BY id LIMIT over all ids.
-            candidates: list[sqlite3.Row] = []
-            for chunk in chunked(requested_ids):
-                uncategorized_in_chunk: str = (
-                    f"FROM invoices WHERE deleted_at IS NULL AND category IS NULL "
-                    f"AND id IN ({placeholders_for(len(chunk))})"
-                )
-                cursor.execute(
-                    f"SELECT COUNT(*) AS total {uncategorized_in_chunk}", chunk
-                )
-                total += cursor.fetchone()["total"]
-                cursor.execute(
-                    f"SELECT id, store, total {uncategorized_in_chunk} "
-                    f"ORDER BY id LIMIT ?",
-                    [*chunk, CATEGORIZE_SUGGEST_LIMIT],
-                )
-                candidates.extend(cursor.fetchall())
-            candidates.sort(key=lambda row: row["id"])
-            rows: list[sqlite3.Row] = candidates[:CATEGORIZE_SUGGEST_LIMIT]
+    with db_cursor() as cursor:
+        total, rows = _load_candidates(cursor, requested_ids)
+        if not rows:
+            return _empty_suggestions()
+        ids: list[int] = [row["id"] for row in rows]
+        items_by_invoice: dict[int, list[dict[str, Any]]] = _load_items(cursor, ids)
+        cache_by_id: dict[int, CachedSuggestion] = _load_cached(cursor, ids)
+        existing_categories: list[str] = _existing_categories(cursor)
 
-            # Full per-invoice info for the response (store, amount, items); the
-            # items double as the model input and the client's summary/accordion.
-            # Load every row's items in one query (ids are already capped at
-            # CATEGORIZE_SUGGEST_LIMIT, well under SQLite's variable limit) and
-            # group them in Python, avoiding a per-invoice round-trip.
-            invoices: list[dict[str, Any]] = []
-            if rows:
-                ids: list[int] = [row["id"] for row in rows]
-                cursor.execute(
-                    f"SELECT invoice_id, item_name, item_price FROM invoice_items "
-                    f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
-                    ids,
-                )
-                items_by_invoice: dict[int, list[dict[str, Any]]] = {}
-                for item in cursor.fetchall():
-                    items_by_invoice.setdefault(item["invoice_id"], []).append(
-                        {
-                            "item_name": item["item_name"],
-                            "item_price": item["item_price"],
-                        }
-                    )
-                for row in rows:
-                    invoices.append(
-                        {
-                            "id": row["id"],
-                            "store": row["store"],
-                            "total": row["total"],
-                            "items": items_by_invoice.get(row["id"], []),
-                        }
-                    )
-
-            cursor.execute(
-                "SELECT DISTINCT category FROM invoices "
-                "WHERE deleted_at IS NULL AND category IS NOT NULL ORDER BY category"
-            )
-            existing_categories: list[str] = [
-                row["category"] for row in cursor.fetchall()
-            ]
-
-            # Previously cached suggestions for exactly these invoices, so only
-            # new/edited ones (or a model change) need a fresh Claude call below.
-            cached_rows: list[sqlite3.Row] = []
-            if rows:
-                cursor.execute(
-                    f"SELECT invoice_id, category, model, fingerprint "
-                    f"FROM invoice_category_suggestions "
-                    f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
-                    ids,
-                )
-                cached_rows = cursor.fetchall()
-    except sqlite3.Error as e:
-        logger.error("Failed to load invoices for categorization: %s", e)
-        return error_response(str(e), 500)
-
-    if not invoices:
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
-
+    # The items double as the model input and the client's summary/accordion.
+    invoices: list[dict[str, Any]] = [
+        {
+            "id": row["id"],
+            "store": row["store"],
+            "total": row["total"],
+            "items": items_by_invoice.get(row["id"], []),
+        }
+        for row in rows
+    ]
     model_key: Any = data.get("model")
     model: str = resolve_model(model_key if isinstance(model_key, str) else None)
-    cache_by_id: dict[int, sqlite3.Row] = {
-        row["invoice_id"]: row for row in cached_rows
-    }
     fingerprint_by_id: dict[int, str] = {
         invoice["id"]: invoice_fingerprint(invoice) for invoice in invoices
     }
-
-    # Reuse a cached suggestion when the invoice content and model both match;
-    # everything else (new, edited, or a model switch) goes to Claude.
-    resolved_category: dict[int, str | None] = {}
-    misses: list[dict[str, Any]] = []
-    for invoice in invoices:
-        cached: sqlite3.Row | None = cache_by_id.get(invoice["id"])
-        matches: bool = (
-            cached is not None
-            and cached["fingerprint"] == fingerprint_by_id[invoice["id"]]
-            and cached["model"] == model
-        )
-        if matches and cached is not None:
-            resolved_category[invoice["id"]] = cached["category"]
-        else:
-            misses.append(invoice)
+    resolved_category, misses = _partition_by_cache(
+        invoices, cache_by_id, fingerprint_by_id, model
+    )
 
     if misses:
         try:
             results = suggest_categories(misses, existing_categories, model=model)
         except AiCategorizationError as error:
-            logger.error("AI categorization failed: %s", error)
-            return error_response(str(error), 502)
+            logger.error("AI categorization failed: %s", error.message)
+            return error_response(error.message, 502)
         _cache_suggestions(results, model, fingerprint_by_id, resolved_category)
 
-    # Merge each suggestion with the invoice's display info (store, amount, items),
-    # in the stable id order the invoices were loaded. is_new is recomputed live
-    # (not cached) because it depends on the current category set, not the invoice.
-    existing_lower: set[str] = {category.lower() for category in existing_categories}
-    suggestions: list[dict[str, Any]] = []
-    for invoice in invoices:
-        if invoice["id"] not in resolved_category:
-            # The model returned no entry for this invoice — omit it, as before.
-            continue
-        category: str | None = resolved_category[invoice["id"]]
-        suggestions.append(
-            {
-                "invoice_id": invoice["id"],
-                "store": invoice["store"],
-                "total": invoice["total"],
-                "items": invoice["items"],
-                "category": category,
-                "is_new": is_category_new(category, existing_lower),
-            }
-        )
-
+    suggestions: list[dict[str, Any]] = _build_suggestions(
+        invoices,
+        resolved_category,
+        {category.lower() for category in existing_categories},
+    )
     logger.info(
         "Categorization suggested: %d of %d uncategorized invoices (%d reused)",
         len(suggestions),
@@ -491,25 +497,35 @@ def add_invoice() -> ApiResponse:
     except ValidationError as e:
         return error_response(e.message, 400)
 
-    try:
-        with db_cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-                (invoice.date, invoice.store, invoice.category, invoice.total),
-            )
-            invoice_id: int | None = cursor.lastrowid
-            insert_invoice_items(cursor, invoice_id, invoice.items)
-        logger.info(
-            "Invoice created: id=%s, store='%s', total=%.2f, items=%d",
-            invoice_id,
-            invoice.store,
-            invoice.total,
-            len(invoice.items),
-        )
-        return jsonify({"success": True, "id": invoice_id})
-    except sqlite3.Error as e:
-        logger.error("Failed to create invoice: %s", e)
-        return error_response("Internal server error", 500)
+    with db_cursor() as cursor:
+        invoice_id: int | None = insert_invoice(cursor, invoice)
+    logger.info(
+        "Invoice created: id=%s, store='%s', total=%.2f, items=%d",
+        invoice_id,
+        invoice.store,
+        invoice.total,
+        len(invoice.items),
+    )
+    return jsonify({"success": True, "id": invoice_id})
+
+
+def _existing_invoice_keys(
+    cursor: sqlite3.Cursor, invoices: list[Invoice]
+) -> set[tuple[str, str, float]]:
+    """Return the (date, store, total) of every active invoice in the batch's range.
+
+    One range query instead of a lookup per entry; every exact date match lies
+    between the batch's lowest and highest date, as strings compare.
+    """
+    if not invoices:
+        return set()
+    dates: list[str] = [invoice.date for invoice in invoices]
+    cursor.execute(
+        "SELECT date, store, total FROM invoices "
+        "WHERE deleted_at IS NULL AND date BETWEEN ? AND ?",
+        (min(dates), max(dates)),
+    )
+    return {(row["date"], row["store"], row["total"]) for row in cursor.fetchall()}
 
 
 @invoices_bp.route("/api/invoices/import", methods=["POST"])
@@ -528,47 +544,36 @@ def import_invoices() -> ApiResponse:
     imported_count: int = 0
     skipped_count: int = 0
 
-    try:
-        with db_cursor() as cursor:
-            for invoice in validation.invoices:
-                # Duplicate check: same combination of date, store and total amount
-                cursor.execute(
-                    "SELECT id FROM invoices "
-                    "WHERE date = ? AND store = ? AND total = ? AND deleted_at IS NULL",
-                    (invoice.date, invoice.store, invoice.total),
-                )
-                existing: Any = cursor.fetchone()
-
-                if existing:
-                    skipped_count += 1
-                    continue
-
-                cursor.execute(
-                    "INSERT INTO invoices (date, store, category, total) VALUES (?, ?, ?, ?)",
-                    (invoice.date, invoice.store, invoice.category, invoice.total),
-                )
-                insert_invoice_items(cursor, cursor.lastrowid, invoice.items)
-                imported_count += 1
-
-        logger.info(
-            "Import completed: imported=%d, skipped=%d, failed=%d (of %d total)",
-            imported_count,
-            skipped_count,
-            len(validation.errors),
-            len(validation.invoices) + len(validation.errors),
+    with db_cursor() as cursor:
+        seen: set[tuple[str, str, float]] = _existing_invoice_keys(
+            cursor, validation.invoices
         )
-        return jsonify(
-            {
-                "success": True,
-                "imported": imported_count,
-                "skipped": skipped_count,
-                "failed": len(validation.errors),
-                "errors": [asdict(error) for error in validation.errors],
-            }
-        )
-    except sqlite3.Error as e:
-        logger.error("Import failed: %s", e)
-        return error_response("Internal server error", 500)
+        for invoice in validation.invoices:
+            key: tuple[str, str, float] = (invoice.date, invoice.store, invoice.total)
+            if key in seen:
+                skipped_count += 1
+                continue
+            insert_invoice(cursor, invoice)
+            # A repeat later in the same batch is a duplicate as well.
+            seen.add(key)
+            imported_count += 1
+
+    logger.info(
+        "Import completed: imported=%d, skipped=%d, failed=%d (of %d total)",
+        imported_count,
+        skipped_count,
+        len(validation.errors),
+        len(validation.invoices) + len(validation.errors),
+    )
+    return jsonify(
+        {
+            "success": True,
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "failed": len(validation.errors),
+            "errors": [asdict(error) for error in validation.errors],
+        }
+    )
 
 
 @invoices_bp.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
@@ -580,59 +585,49 @@ def update_invoice(invoice_id: int) -> ApiResponse:
     except ValidationError as e:
         return error_response(e.message, 400)
 
-    try:
-        with db_cursor() as cursor:
-            cursor.execute(
-                "UPDATE invoices SET date = ?, store = ?, category = ?, total = ? "
-                "WHERE id = ? AND deleted_at IS NULL",
-                (
-                    invoice.date,
-                    invoice.store,
-                    invoice.category,
-                    invoice.total,
-                    invoice_id,
-                ),
-            )
-            # A soft-deleted or unknown invoice is treated as absent: bail out
-            # before touching its items instead of silently rewriting them.
-            if cursor.rowcount == 0:
-                return error_response("Invoice not found", 404)
-            # Replace all items: remove the old ones, then insert the new set
-            cursor.execute(
-                "DELETE FROM invoice_items WHERE invoice_id = ?", (invoice_id,)
-            )
-            insert_invoice_items(cursor, invoice_id, invoice.items)
-        logger.info(
-            "Invoice updated: id=%d, store='%s', total=%.2f, items=%d",
-            invoice_id,
-            invoice.store,
-            invoice.total,
-            len(invoice.items),
+    with db_cursor() as cursor:
+        cursor.execute(
+            "UPDATE invoices SET date = ?, store = ?, category = ?, total = ? "
+            "WHERE id = ? AND deleted_at IS NULL",
+            (
+                invoice.date,
+                invoice.store,
+                invoice.category,
+                invoice.total,
+                invoice_id,
+            ),
         )
-        return jsonify({"success": True})
-    except sqlite3.Error as e:
-        logger.error("Failed to update invoice id=%d: %s", invoice_id, e)
-        return error_response("Internal server error", 500)
+        # A soft-deleted or unknown invoice is treated as absent: bail out
+        # before touching its items instead of silently rewriting them.
+        if cursor.rowcount == 0:
+            return error_response("Invoice not found", 404)
+        # Replace all items: remove the old ones, then insert the new set
+        cursor.execute("DELETE FROM invoice_items WHERE invoice_id = ?", (invoice_id,))
+        insert_invoice_items(cursor, invoice_id, invoice.items)
+    logger.info(
+        "Invoice updated: id=%d, store='%s', total=%.2f, items=%d",
+        invoice_id,
+        invoice.store,
+        invoice.total,
+        len(invoice.items),
+    )
+    return jsonify({"success": True})
 
 
 @invoices_bp.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
 def delete_invoice(invoice_id: int) -> ApiResponse:
     """Soft-delete an invoice by setting its deleted_at timestamp."""
-    try:
-        with db_cursor() as cursor:
-            # Soft delete: set deleted_at timestamp instead of removing from database
-            cursor.execute(
-                "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP "
-                "WHERE id = ? AND deleted_at IS NULL",
-                (invoice_id,),
-            )
-            if cursor.rowcount == 0:
-                return error_response("Invoice not found", 404)
-        logger.info("Invoice soft-deleted: id=%d", invoice_id)
-        return jsonify({"success": True})
-    except sqlite3.Error as e:
-        logger.error("Failed to delete invoice id=%d: %s", invoice_id, e)
-        return error_response("Internal server error", 500)
+    with db_cursor() as cursor:
+        # Soft delete: set deleted_at timestamp instead of removing from database
+        cursor.execute(
+            "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND deleted_at IS NULL",
+            (invoice_id,),
+        )
+        if cursor.rowcount == 0:
+            return error_response("Invoice not found", 404)
+    logger.info("Invoice soft-deleted: id=%d", invoice_id)
+    return jsonify({"success": True})
 
 
 @invoices_bp.route("/api/invoices/bulk-update", methods=["PUT"])
@@ -667,26 +662,24 @@ def bulk_update_invoices() -> ApiResponse:
         # length-caps so no client can persist an oversized category.
         params.append(clean_category(new_category))
 
-    try:
-        with db_cursor() as cursor:
-            updated_count: int = 0
-            for chunk in chunked(invoice_ids):
-                cursor.execute(
-                    f"UPDATE invoices SET {', '.join(set_clauses)} "
-                    f"WHERE id IN ({placeholders_for(len(chunk))}) "
-                    "AND deleted_at IS NULL",
-                    [*params, *chunk],
-                )
-                updated_count += cursor.rowcount
-        logger.info(
-            "Bulk update completed: %d invoices updated (ids=%s)",
-            updated_count,
-            invoice_ids,
-        )
-        return jsonify({"success": True, "updated": updated_count})
-    except sqlite3.Error as e:
-        logger.error("Bulk update failed for ids=%s: %s", invoice_ids, e)
-        return error_response("Internal server error", 500)
+    set_clause: str = ", ".join(set_clauses)
+    with db_cursor() as cursor:
+        updated_count: int = 0
+        for chunk in chunked(invoice_ids):
+            cursor.execute(
+                f"UPDATE invoices SET {set_clause} "
+                f"WHERE id IN ({placeholders_for(len(chunk))}) "
+                "AND deleted_at IS NULL",
+                [*params, *chunk],
+            )
+            updated_count += cursor.rowcount
+    logger.info(
+        "Bulk update completed: %d of %d invoices updated (first ids=%s)",
+        updated_count,
+        len(invoice_ids),
+        invoice_ids[:LOG_ID_SAMPLE],
+    )
+    return jsonify({"success": True, "updated": updated_count})
 
 
 @invoices_bp.route("/api/invoices/bulk-delete", methods=["POST"])
@@ -698,23 +691,21 @@ def bulk_delete_invoices() -> ApiResponse:
     except ValidationError as e:
         return error_response(e.message, 400)
 
-    try:
-        with db_cursor() as cursor:
-            # Soft delete: set deleted_at timestamp instead of removing from database
-            deleted_count: int = 0
-            for chunk in chunked(invoice_ids):
-                cursor.execute(
-                    "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP "
-                    f"WHERE id IN ({placeholders_for(len(chunk))})",
-                    chunk,
-                )
-                deleted_count += cursor.rowcount
-        logger.info(
-            "Bulk soft-delete completed: %d invoices deleted (ids=%s)",
-            deleted_count,
-            invoice_ids,
-        )
-        return jsonify({"success": True, "deleted": deleted_count})
-    except sqlite3.Error as e:
-        logger.error("Bulk delete failed for ids=%s: %s", invoice_ids, e)
-        return error_response("Internal server error", 500)
+    with db_cursor() as cursor:
+        # Soft delete: set deleted_at timestamp instead of removing from database
+        deleted_count: int = 0
+        for chunk in chunked(invoice_ids):
+            cursor.execute(
+                "UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP "
+                f"WHERE id IN ({placeholders_for(len(chunk))}) "
+                "AND deleted_at IS NULL",
+                chunk,
+            )
+            deleted_count += cursor.rowcount
+    logger.info(
+        "Bulk soft-delete completed: %d of %d invoices deleted (first ids=%s)",
+        deleted_count,
+        len(invoice_ids),
+        invoice_ids[:LOG_ID_SAMPLE],
+    )
+    return jsonify({"success": True, "deleted": deleted_count})

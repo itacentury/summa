@@ -4,7 +4,7 @@
  */
 
 import {
-  state,
+  portfolioState,
   collapsedDepots,
   expandedPositions,
   PORTFOLIO_RANGES,
@@ -46,19 +46,22 @@ let hasRendered = false;
  */
 export function restorePortfolioPrefs() {
   const range = localStorage.getItem(PORTFOLIO_RANGE_STORAGE_KEY);
-  if (PORTFOLIO_RANGES.includes(range)) state.portfolioRange = range;
+  if (PORTFOLIO_RANGES.includes(range)) portfolioState.portfolioRange = range;
 
   const depot = localStorage.getItem(PORTFOLIO_DEPOT_STORAGE_KEY);
   if (depot === DEPOT_ALL || /^\d+$/.test(depot ?? ""))
-    state.depotFilter = depot;
+    portfolioState.depotFilter = depot;
 
-  state.portfolioPositions = storedPositionSelection();
+  portfolioState.portfolioPositions = storedPositionSelection();
   syncLineColors();
 }
 
 /** Re-derive the palette slots; mutated in place because other modules share the map. */
 function syncLineColors() {
-  const next = assignLineColors(positionLineColors, state.portfolioPositions);
+  const next = assignLineColors(
+    positionLineColors,
+    portfolioState.portfolioPositions,
+  );
   positionLineColors.clear();
   next.forEach((slot, id) => positionLineColors.set(id, slot));
 }
@@ -88,23 +91,25 @@ function storedPositionSelection() {
  * a depot switch stays reversible.
  */
 function visiblePositionSelection(payload) {
-  if (state.portfolioPositions === POSITIONS_ALL) return POSITIONS_ALL;
+  if (portfolioState.portfolioPositions === POSITIONS_ALL) return POSITIONS_ALL;
 
   const available = new Set(
     (payload.series?.positions ?? []).map((entry) => entry.id),
   );
-  const kept = state.portfolioPositions.filter((id) => available.has(id));
+  const kept = portfolioState.portfolioPositions.filter((id) =>
+    available.has(id),
+  );
   return kept.length > 0 ? kept : POSITIONS_ALL;
 }
 
 /** The stored ids this payload cannot show. */
 function hiddenPositionSelection(payload) {
-  if (state.portfolioPositions === POSITIONS_ALL) return [];
+  if (portfolioState.portfolioPositions === POSITIONS_ALL) return [];
 
   const available = new Set(
     (payload.series?.positions ?? []).map((entry) => entry.id),
   );
-  return state.portfolioPositions.filter((id) => !available.has(id));
+  return portfolioState.portfolioPositions.filter((id) => !available.has(id));
 }
 
 /**
@@ -112,7 +117,7 @@ function hiddenPositionSelection(payload) {
  * count is passed on because the palette limit spans the whole selection.
  */
 function storePositionSelection(selection) {
-  state.portfolioPositions = selection;
+  portfolioState.portfolioPositions = selection;
   syncLineColors();
   localStorage.setItem(
     PORTFOLIO_POSITIONS_STORAGE_KEY,
@@ -191,14 +196,14 @@ function renderPortfolio(payload) {
 
 /** Whether the persisted depot filter names a depot the payload lacks. */
 function depotFilterIsStale(payload) {
-  if (state.depotFilter === DEPOT_ALL) return false;
+  if (portfolioState.depotFilter === DEPOT_ALL) return false;
   return !(payload.depots ?? []).some(
-    (depot) => String(depot.id) === state.depotFilter,
+    (depot) => String(depot.id) === portfolioState.depotFilter,
   );
 }
 
 function clearDepotFilter() {
-  state.depotFilter = DEPOT_ALL;
+  portfolioState.depotFilter = DEPOT_ALL;
   localStorage.removeItem(PORTFOLIO_DEPOT_STORAGE_KEY);
   if (depotFilter) depotFilter.setValue(DEPOT_ALL);
 }
@@ -211,8 +216,9 @@ export async function loadPortfolio(allowRetry = true) {
   const { list } = portfolioElements();
   if (!list) return;
 
-  const params = new URLSearchParams({ range: state.portfolioRange });
-  if (state.depotFilter !== DEPOT_ALL) params.set("depot", state.depotFilter);
+  const params = new URLSearchParams({ range: portfolioState.portfolioRange });
+  if (portfolioState.depotFilter !== DEPOT_ALL)
+    params.set("depot", portfolioState.depotFilter);
 
   if (!hasRendered) {
     list.classList.remove("is-hidden");
@@ -227,7 +233,7 @@ export async function loadPortfolio(allowRetry = true) {
     if (
       response.status === 400 &&
       allowRetry &&
-      state.depotFilter !== DEPOT_ALL
+      portfolioState.depotFilter !== DEPOT_ALL
     ) {
       clearDepotFilter();
       await loadPortfolio(false);
@@ -256,7 +262,7 @@ export async function loadPortfolio(allowRetry = true) {
 
 function syncPeriodButtons() {
   document.querySelectorAll(".portfolio-period-btn").forEach((button) => {
-    const active = button.dataset.range === state.portfolioRange;
+    const active = button.dataset.range === portfolioState.portfolioRange;
     button.setAttribute("aria-pressed", String(active));
   });
 }
@@ -264,14 +270,14 @@ function syncPeriodButtons() {
 /** Switch the period, persist it and reload; unknown tokens never reach storage. */
 function setPortfolioRange(range) {
   if (!PORTFOLIO_RANGES.includes(range)) return;
-  state.portfolioRange = range;
+  portfolioState.portfolioRange = range;
   localStorage.setItem(PORTFOLIO_RANGE_STORAGE_KEY, range);
   syncPeriodButtons();
   loadPortfolio();
 }
 
 function setDepotFilter(depot) {
-  state.depotFilter = depot;
+  portfolioState.depotFilter = depot;
   localStorage.setItem(PORTFOLIO_DEPOT_STORAGE_KEY, depot);
   loadPortfolio();
 }
@@ -344,7 +350,7 @@ export function setupPortfolioListeners() {
   const depotRoot = document.querySelector('[data-el="portfolio-depot"]');
   if (depotRoot) {
     depotFilter = createDepotFilter(depotRoot, { onChange: setDepotFilter });
-    depotFilter.setValue(state.depotFilter);
+    depotFilter.setValue(portfolioState.depotFilter);
   }
 
   const positionsRoot = document.querySelector(
@@ -355,7 +361,7 @@ export function setupPortfolioListeners() {
       onChange: setPortfolioPositions,
     });
     // The hidden count needs a payload; the first render supplies it.
-    positionsFilter.setValue(state.portfolioPositions);
+    positionsFilter.setValue(portfolioState.portfolioPositions);
   }
 
   const list = document.querySelector('[data-el="portfolio-list"]');

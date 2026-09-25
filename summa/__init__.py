@@ -7,13 +7,18 @@ side effects; the eager WSGI ``app`` instance lives in :mod:`summa.wsgi`.
 import logging
 import os
 import secrets
+import sqlite3
 from datetime import timedelta
 from pathlib import Path
 from typing import Final
 
 from flask import Flask, Response, request
 from flask_cors import CORS
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import (
+    BadRequest,
+    RequestEntityTooLarge,
+    UnsupportedMediaType,
+)
 
 from summa import config
 from summa.auth import (
@@ -138,6 +143,33 @@ def create_app() -> Flask:
     def handle_request_too_large(_: RequestEntityTooLarge) -> ApiResponse:
         """Return the body-size 413 as JSON, matching the API error convention."""
         return error_response("Request body too large", 413)
+
+    @app.errorhandler(UnsupportedMediaType)
+    def handle_unsupported_media_type(_: UnsupportedMediaType) -> ApiResponse:
+        """Return a non-JSON body's 415 as JSON instead of Werkzeug's HTML page."""
+        return error_response("Request body must be JSON", 415)
+
+    @app.errorhandler(BadRequest)
+    def handle_bad_request(_: BadRequest) -> ApiResponse:
+        """Return a malformed request's 400 as JSON instead of Werkzeug's HTML page.
+
+        Every 400 app-wide gets the fixed message, because Werkzeug's own
+        descriptions carry parser detail — so ``abort(400, msg)`` would lose
+        ``msg``; a route returns ``error_response(msg, 400)`` instead.
+        """
+        return error_response("Malformed request", 400)
+
+    @app.errorhandler(sqlite3.Error)
+    def handle_database_error(error: sqlite3.Error) -> ApiResponse:
+        """Log a database failure and answer with a generic 500.
+
+        ``db_cursor()`` has already rolled back by the time this runs. The error
+        text names tables and columns, so it goes to the log, never the client.
+        """
+        logger.error(
+            "Database error on %s %s", request.method, request.path, exc_info=error
+        )
+        return error_response("Internal server error", 500)
 
     app.register_blueprint(web_bp)
     app.register_blueprint(auth_bp)

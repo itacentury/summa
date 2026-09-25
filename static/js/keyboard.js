@@ -15,7 +15,7 @@ import {
 import { openSettingsModal } from "./settings.js";
 import { openSnapshotModal } from "./portfolio-snapshot.js";
 import { els } from "./dom.js";
-import { state } from "./state.js";
+import { viewState } from "./state.js";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -160,7 +160,7 @@ function handleGlobalKeydown(event) {
       event.preventDefault();
       // One key, dispatched on the active view: N is "create the thing this
       // screen is about", which is a snapshot on Portfolio.
-      if (state.currentView === "portfolio") openSnapshotModal();
+      if (viewState.currentView === "portfolio") openSnapshotModal();
       else openAddModal();
       break;
     case "i":

@@ -3,7 +3,7 @@
  * plus the dynamic item rows of the add/edit form.
  */
 
-import { state } from "./state.js";
+import { invoiceState } from "./state.js";
 import {
   escapeHtml,
   formatCurrency,
@@ -18,26 +18,32 @@ import { fetchInvoiceItems } from "./api.js";
 import { importJson, setImportCorrectionMode } from "./import.js";
 import { getCombobox } from "./combobox.js";
 
+// Rows come and go, so each gets a fresh id suffix to tie its labels to its inputs.
+let itemRowSequence = 0;
+
 /**
  * Build the inner markup for one add/edit item row (name, price, remove button).
  * Pre-fills the inputs when an existing item is passed.
  */
 export function itemRowInnerHtml(item = null) {
+  itemRowSequence += 1;
+  const nameId = `item-name-${itemRowSequence}`;
+  const priceId = `item-price-${itemRowSequence}`;
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
   const priceValue = item ? ` value="${item.item_price}"` : "";
   return `
     <div class="form-group">
-      <label class="form-label">Item Name</label>
-      <input type="text" class="form-input item-name" placeholder="Product name"${nameValue}>
+      <label class="form-label" for="${nameId}">Item Name</label>
+      <input type="text" id="${nameId}" class="form-input item-name" placeholder="Product name"${nameValue}>
     </div>
     <div class="form-group">
-      <label class="form-label">Price</label>
-      <input type="number" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <label class="form-label" for="${priceId}">Price</label>
+      <input type="number" id="${priceId}" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
     </div>
-    <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
+    <button type="button" class="btn btn-danger btn-sm" data-action="remove-item" aria-label="Remove item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M18 6 6 18"/>
+        <path d="m6 6 12 12"/>
       </svg>
     </button>
   `;
@@ -76,7 +82,7 @@ export function hideOverlay(overlay) {
 }
 
 export function openAddModal() {
-  state.editingInvoiceId = null;
+  invoiceState.editingInvoiceId = null;
   document.querySelector(
     '[data-el="add-invoice-modal"] .modal-title',
   ).textContent = "New Invoice";
@@ -105,13 +111,13 @@ export function validateInvoiceDate() {
 
 export function closeAddModal() {
   hideOverlay(document.querySelector('[data-el="add-invoice-modal"]'));
-  state.editingInvoiceId = null;
+  invoiceState.editingInvoiceId = null;
   resetAddForm();
 }
 
 export async function editInvoice(id) {
-  state.editingInvoiceId = id;
-  const invoice = state.invoices.find((inv) => inv.id === id);
+  invoiceState.editingInvoiceId = id;
+  const invoice = invoiceState.invoices.find((inv) => inv.id === id);
 
   if (!invoice) {
     showErrorToast("Invoice not found");
@@ -136,14 +142,14 @@ export async function editInvoice(id) {
     items = await fetchInvoiceItems(id);
   } catch {
     // A newer editInvoice() superseded this one; that call owns the error surface.
-    if (state.editingInvoiceId !== id) return;
+    if (invoiceState.editingInvoiceId !== id) return;
     showErrorToast("Failed to load invoice");
     return;
   }
 
   // A newer editInvoice() superseded this one while items were loading; its
   // header and editingInvoiceId now own the modal, so don't inject stale items.
-  if (state.editingInvoiceId !== id) return;
+  if (invoiceState.editingInvoiceId !== id) return;
 
   const itemsContainer = document.querySelector('[data-el="items-container"]');
   itemsContainer.innerHTML = "";
@@ -175,7 +181,7 @@ export function closeImportModal() {
   hideOverlay(document.querySelector('[data-el="import-modal"]'));
   document.querySelector('[data-el="json-input"]').value = "";
   document.querySelector('[data-el="file-input"]').value = "";
-  state.pendingFiles = [];
+  invoiceState.pendingFiles = [];
   document
     .querySelector('[data-el="selected-files"]')
     .classList.add("is-hidden");
@@ -184,7 +190,7 @@ export function closeImportModal() {
   const importErrors = document.querySelector('[data-el="import-errors"]');
   importErrors.innerHTML = "";
   importErrors.classList.add("is-hidden");
-  state.importErrors = [];
+  invoiceState.importErrors = [];
 
   // Restore the fresh-input controls hidden while in correction mode.
   setImportCorrectionMode(false);

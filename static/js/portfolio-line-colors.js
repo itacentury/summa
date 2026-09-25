@@ -3,7 +3,7 @@
  * its slot while selected, and a freed slot goes to the next newcomer.
  */
 
-import { chartColors, PORTFOLIO_MAX_LINES } from "./state.js";
+import { PORTFOLIO_MAX_LINES } from "./state.js";
 import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
 
 /**
@@ -13,7 +13,7 @@ import { POSITIONS_ALL } from "./portfolio-positions-filter.js";
  *
  * @param {Map<number, number>} previous the assignment to carry over
  * @param {string|number[]} selection `POSITIONS_ALL`, or the selected ids
- * @returns {Map<number, number>} position id -> index into `chartColors`
+ * @returns {Map<number, number>} position id -> index into the chart palette
  */
 export function assignLineColors(previous, selection) {
   if (selection === POSITIONS_ALL || !Array.isArray(selection))
@@ -44,8 +44,8 @@ export function assignLineColors(previous, selection) {
   return next;
 }
 
-/** The hex a position draws in, or `null` while it has no slot. */
-export function lineColor(colors, id) {
-  const slot = colors.get(id);
-  return slot === undefined ? null : chartColors[slot];
+/** The colour a position draws in, or `null` while it has no slot. */
+export function lineColor(slots, id, palette) {
+  const slot = slots.get(id);
+  return slot === undefined ? null : palette[slot];
 }

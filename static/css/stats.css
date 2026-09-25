@@ -50,7 +50,7 @@
   display: flex;
   gap: 0.25rem;
   padding: 0.25rem;
-  background: var(--bg-tertiary);
+  background: var(--bg-inset);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
 }
@@ -118,7 +118,7 @@
 
 /* Per-card tints (Design 3b) */
 .stat-card-total {
-  background: #e8dcc6;
+  background: var(--bg-hero);
 }
 
 .stat-card-total .stat-label {

@@ -6,21 +6,12 @@
  * reverts the local snapshot without ever touching the server.
  */
 
-import { state, selectedInvoices } from "./state.js";
-import {
-  loadCategories,
-  loadInvoices,
-  loadStores,
-  reloadCurrentPage,
-} from "./api.js";
+import { invoiceState, selectedInvoices } from "./state.js";
+import { loadCategories, loadInvoices, loadStores } from "./api.js";
 import { closeAddModal, validateInvoiceDate } from "./modals.js";
 import { getCombobox } from "./combobox.js";
-import {
-  showUndoToast,
-  showNoticeToast,
-  showErrorToast,
-  hasPendingToast,
-} from "./toast.js";
+import { showNoticeToast, showErrorToast } from "./toast.js";
+import { deferCommit } from "./deferred.js";
 import {
   adjustUncategorizedCount,
   countUncategorized,
@@ -69,7 +60,7 @@ export async function saveInvoice() {
     0,
   );
 
-  const editingId = state.editingInvoiceId;
+  const editingId = invoiceState.editingInvoiceId;
   const payload = { date, store, category: type, total, items };
 
   if (editingId) {
@@ -110,11 +101,11 @@ async function createInvoice(payload) {
  * visible row is replaced (not mutated) so the snapshot keeps the old values.
  */
 function deferInvoiceUpdate(id, payload) {
-  const index = state.invoices.findIndex((invoice) => invoice.id === id);
-  const previous = index !== -1 ? state.invoices[index] : null;
+  const index = invoiceState.invoices.findIndex((invoice) => invoice.id === id);
+  const previous = index !== -1 ? invoiceState.invoices[index] : null;
   if (index !== -1) {
-    state.invoices[index] = {
-      ...state.invoices[index],
+    invoiceState.invoices[index] = {
+      ...invoiceState.invoices[index],
       date: payload.date,
       store: payload.store,
       category: payload.category,
@@ -133,35 +124,11 @@ function deferInvoiceUpdate(id, payload) {
     if (previous) restoreRows([previous]);
   };
 
-  const commit = async () => {
-    try {
-      const response = await sendJson(
-        `/api/invoices/${id}`,
-        "PUT",
-        payload,
-        // Survive page unload: a beforeunload-triggered commit must reach the
-        // server even as the document tears down.
-        { keepalive: true },
-      );
-      if (!response.ok) {
-        showErrorToast("Failed to update");
-        restore();
-        return;
-      }
-      refreshLookupsFor(payload.store, payload.category);
-      // Skip the reconcile if a newer deferred action is still pending — it
-      // reconciles on its own commit. Prevents this earlier commit's reload from
-      // cutting short the newer action's undo window (and flickering its row back in).
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to update");
-      restore();
-    }
-  };
-
-  showUndoToast("Invoice updated", {
+  deferCommit("Invoice updated", {
+    send: (init) => sendJson(`/api/invoices/${id}`, "PUT", payload, init),
     onUndo: restore,
-    onCommit: commit,
+    errorText: "Failed to update",
+    onSuccess: () => refreshLookupsFor(payload.store, payload.category),
   });
 }
 
@@ -186,48 +153,32 @@ function refreshLookupsFor(store, category) {
  * undo just restores the local snapshot.
  */
 export function deleteInvoice(id) {
-  const index = state.invoices.findIndex((invoice) => invoice.id === id);
+  const index = invoiceState.invoices.findIndex((invoice) => invoice.id === id);
   if (index === -1) return;
-  const removed = state.invoices[index];
+  const removed = invoiceState.invoices[index];
   const wasSelected = selectedInvoices.has(id);
 
-  state.invoices = state.invoices.filter((invoice) => invoice.id !== id);
+  invoiceState.invoices = invoiceState.invoices.filter(
+    (invoice) => invoice.id !== id,
+  );
   selectedInvoices.delete(id);
-  state.totalCount -= 1;
-  state.totalSum -= Number(removed.total);
+  invoiceState.totalCount -= 1;
+  invoiceState.totalSum -= Number(removed.total);
   adjustUncategorizedCount(-countUncategorized([removed]));
   renderInvoices();
 
   const restore = () => reinsertRows([{ invoice: removed, index }]);
-
-  const commit = async () => {
-    try {
-      // keepalive: finalize the delete even if this commit fires during unload.
-      const response = await apiFetch(`/api/invoices/${id}`, {
-        method: "DELETE",
-        keepalive: true,
-      });
-      if (!response.ok) {
-        showErrorToast("Failed to delete");
-        restore();
-        return;
-      }
-      // A store/category option lingering after its last invoice is deleted is
-      // cosmetic and self-heals on the next lookup load, so reload the list only.
-      // Skip the reconcile if a newer deferred action is still pending — it
-      // reconciles on its own commit. Prevents this earlier commit's reload from
-      // cutting short the newer action's undo window (and flickering its row back in).
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to delete");
-      restore();
-    }
-  };
-
   const undo = () => {
     if (wasSelected) selectedInvoices.add(id);
     restore();
   };
 
-  showUndoToast("Invoice deleted", { onUndo: undo, onCommit: commit });
+  // A store/category option lingering after its last invoice is deleted is
+  // cosmetic and self-heals on the next lookup load, so only the list reloads.
+  deferCommit("Invoice deleted", {
+    send: (init) =>
+      apiFetch(`/api/invoices/${id}`, { method: "DELETE", ...init }),
+    onUndo: undo,
+    errorText: "Failed to delete",
+  });
 }

@@ -299,9 +299,6 @@ def save_snapshot() -> ApiResponse:
                 )
     except ValidationError as e:
         return error_response(e.message, 400)
-    except sqlite3.Error as e:
-        logger.error("Failed to save snapshot for %s: %s", snapshot_date, e)
-        return error_response("Internal server error", 500)
 
     logger.info("Portfolio snapshot saved: date=%s, rows=%d", snapshot_date, len(rows))
     return jsonify({"success": True, "date": snapshot_date, "rows": len(rows)})
@@ -360,9 +357,6 @@ def add_position() -> ApiResponse:
         return error_response(
             f"A position named '{name}' already exists in this depot", 409
         )
-    except sqlite3.Error as e:
-        logger.error("Failed to create position '%s': %s", name, e)
-        return error_response("Internal server error", 500)
 
     logger.info(
         "Portfolio position created: id=%s, name='%s', depot=%d",
@@ -480,9 +474,6 @@ def update_position(position_id: int) -> ApiResponse:
         return error_response(e.message, 400)
     except sqlite3.IntegrityError:
         return error_response("A position with that name already exists", 409)
-    except sqlite3.Error as e:
-        logger.error("Failed to update position id=%d: %s", position_id, e)
-        return error_response("Internal server error", 500)
 
     logger.info(
         "Portfolio position updated: id=%d, fields=%s",
@@ -512,9 +503,6 @@ def add_depot() -> ApiResponse:
             depot_id = cursor.lastrowid
     except sqlite3.IntegrityError:
         return error_response(f"A depot named '{name}' already exists", 409)
-    except sqlite3.Error as e:
-        logger.error("Failed to create depot '%s': %s", name, e)
-        return error_response("Internal server error", 500)
 
     logger.info("Portfolio depot created: id=%s, name='%s'", depot_id, name)
     return jsonify({"success": True, "id": depot_id})
@@ -554,9 +542,6 @@ def update_depot(depot_id: int) -> ApiResponse:
         return error_response(
             f"A depot named '{updates.get('name')}' already exists", 409
         )
-    except sqlite3.Error as e:
-        logger.error("Failed to update depot id=%d: %s", depot_id, e)
-        return error_response("Internal server error", 500)
 
     logger.info(
         "Portfolio depot updated: id=%d, fields=%s", depot_id, ",".join(updates)

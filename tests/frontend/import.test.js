@@ -9,7 +9,7 @@ vi.mock("../../static/js/modals.js", () => ({ closeImportModal: vi.fn() }));
 
 import { importJson, setupImportListeners } from "../../static/js/import.js";
 import { flushUi, jsonResponse, mountImportFixture } from "./helpers.js";
-import { state } from "../../static/js/state.js";
+import { invoiceState } from "../../static/js/state.js";
 import { refreshAllData } from "../../static/js/api.js";
 import { closeImportModal } from "../../static/js/modals.js";
 import { showErrorToast } from "../../static/js/toast.js";
@@ -17,8 +17,8 @@ import { showErrorToast } from "../../static/js/toast.js";
 beforeEach(() => {
   vi.clearAllMocks();
   mountImportFixture();
-  state.pendingFiles = [];
-  state.importErrors = [];
+  invoiceState.pendingFiles = [];
+  invoiceState.importErrors = [];
   setupImportListeners();
 });
 

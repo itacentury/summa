@@ -36,7 +36,11 @@ import {
   loadStores,
   reloadCurrentPage,
 } from "../../static/js/api.js";
-import { state, selectedInvoices } from "../../static/js/state.js";
+import {
+  invoiceState,
+  selectedInvoices,
+  viewState,
+} from "../../static/js/state.js";
 import { renderInvoices } from "../../static/js/render.js";
 import { showErrorToast, commitPendingToast } from "../../static/js/toast.js";
 import { getCombobox, setCategoryOptions } from "../../static/js/combobox.js";
@@ -62,15 +66,15 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(commitPendingToast).mockReturnValue(false);
-  Object.assign(state, {
+  Object.assign(invoiceState, {
     invoices: [],
     page: 1,
     pageSize: 25,
     effectivePageSize: 25,
     totalCount: 0,
     totalSum: 0,
-    currentView: "invoices",
   });
+  viewState.currentView = "invoices";
   selectedInvoices.clear();
 });
 
@@ -90,17 +94,17 @@ describe("loadInvoices", () => {
         total_sum: 12.5,
       }),
     );
-    state.page = 4;
+    invoiceState.page = 4;
     selectedInvoices.add(99);
 
     await loadInvoices();
 
     expect(selectedInvoices.size).toBe(0);
-    expect(state.page).toBe(1);
-    expect(state.invoices).toEqual(invoices);
-    expect(state.effectivePageSize).toBe(25);
-    expect(state.totalCount).toBe(1);
-    expect(state.totalSum).toBe(12.5);
+    expect(invoiceState.page).toBe(1);
+    expect(invoiceState.invoices).toEqual(invoices);
+    expect(invoiceState.effectivePageSize).toBe(25);
+    expect(invoiceState.totalCount).toBe(1);
+    expect(invoiceState.totalSum).toBe(12.5);
     expect(renderInvoices).toHaveBeenCalledOnce();
   });
 
@@ -112,7 +116,7 @@ describe("loadInvoices", () => {
     await loadInvoices();
 
     expect(showErrorToast).toHaveBeenCalledWith("Failed to load invoices");
-    expect(state.invoices).toEqual([]);
+    expect(invoiceState.invoices).toEqual([]);
     expect(renderInvoices).not.toHaveBeenCalled();
   });
 
@@ -140,7 +144,7 @@ describe("loadInvoices", () => {
     const second = loadInvoices();
     await Promise.all([first, second]);
 
-    expect(state.totalCount).toBe(222);
+    expect(invoiceState.totalCount).toBe(222);
     expect(showErrorToast).not.toHaveBeenCalled();
   });
 });
@@ -186,11 +190,11 @@ describe("reloadCurrentPage", () => {
         total_sum: 0,
       });
     });
-    state.page = 3;
+    invoiceState.page = 3;
 
     await reloadCurrentPage();
 
-    expect(state.page).toBe(1);
+    expect(invoiceState.page).toBe(1);
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 });
