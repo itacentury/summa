@@ -9,9 +9,10 @@
  */
 
 import { state } from "./state.js";
-import { refreshAllData } from "./api.js";
+import { loadLookups } from "./api.js";
 import { escapeHtml, formatCurrency, withEuro } from "./dom.js";
-import { showUndoToast, showErrorToast, flushPendingToast } from "./toast.js";
+import { flushPendingToast } from "./toast.js";
+import { deferCommit } from "./deferred.js";
 import {
   adjustUncategorizedCount,
   countUncategorized,
@@ -529,7 +530,7 @@ function applyCategories() {
 
   // Optimistically categorize any of these rows visible on the current page;
   // snapshot the old versions so undo can restore them (off-page rows reconcile
-  // via refreshAllData on commit).
+  // via the list reload on commit).
   const previous = state.invoices.filter((invoice) => idSet.has(invoice.id));
   state.invoices = state.invoices.map((invoice) =>
     idSet.has(invoice.id)
@@ -545,38 +546,17 @@ function applyCategories() {
 
   const revert = () => restoreRows(previous);
 
-  const commit = async () => {
-    try {
-      const responses = await Promise.all(
+  deferCommit(`${count} invoice${count !== 1 ? "s" : ""} categorized`, {
+    send: (init) =>
+      Promise.all(
         [...idsByCategory.entries()].map(([category, ids]) =>
-          sendJson(
-            "/api/invoices/bulk-update",
-            "PUT",
-            { ids, category },
-            { keepalive: true },
-          ),
+          sendJson("/api/invoices/bulk-update", "PUT", { ids, category }, init),
         ),
-      );
-      const bodies = await Promise.all(
-        responses.map((response) => response.json().catch(() => ({}))),
-      );
-      if (!bodies.every((body) => body.success)) {
-        showErrorToast("Failed to apply categories");
-        revert();
-        return;
-      }
-      // New categories may have been created and existing rows recategorized, so
-      // refresh the list plus the store/category lookups.
-      refreshAllData();
-    } catch {
-      showErrorToast("Failed to apply categories");
-      revert();
-    }
-  };
-
-  showUndoToast(`${count} invoice${count !== 1 ? "s" : ""} categorized`, {
+      ),
     onUndo: revert,
-    onCommit: commit,
+    errorText: "Failed to apply categories",
+    // New categories may have been created, so the lookups reload as well.
+    onSuccess: loadLookups,
   });
 }
 

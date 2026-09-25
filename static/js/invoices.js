@@ -7,20 +7,11 @@
  */
 
 import { state, selectedInvoices } from "./state.js";
-import {
-  loadCategories,
-  loadInvoices,
-  loadStores,
-  reloadCurrentPage,
-} from "./api.js";
+import { loadCategories, loadInvoices, loadStores } from "./api.js";
 import { closeAddModal, validateInvoiceDate } from "./modals.js";
 import { getCombobox } from "./combobox.js";
-import {
-  showUndoToast,
-  showNoticeToast,
-  showErrorToast,
-  hasPendingToast,
-} from "./toast.js";
+import { showNoticeToast, showErrorToast } from "./toast.js";
+import { deferCommit } from "./deferred.js";
 import {
   adjustUncategorizedCount,
   countUncategorized,
@@ -133,35 +124,11 @@ function deferInvoiceUpdate(id, payload) {
     if (previous) restoreRows([previous]);
   };
 
-  const commit = async () => {
-    try {
-      const response = await sendJson(
-        `/api/invoices/${id}`,
-        "PUT",
-        payload,
-        // Survive page unload: a beforeunload-triggered commit must reach the
-        // server even as the document tears down.
-        { keepalive: true },
-      );
-      if (!response.ok) {
-        showErrorToast("Failed to update");
-        restore();
-        return;
-      }
-      refreshLookupsFor(payload.store, payload.category);
-      // Skip the reconcile if a newer deferred action is still pending — it
-      // reconciles on its own commit. Prevents this earlier commit's reload from
-      // cutting short the newer action's undo window (and flickering its row back in).
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to update");
-      restore();
-    }
-  };
-
-  showUndoToast("Invoice updated", {
+  deferCommit("Invoice updated", {
+    send: (init) => sendJson(`/api/invoices/${id}`, "PUT", payload, init),
     onUndo: restore,
-    onCommit: commit,
+    errorText: "Failed to update",
+    onSuccess: () => refreshLookupsFor(payload.store, payload.category),
   });
 }
 
@@ -199,35 +166,17 @@ export function deleteInvoice(id) {
   renderInvoices();
 
   const restore = () => reinsertRows([{ invoice: removed, index }]);
-
-  const commit = async () => {
-    try {
-      // keepalive: finalize the delete even if this commit fires during unload.
-      const response = await apiFetch(`/api/invoices/${id}`, {
-        method: "DELETE",
-        keepalive: true,
-      });
-      if (!response.ok) {
-        showErrorToast("Failed to delete");
-        restore();
-        return;
-      }
-      // A store/category option lingering after its last invoice is deleted is
-      // cosmetic and self-heals on the next lookup load, so reload the list only.
-      // Skip the reconcile if a newer deferred action is still pending — it
-      // reconciles on its own commit. Prevents this earlier commit's reload from
-      // cutting short the newer action's undo window (and flickering its row back in).
-      if (!hasPendingToast()) reloadCurrentPage();
-    } catch {
-      showErrorToast("Failed to delete");
-      restore();
-    }
-  };
-
   const undo = () => {
     if (wasSelected) selectedInvoices.add(id);
     restore();
   };
 
-  showUndoToast("Invoice deleted", { onUndo: undo, onCommit: commit });
+  // A store/category option lingering after its last invoice is deleted is
+  // cosmetic and self-heals on the next lookup load, so only the list reloads.
+  deferCommit("Invoice deleted", {
+    send: (init) =>
+      apiFetch(`/api/invoices/${id}`, { method: "DELETE", ...init }),
+    onUndo: undo,
+    errorText: "Failed to delete",
+  });
 }
