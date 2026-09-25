@@ -28,7 +28,7 @@
   </button>
 {%- endmacro %}
 
-{% macro combobox(data_el, variant="modal", kind="category") -%}
+{% macro combobox(data_el, label, variant="modal", kind="category") -%}
   {% if kind == "store" %}
     {% set placeholder = "All Stores" %}
     {% set empty_label = "All Stores" %}
@@ -43,6 +43,7 @@
     {% set allow_create = true %}
   {% endif %}
   {% set menu_float = "desktop" if variant == "filter" else "" %}
+  <label class="form-label" for="{{ data_el }}-input">{{ label }}</label>
   <div
     class="combobox"
     data-combobox
