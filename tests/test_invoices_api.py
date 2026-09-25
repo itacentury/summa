@@ -1111,6 +1111,38 @@ def test_bulk_delete_non_int_ids_returns_400(client: FlaskClient) -> None:
     assert _get_json(response)["error"] == "Field 'ids' must contain only integers"
 
 
+# --- Non-JSON and malformed bodies --------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("post", "/api/invoices"),
+        ("post", "/api/invoices/import"),
+        ("put", "/api/invoices/1"),
+        ("put", "/api/invoices/bulk-update"),
+        ("post", "/api/invoices/bulk-delete"),
+    ],
+)
+def test_non_json_body_returns_json_415(
+    client: FlaskClient, method: str, path: str
+) -> None:
+    """A body that is not JSON gets the JSON error shape instead of an HTML 415."""
+    response = getattr(client, method)(path, data="ids=1", content_type="text/plain")
+    assert response.status_code == 415
+    assert _get_json(response) == {
+        "success": False,
+        "error": "Request body must be JSON",
+    }
+
+
+def test_malformed_json_body_returns_json_400(client: FlaskClient) -> None:
+    """An unparseable JSON body gets the JSON error shape instead of an HTML 400."""
+    response = client.post("/api/invoices", data="{", content_type="application/json")
+    assert response.status_code == 400
+    assert _get_json(response) == {"success": False, "error": "Malformed request"}
+
+
 # --- GET /api/invoices pagination ---------------------------------------------
 
 

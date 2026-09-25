@@ -1753,6 +1753,17 @@ def test_post_depot_rejects_an_empty_name(client: FlaskClient) -> None:
     assert client.post("/api/portfolio/depots", json={"name": "  "}).status_code == 400
 
 
+def test_post_depot_non_json_body_returns_json_415(client: FlaskClient) -> None:
+    """A form-encoded body gets the JSON error shape, not Werkzeug's HTML page."""
+    response = client.post("/api/portfolio/depots", data={"name": "Deka"})
+
+    assert response.status_code == 415
+    assert response.get_json() == {
+        "success": False,
+        "error": "Request body must be JSON",
+    }
+
+
 def test_patch_depot_renames_it(client: FlaskClient, seed_depot: SeedDepot) -> None:
     """A rename reaches the group header."""
     depot_id = seed_depot(name="Trade Repbulic")

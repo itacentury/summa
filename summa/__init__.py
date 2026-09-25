@@ -13,7 +13,11 @@ from typing import Final
 
 from flask import Flask, Response, request
 from flask_cors import CORS
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import (
+    BadRequest,
+    RequestEntityTooLarge,
+    UnsupportedMediaType,
+)
 
 from summa import config
 from summa.auth import (
@@ -138,6 +142,16 @@ def create_app() -> Flask:
     def handle_request_too_large(_: RequestEntityTooLarge) -> ApiResponse:
         """Return the body-size 413 as JSON, matching the API error convention."""
         return error_response("Request body too large", 413)
+
+    @app.errorhandler(UnsupportedMediaType)
+    def handle_unsupported_media_type(_: UnsupportedMediaType) -> ApiResponse:
+        """Return a non-JSON body's 415 as JSON instead of Werkzeug's HTML page."""
+        return error_response("Request body must be JSON", 415)
+
+    @app.errorhandler(BadRequest)
+    def handle_bad_request(_: BadRequest) -> ApiResponse:
+        """Return a malformed request's 400 as JSON instead of Werkzeug's HTML page."""
+        return error_response("Malformed request", 400)
 
     app.register_blueprint(web_bp)
     app.register_blueprint(auth_bp)
