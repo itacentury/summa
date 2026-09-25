@@ -128,14 +128,14 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   which the scripts' `--db` default shares, so a test redirects every connection
   with `monkeypatch.setenv`.
 - **Schema + migrations live in `init_db()`** (`summa/db.py`), which runs inside
-  `create_app()` (so it works under both gunicorn and the dev server). Migrations
-  are done inline by
-  inspecting `PRAGMA table_info` and conditionally `ALTER TABLE`-ing new columns
-  (e.g. `deleted_at`, `category`). Add future column migrations the same way.
-  `init_db()` runs the whole schema setup in one `BEGIN IMMEDIATE` transaction,
-  because gunicorn's workers (no `--preload`) each call it at the same time: the
-  write lock lets the second worker see the finished migration, so a new column
-  needs no guard of its own, only a row in `_INVOICE_COLUMN_MIGRATIONS`.
+  `create_app()` (so it works under both gunicorn and the dev server). A column
+  added to `invoices` later is one row in `_INVOICE_COLUMN_MIGRATIONS` — its name
+  and the `ALTER TABLE` that adds it (e.g. `deleted_at`, `category`) — which
+  `_migrate_invoice_columns()` runs only when `PRAGMA table_info` still lacks the
+  column. `init_db()` runs the whole schema setup in one `BEGIN IMMEDIATE`
+  transaction, because gunicorn's workers (no `--preload`) each call it at the
+  same time: the write lock is the duplicate-column guard, letting the second
+  worker see the finished migration, so a new row needs no guard of its own.
 - **Soft deletes (invoice side only):** invoice rows are never physically deleted.
   Delete endpoints set `deleted_at = CURRENT_TIMESTAMP`, and every read query on
   `invoices` filters `WHERE deleted_at IS NULL` — preserve this filter in any new
