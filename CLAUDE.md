@@ -119,7 +119,9 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   `portfolio_snapshots` and `benchmark_prices`, created by
   `create_portfolio_schema()`. Connections come from `get_db()` (`summa/db.py`), which
   sets `row_factory` and enables WAL mode. `DATABASE_PATH` env var overrides the
-  default `invoices.db`.
+  default `invoices.db`; it is read per connection by `config.database_path()`,
+  which the scripts' `--db` default shares, so a test redirects every connection
+  with `monkeypatch.setenv`.
 - **Schema + migrations live in `init_db()`** (`summa/db.py`), which runs inside
   `create_app()` (so it works under both gunicorn and the dev server). Migrations
   are done inline by

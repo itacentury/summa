@@ -1,4 +1,4 @@
-"""Environment-backed configuration for the single-password login gate.
+"""Environment-backed configuration: the database, the login gate, the benchmark.
 
 Every value is read from ``os.environ`` inside its accessor rather than at
 import time. That keeps the module import-order independent and lets tests flip
@@ -7,8 +7,10 @@ the gate on with ``monkeypatch.setenv`` — the same lazy-read shape
 """
 
 import os
+from pathlib import Path
 from typing import Final
 
+DATABASE_PATH_ENV: Final[str] = "DATABASE_PATH"
 AUTH_ENABLED_ENV: Final[str] = "AUTH_ENABLED"
 PASSWORD_HASH_ENV: Final[str] = "AUTH_PASSWORD_HASH"
 SESSION_SECRET_ENV: Final[str] = "SESSION_SECRET"
@@ -23,6 +25,7 @@ BENCHMARK_SYMBOL_ENV: Final[str] = "BENCHMARK_SYMBOL"
 _FALSY: Final[frozenset[str]] = frozenset({"", "0", "false", "no", "off"})
 
 DEFAULT_SESSION_DAYS: Final[int] = 30
+DEFAULT_DATABASE_PATH: Final[str] = "invoices.db"
 
 # Ten years is past any real "stay signed in" intent, so a larger number is a
 # typo rather than a policy — and one big enough to overflow timedelta() would
@@ -45,6 +48,12 @@ def _env_bool(name: str, default: bool) -> bool:
     if raw_value is None:
         return default
     return raw_value.strip().lower() not in _FALSY
+
+
+def database_path() -> Path:
+    """Return the SQLite file shared by the app and the portfolio scripts."""
+    raw_value: str = os.environ.get(DATABASE_PATH_ENV, "").strip()
+    return Path(raw_value or DEFAULT_DATABASE_PATH)
 
 
 def auth_enabled() -> bool:

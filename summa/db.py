@@ -1,22 +1,20 @@
 """Database connection management and schema initialization."""
 
 import logging
-import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Final
 
+from summa import config
 from summa.helpers import Invoice, InvoiceItem
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-DATABASE: Final[str] = os.environ.get("DATABASE_PATH", "invoices.db")
-
 
 def get_db() -> sqlite3.Connection:
     """Create and return a database connection with WAL mode and foreign keys on."""
-    conn: sqlite3.Connection = sqlite3.connect(DATABASE, timeout=30.0)
+    conn: sqlite3.Connection = sqlite3.connect(config.database_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
     # Enable WAL mode for better concurrency
     conn.execute("PRAGMA journal_mode=WAL")

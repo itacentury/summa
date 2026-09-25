@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from summa import db
+from summa import config, db
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
@@ -18,7 +18,7 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
 def temp_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point summa.db at a fresh, empty database file for the duration of a test."""
     db_path: Path = tmp_path / "schema.db"
-    monkeypatch.setattr(db, "DATABASE", str(db_path))
+    monkeypatch.setenv(config.DATABASE_PATH_ENV, str(db_path))
     return db_path
 
 

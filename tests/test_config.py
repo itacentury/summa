@@ -1,5 +1,7 @@
 """Tests for the session configuration accessors in :mod:`summa.config`."""
 
+from pathlib import Path
+
 import pytest
 from flask.testing import FlaskClient
 
@@ -121,3 +123,21 @@ def test_benchmark_symbol_follows_the_environment(
     monkeypatch.setenv(config.BENCHMARK_SYMBOL_ENV, configured)
 
     assert config.benchmark_symbol() == expected
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        (None, config.DEFAULT_DATABASE_PATH),
+        ("", config.DEFAULT_DATABASE_PATH),
+        (" /data/invoices.db ", "/data/invoices.db"),
+    ],
+)
+def test_database_path_follows_the_environment(
+    monkeypatch: pytest.MonkeyPatch, configured: str | None, expected: str
+) -> None:
+    """Unset or blank falls back to the default file; a value is read per call."""
+    if configured is not None:
+        monkeypatch.setenv(config.DATABASE_PATH_ENV, configured)
+
+    assert config.database_path() == Path(expected)

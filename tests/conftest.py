@@ -1,8 +1,8 @@
 """Shared pytest fixtures providing an isolated, temp-backed Flask test client.
 
 Each test gets its own fresh on-disk database via the :func:`client` fixture,
-which monkeypatches ``db.DATABASE`` and calls ``create_app()`` (so ``init_db()``
-runs against the temp database).
+which points ``DATABASE_PATH`` at a temp file and calls ``create_app()`` (so
+``init_db()`` runs against the temp database).
 """
 
 import sqlite3
@@ -37,6 +37,7 @@ def broken_db_cursor() -> NoReturn:
 
 
 _CONFIG_ENV_VARS: Final[tuple[str, ...]] = (
+    config.DATABASE_PATH_ENV,
     config.AUTH_ENABLED_ENV,
     config.PASSWORD_HASH_ENV,
     config.SESSION_SECRET_ENV,
@@ -109,9 +110,9 @@ def build_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> BuildClient
     in the test body would already be too late for.
     """
     db_path: Path = tmp_path / "test.db"
-    # get_db() reads this module global on every call, so patching it redirects
-    # every connection (including the one init_db() opens) to the temp database.
-    monkeypatch.setattr(db, "DATABASE", str(db_path))
+    # get_db() reads this on every call, so it redirects every connection
+    # (including the one init_db() opens) to the temp database.
+    monkeypatch.setenv(config.DATABASE_PATH_ENV, str(db_path))
 
     def _build(environment: dict[str, str] | None = None) -> FlaskClient:
         for name, value in (environment or {}).items():

@@ -1,6 +1,5 @@
 """Database access shared by the operational portfolio scripts."""
 
-import os
 import sqlite3
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -8,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol
 
+from summa import config
 from summa.db import create_portfolio_schema
 
 CONNECT_TIMEOUT: Final[float] = 30.0
@@ -46,7 +46,7 @@ class SnapshotWrite:
 
 def default_database_path() -> Path:
     """Return the database the app itself would use."""
-    return Path(os.environ.get("DATABASE_PATH", "invoices.db"))
+    return config.database_path()
 
 
 def connect(database_path: Path) -> sqlite3.Connection:
