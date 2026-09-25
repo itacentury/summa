@@ -457,3 +457,41 @@ def test_categorize_limit_is_fully_budgeted() -> None:
     assert ai._max_tokens_for(limit) == (
         ai._TOKEN_BUDGET_BASE + ai._TOKENS_PER_INVOICE * limit
     )
+
+
+def _invoice(invoice_id: int, store: str = "Shop") -> dict[str, Any]:
+    """Return an invoice dict shaped like the route assembles it."""
+    return {"id": invoice_id, "store": store, "total": 1.0, "items": []}
+
+
+def test_partition_by_cache_reuses_only_exact_matches() -> None:
+    """A hit needs the same fingerprint and model; anything else is a miss."""
+    cache = {
+        1: invoices_route.CachedSuggestion("Food", "m", "fp1"),
+        2: invoices_route.CachedSuggestion("Food", "m", "stale"),
+        3: invoices_route.CachedSuggestion("Food", "other", "fp3"),
+    }
+    invoices = [_invoice(1), _invoice(2), _invoice(3), _invoice(4)]
+    fingerprints = {1: "fp1", 2: "fp2", 3: "fp3", 4: "fp4"}
+
+    resolved, misses = invoices_route._partition_by_cache(
+        invoices, cache, fingerprints, "m"
+    )
+
+    assert resolved == {1: "Food"}
+    assert [invoice["id"] for invoice in misses] == [2, 3, 4]
+
+
+def test_build_suggestions_keeps_order_and_omits_unresolved() -> None:
+    """Suggestions follow load order, skip unanswered invoices and flag new ones."""
+    invoices = [_invoice(1, "A"), _invoice(2, "B"), _invoice(3, "C")]
+
+    suggestions = invoices_route._build_suggestions(
+        invoices, {3: "Food", 1: "Travel"}, {"food"}
+    )
+
+    assert [(s["invoice_id"], s["category"], s["is_new"]) for s in suggestions] == [
+        (1, "Travel", True),
+        (3, "Food", False),
+    ]
+    assert suggestions[0]["store"] == "A"

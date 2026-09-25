@@ -2,7 +2,7 @@
 
 import logging
 import sqlite3
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Final
 
 from flask import Blueprint, Response, jsonify, request
@@ -259,6 +259,144 @@ def _cache_suggestions(
         logger.warning("Failed to cache category suggestions: %s", error)
 
 
+@dataclass(frozen=True)
+class CachedSuggestion:
+    """A stored model answer and what it was computed from."""
+
+    category: str | None
+    model: str
+    fingerprint: str
+
+
+def _empty_suggestions() -> Response:
+    """Return the categorize-suggest answer for a page with nothing to categorize."""
+    return jsonify({"suggestions": [], "count": 0, "total": 0})
+
+
+def _load_candidates(
+    cursor: sqlite3.Cursor, requested_ids: list[int]
+) -> tuple[int, list[sqlite3.Row]]:
+    """Count the uncategorized invoices among ``requested_ids`` and load the lowest.
+
+    The id list is client-supplied and unbounded (page_size=all posts the whole
+    table), so it is queried in chunks below SQLite's variable limit, exactly as
+    /bulk-update and /bulk-delete do.
+
+    :returns: the uncategorized count and at most ``CATEGORIZE_SUGGEST_LIMIT``
+        rows (``id``, ``store``, ``total``) in id order.
+    """
+    total: int = 0
+    # Each chunk yields its own lowest-id candidates; the global lowest
+    # CATEGORIZE_SUGGEST_LIMIT are guaranteed among them, so a Python sort + slice
+    # reproduces a single ORDER BY id LIMIT over all ids.
+    candidates: list[sqlite3.Row] = []
+    for chunk in chunked(requested_ids):
+        uncategorized_in_chunk: str = (
+            f"FROM invoices WHERE deleted_at IS NULL AND category IS NULL "
+            f"AND id IN ({placeholders_for(len(chunk))})"
+        )
+        cursor.execute(f"SELECT COUNT(*) AS total {uncategorized_in_chunk}", chunk)
+        total += cursor.fetchone()["total"]
+        cursor.execute(
+            f"SELECT id, store, total {uncategorized_in_chunk} ORDER BY id LIMIT ?",
+            [*chunk, CATEGORIZE_SUGGEST_LIMIT],
+        )
+        candidates.extend(cursor.fetchall())
+    candidates.sort(key=lambda row: row["id"])
+    return total, candidates[:CATEGORIZE_SUGGEST_LIMIT]
+
+
+def _load_items(
+    cursor: sqlite3.Cursor, ids: list[int]
+) -> dict[int, list[dict[str, Any]]]:
+    """Load the line items of ``ids`` in one query, grouped by invoice id.
+
+    ``ids`` must already be capped at ``CATEGORIZE_SUGGEST_LIMIT``, well under
+    SQLite's variable limit.
+    """
+    cursor.execute(
+        f"SELECT invoice_id, item_name, item_price FROM invoice_items "
+        f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
+        ids,
+    )
+    items_by_invoice: dict[int, list[dict[str, Any]]] = {}
+    for item in cursor.fetchall():
+        items_by_invoice.setdefault(item["invoice_id"], []).append(
+            {"item_name": item["item_name"], "item_price": item["item_price"]}
+        )
+    return items_by_invoice
+
+
+def _load_cached(cursor: sqlite3.Cursor, ids: list[int]) -> dict[int, CachedSuggestion]:
+    """Load the cached suggestions for ``ids`` (capped like :func:`_load_items`)."""
+    cursor.execute(
+        f"SELECT invoice_id, category, model, fingerprint "
+        f"FROM invoice_category_suggestions "
+        f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
+        ids,
+    )
+    return {
+        row["invoice_id"]: CachedSuggestion(
+            category=row["category"], model=row["model"], fingerprint=row["fingerprint"]
+        )
+        for row in cursor.fetchall()
+    }
+
+
+def _partition_by_cache(
+    invoices: list[dict[str, Any]],
+    cache_by_id: dict[int, CachedSuggestion],
+    fingerprint_by_id: dict[int, str],
+    model: str,
+) -> tuple[dict[int, str | None], list[dict[str, Any]]]:
+    """Split invoices into cache hits and the misses that need a model call.
+
+    A cached answer is reused only when both the invoice content (fingerprint) and
+    the model match; new, edited and model-switched invoices are misses.
+
+    :returns: the category per hit invoice id, and the missed invoices in order.
+    """
+    resolved_category: dict[int, str | None] = {}
+    misses: list[dict[str, Any]] = []
+    for invoice in invoices:
+        cached: CachedSuggestion | None = cache_by_id.get(invoice["id"])
+        if (
+            cached is not None
+            and cached.fingerprint == fingerprint_by_id[invoice["id"]]
+            and cached.model == model
+        ):
+            resolved_category[invoice["id"]] = cached.category
+        else:
+            misses.append(invoice)
+    return resolved_category, misses
+
+
+def _build_suggestions(
+    invoices: list[dict[str, Any]],
+    resolved_category: dict[int, str | None],
+    existing_lower: set[str],
+) -> list[dict[str, Any]]:
+    """Merge each resolved category with its invoice's display info, in load order.
+
+    Invoices the model returned no entry for are omitted. ``is_new`` is computed
+    live rather than cached, because it depends on the current category set.
+
+    :param existing_lower: the categories in use, lower-cased.
+    """
+    return [
+        {
+            "invoice_id": invoice["id"],
+            "store": invoice["store"],
+            "total": invoice["total"],
+            "items": invoice["items"],
+            "category": resolved_category[invoice["id"]],
+            "is_new": is_category_new(resolved_category[invoice["id"]], existing_lower),
+        }
+        for invoice in invoices
+        if invoice["id"] in resolved_category
+    ]
+
+
 @invoices_bp.route("/api/invoices/categorize-suggest", methods=["POST"])
 def categorize_suggest() -> ApiResponse:
     """Suggest categories for the invoices visible on the caller's current page.
@@ -283,10 +421,10 @@ def categorize_suggest() -> ApiResponse:
     # what tells the two apart, since get_json(silent=True) returns None for both.
     # Everything past the empty case goes through parse_id_list, as /bulk-* do.
     if not request.get_data():
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
+        return _empty_suggestions()
     data: Any = request.get_json(silent=True)
     if isinstance(data, dict) and data.get("ids") == []:
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
+        return _empty_suggestions()
     try:
         # Dedupe once: IN dedupes within a chunk, but the same id split across two
         # chunks would double-count the summed total (and duplicate work).
@@ -294,103 +432,33 @@ def categorize_suggest() -> ApiResponse:
     except ValidationError as error:
         return error_response(error.message, 400)
 
-    # Scope strictly to the requested (visible) rows, uncategorized only. The id
-    # list is client-supplied and unbounded (page_size=all posts the whole table),
-    # so query in chunks below SQLite's variable limit rather than binding every id
-    # in one statement, exactly as /bulk-update and /bulk-delete do.
     with db_cursor() as cursor:
-        total: int = 0
-        # Each chunk yields its own lowest-id candidates; the global lowest
-        # CATEGORIZE_SUGGEST_LIMIT are guaranteed among them, so a Python
-        # sort + slice reproduces a single ORDER BY id LIMIT over all ids.
-        candidates: list[sqlite3.Row] = []
-        for chunk in chunked(requested_ids):
-            uncategorized_in_chunk: str = (
-                f"FROM invoices WHERE deleted_at IS NULL AND category IS NULL "
-                f"AND id IN ({placeholders_for(len(chunk))})"
-            )
-            cursor.execute(f"SELECT COUNT(*) AS total {uncategorized_in_chunk}", chunk)
-            total += cursor.fetchone()["total"]
-            cursor.execute(
-                f"SELECT id, store, total {uncategorized_in_chunk} ORDER BY id LIMIT ?",
-                [*chunk, CATEGORIZE_SUGGEST_LIMIT],
-            )
-            candidates.extend(cursor.fetchall())
-        candidates.sort(key=lambda row: row["id"])
-        rows: list[sqlite3.Row] = candidates[:CATEGORIZE_SUGGEST_LIMIT]
-
-        # Full per-invoice info for the response (store, amount, items); the
-        # items double as the model input and the client's summary/accordion.
-        # Load every row's items in one query (ids are already capped at
-        # CATEGORIZE_SUGGEST_LIMIT, well under SQLite's variable limit) and
-        # group them in Python, avoiding a per-invoice round-trip.
-        invoices: list[dict[str, Any]] = []
-        if rows:
-            ids: list[int] = [row["id"] for row in rows]
-            cursor.execute(
-                f"SELECT invoice_id, item_name, item_price FROM invoice_items "
-                f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
-                ids,
-            )
-            items_by_invoice: dict[int, list[dict[str, Any]]] = {}
-            for item in cursor.fetchall():
-                items_by_invoice.setdefault(item["invoice_id"], []).append(
-                    {
-                        "item_name": item["item_name"],
-                        "item_price": item["item_price"],
-                    }
-                )
-            for row in rows:
-                invoices.append(
-                    {
-                        "id": row["id"],
-                        "store": row["store"],
-                        "total": row["total"],
-                        "items": items_by_invoice.get(row["id"], []),
-                    }
-                )
-
+        total, rows = _load_candidates(cursor, requested_ids)
+        if not rows:
+            return _empty_suggestions()
+        ids: list[int] = [row["id"] for row in rows]
+        items_by_invoice: dict[int, list[dict[str, Any]]] = _load_items(cursor, ids)
+        cache_by_id: dict[int, CachedSuggestion] = _load_cached(cursor, ids)
         existing_categories: list[str] = _existing_categories(cursor)
 
-        # Previously cached suggestions for exactly these invoices, so only
-        # new/edited ones (or a model change) need a fresh Claude call below.
-        cached_rows: list[sqlite3.Row] = []
-        if rows:
-            cursor.execute(
-                f"SELECT invoice_id, category, model, fingerprint "
-                f"FROM invoice_category_suggestions "
-                f"WHERE invoice_id IN ({placeholders_for(len(ids))})",
-                ids,
-            )
-            cached_rows = cursor.fetchall()
-
-    if not invoices:
-        return jsonify({"suggestions": [], "count": 0, "total": 0})
-
+    # The items double as the model input and the client's summary/accordion.
+    invoices: list[dict[str, Any]] = [
+        {
+            "id": row["id"],
+            "store": row["store"],
+            "total": row["total"],
+            "items": items_by_invoice.get(row["id"], []),
+        }
+        for row in rows
+    ]
     model_key: Any = data.get("model")
     model: str = resolve_model(model_key if isinstance(model_key, str) else None)
-    cache_by_id: dict[int, sqlite3.Row] = {
-        row["invoice_id"]: row for row in cached_rows
-    }
     fingerprint_by_id: dict[int, str] = {
         invoice["id"]: invoice_fingerprint(invoice) for invoice in invoices
     }
-
-    # Reuse a cached suggestion when the invoice content and model both match;
-    # everything else (new, edited, or a model switch) goes to Claude.
-    resolved_category: dict[int, str | None] = {}
-    misses: list[dict[str, Any]] = []
-    for invoice in invoices:
-        cached: sqlite3.Row | None = cache_by_id.get(invoice["id"])
-        matches: bool = (
-            cached is not None
-            and cached["fingerprint"] == fingerprint_by_id[invoice["id"]]
-            and cached["model"] == model
-        )
-        if matches and cached is not None:
-            resolved_category[invoice["id"]] = cached["category"]
-        else:
-            misses.append(invoice)
+    resolved_category, misses = _partition_by_cache(
+        invoices, cache_by_id, fingerprint_by_id, model
+    )
 
     if misses:
         try:
@@ -400,27 +468,11 @@ def categorize_suggest() -> ApiResponse:
             return error_response(error.message, 502)
         _cache_suggestions(results, model, fingerprint_by_id, resolved_category)
 
-    # Merge each suggestion with the invoice's display info (store, amount, items),
-    # in the stable id order the invoices were loaded. is_new is recomputed live
-    # (not cached) because it depends on the current category set, not the invoice.
-    existing_lower: set[str] = {category.lower() for category in existing_categories}
-    suggestions: list[dict[str, Any]] = []
-    for invoice in invoices:
-        if invoice["id"] not in resolved_category:
-            # The model returned no entry for this invoice — omit it, as before.
-            continue
-        category: str | None = resolved_category[invoice["id"]]
-        suggestions.append(
-            {
-                "invoice_id": invoice["id"],
-                "store": invoice["store"],
-                "total": invoice["total"],
-                "items": invoice["items"],
-                "category": category,
-                "is_new": is_category_new(category, existing_lower),
-            }
-        )
-
+    suggestions: list[dict[str, Any]] = _build_suggestions(
+        invoices,
+        resolved_category,
+        {category.lower() for category in existing_categories},
+    )
     logger.info(
         "Categorization suggested: %d of %d uncategorized invoices (%d reused)",
         len(suggestions),
