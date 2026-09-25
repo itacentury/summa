@@ -36,6 +36,16 @@ def broken_db_cursor() -> NoReturn:
     raise sqlite3.OperationalError(DB_ERROR_DETAIL)
 
 
+def get_json(response: Any) -> Any:
+    """Return the parsed JSON body of a test-client response."""
+    return response.get_json()
+
+
+def valid_items() -> list[dict[str, Any]]:
+    """Return a minimal valid items list for invoice payloads."""
+    return [{"item_name": "Line item", "item_price": 1.0}]
+
+
 _CONFIG_ENV_VARS: Final[tuple[str, ...]] = (
     config.DATABASE_PATH_ENV,
     config.AUTH_ENABLED_ENV,
