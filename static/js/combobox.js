@@ -6,10 +6,12 @@
  *
  * Each instance wraps a hidden `<input>` carrying the original `data-el` hook, so
  * every existing `.value` reader (saveInvoice, saveBulkEdit, buildFilterParams)
- * keeps working unchanged. Leaf-ish module: imports only from `dom.js`.
+ * keeps working unchanged. Leaf-ish module: imports only from `dom.js` and
+ * `floating-menu.js`.
  */
 
 import { escapeHtml, categoryColorVar, mobileViewport } from "./dom.js";
+import { createFloatingMenu } from "./floating-menu.js";
 
 // Registry of live instances, keyed by the wrapped hidden input's data-el name,
 // plus a flat list for fanning category options out to every category instance.
@@ -168,66 +170,31 @@ export function createCombobox(root, { onChange } = {}) {
   };
 
   // --- Floating (position: fixed) menu, opt-in via data-menu-float ------------
-  // Anchor the menu to the control's viewport rect. Prefer opening downward (so
-  // it overlaps whatever sits below, as requested), flipping up only when there
-  // is too little room below and more above.
-  const viewportPadding = 8;
-  const menuGap = 4;
-  const maxMenuHeight = 240;
-
-  const positionMenu = () => {
-    const control = root.querySelector(".combobox-control");
-    const rect = control.getBoundingClientRect();
-    const spaceBelow =
-      window.innerHeight - rect.bottom - viewportPadding - menuGap;
-    const spaceAbove = rect.top - viewportPadding - menuGap;
-    const desiredHeight = Math.min(menu.scrollHeight, maxMenuHeight);
-    const openUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
-    const available = openUp ? spaceAbove : spaceBelow;
-    const resolvedMaxHeight = Math.max(120, Math.min(maxMenuHeight, available));
-
-    menu.style.position = "fixed";
-    menu.style.left = `${rect.left}px`;
-    menu.style.width = `${rect.width}px`;
-    menu.style.right = "auto";
-    menu.style.maxHeight = `${resolvedMaxHeight}px`;
-
-    const menuHeight = Math.min(menu.scrollHeight, resolvedMaxHeight);
-    const top = openUp
-      ? rect.top - menuGap - menuHeight
-      : rect.bottom + menuGap;
-    menu.style.top = `${top}px`;
-  };
-
-  const clearMenuPosition = () => {
-    menu.style.position = "";
-    menu.style.top = "";
-    menu.style.left = "";
-    menu.style.right = "";
-    menu.style.width = "";
-    menu.style.maxHeight = "";
-  };
+  // Placement is floating-menu.js's; what stays here is when to float at all.
+  const floating = menuFloatMode
+    ? createFloatingMenu(root.querySelector(".combobox-control"), menu, {
+        sameWidth: true,
+        maxHeight: 240,
+        gap: 4,
+      })
+    : null;
 
   // Apply or drop the fixed anchoring, so crossing the breakpoint while the menu
-  // is open never leaves a stale inline position behind.
+  // is open never leaves a stale inline position behind. The scroll listener
+  // bind() adds is only wanted while the menu actually floats: in "desktop" mode
+  // below the breakpoint it would just rewrite inline styles on every scroll of
+  // the bottom sheet.
   const syncMenuPosition = () => {
-    if (shouldFloatMenu()) positionMenu();
-    else clearMenuPosition();
+    if (!shouldFloatMenu()) {
+      floating.release();
+      return;
+    }
+    floating.place();
+    floating.bind();
   };
 
   const reposition = () => {
     if (open) syncMenuPosition();
-  };
-
-  // Capture so a scroll of any ancestor (the modal's scroll container) keeps the
-  // fixed menu glued to its control. Only bound while the menu actually floats:
-  // in "desktop" mode below the breakpoint the handler would just rewrite empty
-  // inline styles on every scroll of the bottom sheet. Re-adding the same
-  // handler with the same capture flag is a no-op, so this is safe to re-run.
-  const syncScrollTracking = () => {
-    if (shouldFloatMenu())
-      document.addEventListener("scroll", reposition, true);
-    else document.removeEventListener("scroll", reposition, true);
   };
 
   // A resize is not the end of the layout change it triggers: chrome above the
@@ -263,24 +230,22 @@ export function createCombobox(root, { onChange } = {}) {
   };
 
   // resize stays bound whenever the menu may float: it is the event that flips
-  // shouldFloatMenu(), so it has to re-evaluate the scroll binding too. It is
+  // shouldFloatMenu(), so it has to re-evaluate the floating state too. It is
   // deliberately not mobileViewport's "change" event (which stats.js uses for
   // the same breakpoint): a resize that never crosses the breakpoint still
   // moves the control's rect, and every crossing fires a resize anyway.
   const onViewportResize = () => {
-    syncScrollTracking();
     reposition();
     settleMenuPosition();
   };
 
   const bindReposition = () => {
     window.addEventListener("resize", onViewportResize);
-    syncScrollTracking();
   };
 
   const unbindReposition = () => {
     window.removeEventListener("resize", onViewportResize);
-    document.removeEventListener("scroll", reposition, true);
+    floating.release();
   };
 
   const openMenu = () => {
@@ -305,10 +270,7 @@ export function createCombobox(root, { onChange } = {}) {
     textInput.setAttribute("aria-expanded", "false");
     textInput.removeAttribute("aria-activedescendant");
     highlighted = -1;
-    if (menuFloatMode) {
-      unbindReposition();
-      clearMenuPosition();
-    }
+    if (menuFloatMode) unbindReposition();
     applyValue(hidden.value);
   };
 
@@ -319,10 +281,7 @@ export function createCombobox(root, { onChange } = {}) {
     textInput.setAttribute("aria-expanded", "false");
     textInput.removeAttribute("aria-activedescendant");
     highlighted = -1;
-    if (menuFloatMode) {
-      unbindReposition();
-      clearMenuPosition();
-    }
+    if (menuFloatMode) unbindReposition();
     if (onChange) onChange(value);
   };
 

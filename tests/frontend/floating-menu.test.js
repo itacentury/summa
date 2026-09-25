@@ -139,6 +139,18 @@ describe("createFloatingMenu", () => {
     expect(menu.style.minWidth).toBe("");
   });
 
+  it("pins the panel to the trigger's width and hands it back on release", () => {
+    const { trigger, menu } = mount({ rect: at({ width: 358 }) });
+    const floating = createFloatingMenu(trigger, menu, { sameWidth: true });
+    floating.place();
+    floating.bind();
+
+    expect(px(menu.style.width)).toBe(358);
+
+    floating.release();
+    expect(menu.style.width).toBe("");
+  });
+
   it("marks the flip on the root, so styling can follow it", () => {
     const { root, trigger, menu } = mount({
       rect: at({ top: 700 }),
