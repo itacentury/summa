@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Summa is an invoice management and expense-tracking web app: a Flask REST backend
 backed by SQLite, plus a vanilla-JS Progressive Web App frontend. There is no
-build step for the frontend. The backend has a `pytest` suite under `tests/`.
+build step for the frontend. The backend has a `pytest` suite under `tests/`, the
+frontend a Vitest suite under `tests/frontend/`.
 
 ## Code Style
 
@@ -82,21 +83,25 @@ Frontend (JS/CSS/HTML) is linted and formatted through `npm` (Node 22):
 ```bash
 npm install        # install the lint/format toolchain
 npm run lint       # eslint + stylelint + prettier --check (what CI runs)
+npm run test       # Vitest suite under tests/frontend/ (happy-dom)
 npm run format     # prettier --write across the repo
 ```
 
-ESLint config (`eslint.config.js`) lints `static/js/app.js` (browser script) and
-`static/sw.js` (service worker), and runs `@html-eslint` over `templates/*.html`
-for semantic/a11y checks (its formatting rules are off — Prettier owns
-formatting, via `prettier-plugin-jinja-template` for the Jinja template).
+ESLint config (`eslint.config.js`) lints the browser modules under
+`static/js/` (`boot-view.js` as the one classic script), `static/sw.js`
+(service worker), the two config files, the Node tooling under `scripts/` and
+the Vitest suite under `tests/frontend/`, and runs `@html-eslint` over
+`templates/**/*.html` for semantic/a11y checks (its formatting rules are off —
+Prettier owns formatting, via `prettier-plugin-jinja-template` for the Jinja
+templates).
 Stylelint (`.stylelintrc.json`) enforces the `docs/code-style.md` CSS rules
 (recess-order property order, no `!important`, no id selectors, value hygiene).
-Functions called only from inline HTML handlers are listed in a top-of-file
-`/* exported … */` directive in `app.js` so `no-unused-vars` does not flag them.
+There are no inline event handlers: everything is wired with
+`addEventListener`, mostly against `data-action` hooks.
 
 CI (`.github/workflows/ci.yml`) has three jobs that must pass: `lint` (`ruff
 check .`, `ruff format --check .`, `mypy`), `test` (`pytest`) and `frontend`
-(`npm run lint`). Run them before pushing.
+(`npm run lint`, `npm run test`). Run them before pushing.
 
 Docker: `docker compose up -d` serves on `http://localhost:8000` with the DB
 persisted in the `./data` bind mount.
@@ -219,10 +224,9 @@ hidden section), and the view roots, topbar title and nav item follow on
 check answers. It deliberately loads no data, and beyond the mode class it
 copies no view table: it reads the tokens and titles off the nav items, so
 `views.js` stays the single authority. Styling is split per
-component under `static/css/` (`variables`, `base`, `header`, `filters`,
-`invoices`, `modals`, `components`, `stats`, `portfolio`), loaded via ordered `<link>` tags
-in `index.html` — the order is cascade-significant, and each file co-locates
-its own responsive `@media` rules.
+component, one file each under `static/css/`, loaded via ordered `<link>` tags
+in `index.html` — that order is authoritative and cascade-significant, and each
+file co-locates its own responsive `@media` rules.
 
 **PWA.** `static/sw.js` caches static assets under the `CACHE_NAME` constant.
 **When you change any cached static asset, bump `CACHE_NAME`** (in
