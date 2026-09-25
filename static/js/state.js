@@ -6,7 +6,7 @@
  * but it can mutate a property of an imported object.
  */
 
-import { CHART_PALETTE_SIZE } from "./dom.js";
+import { CHART_PALETTE_SIZE } from "./chart-palette.js";
 
 // The invoice list, its filters, the add/edit dialog and the import staging.
 export const invoiceState = {

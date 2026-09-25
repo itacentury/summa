@@ -1,15 +1,14 @@
 /**
  * DOM element cache and generic UI utilities.
  *
- * Leaf module: imports nothing from the app so it can be imported anywhere
- * without creating cycles.
+ * Leaf module: imports only the chart-palette constant, so it can be imported
+ * anywhere without creating cycles.
  */
+
+import { CHART_PALETTE_SIZE } from "./chart-palette.js";
 
 /** Shared mobile breakpoint — keep in sync with the CSS `(width <= 640px)` media queries. */
 export const mobileViewport = window.matchMedia("(width <= 640px)");
-
-// Slots in the chart palette: the --chart-1…8 tokens in variables.css.
-export const CHART_PALETTE_SIZE = 8;
 
 /**
  * Return the chart palette in donut/bar order, read from the `--chart-N` tokens

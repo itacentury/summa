@@ -4,7 +4,6 @@ import {
   applyCategoryBadge,
   capAtToday,
   categoryColorVar,
-  CHART_PALETTE_SIZE,
   chartColors,
   dateToIso,
   debounce,
@@ -18,6 +17,7 @@ import {
   withBusyButton,
   withEuro,
 } from "../../static/js/dom.js";
+import { CHART_PALETTE_SIZE } from "../../static/js/chart-palette.js";
 import { applyChartTokens, dayOffset } from "./helpers.js";
 
 describe("chartColors", () => {
