@@ -1,5 +1,6 @@
 """Tests for the statistics endpoint and its comparison helper."""
 
+import pytest
 from flask.testing import FlaskClient
 
 from summa import db
@@ -107,6 +108,24 @@ def test_comparison_handles_invalid_dates(
     try:
         cursor = conn.cursor()
         result = _calculate_comparison(cursor, "not-a-date", "also-bad", 10.0)
+    finally:
+        conn.close()
+    assert result == {"previous_total": 0, "change_percent": 0}
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to"),
+    [("20240201", "20240229"), ("2024-W05-4", "2024-W09-4")],
+)
+def test_comparison_rejects_non_canonical_iso_dates(
+    client: FlaskClient, seed_invoice: SeedInvoice, date_from: str, date_to: str
+) -> None:
+    """Only YYYY-MM-DD is compared, matching the main query's string filter."""
+    seed_invoice(date="2024-01-15", total=50.0)
+    conn = db.get_db()
+    try:
+        cursor = conn.cursor()
+        result = _calculate_comparison(cursor, date_from, date_to, 100.0)
     finally:
         conn.close()
     assert result == {"previous_total": 0, "change_percent": 0}

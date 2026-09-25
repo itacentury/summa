@@ -29,6 +29,9 @@ def _calculate_comparison(
     try:
         start: date = date.fromisoformat(date_from)
         end: date = date.fromisoformat(date_to)
+        # fromisoformat also takes basic/week forms the string-compared main query filters differently.
+        if start.isoformat() != date_from or end.isoformat() != date_to:
+            raise ValueError("dates must be YYYY-MM-DD")
         period_days: int = (end - start).days + 1
 
         prev_end: date = start - timedelta(days=1)
