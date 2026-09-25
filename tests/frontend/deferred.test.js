@@ -20,13 +20,17 @@ const ok = { ok: true };
 const refused = { ok: false };
 
 /** Defer a change whose request resolves to `sent`, returning the spies. */
-function defer(sent) {
+function defer(sent, options = {}) {
   const spies = {
     send: vi.fn(() => Promise.resolve(sent)),
     onUndo: vi.fn(),
     onSuccess: vi.fn(),
   };
-  deferCommit("Invoice deleted", { ...spies, errorText: "Failed to delete" });
+  deferCommit("Invoice deleted", {
+    ...spies,
+    errorText: "Failed to delete",
+    ...options,
+  });
   return spies;
 }
 
@@ -77,12 +81,58 @@ describe("deferCommit", () => {
     expect(reloadCurrentPage).not.toHaveBeenCalled();
   });
 
-  it("reverts when any of several requests is refused", async () => {
-    const { onUndo } = defer([ok, refused]);
+  it("reverts when any of several requests is refused without a partial handler", async () => {
+    const { onUndo, onSuccess } = defer([ok, refused]);
 
     await undoToast.onCommit();
 
     expect(onUndo).toHaveBeenCalledOnce();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("reverts only the refused part when others were saved", async () => {
+    const onPartialFailure = vi.fn();
+    const { onUndo, onSuccess } = defer([ok, refused, ok], {
+      onPartialFailure,
+      partialErrorText: "Partly failed",
+    });
+
+    await undoToast.onCommit();
+
+    expect(showErrorToast).toHaveBeenCalledWith("Partly failed");
+    expect(onPartialFailure).toHaveBeenCalledWith([1]);
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledOnce();
+    expect(reloadCurrentPage).toHaveBeenCalledOnce();
+  });
+
+  it("counts an unanswered request as refused", async () => {
+    const onPartialFailure = vi.fn();
+    defer([null, ok], { onPartialFailure });
+
+    await undoToast.onCommit();
+
+    expect(onPartialFailure).toHaveBeenCalledWith([0]);
+  });
+
+  it("leaves a partial failure's reload to a newer pending action", async () => {
+    defer([ok, refused], { onPartialFailure: vi.fn() });
+    pending.value = true;
+
+    await undoToast.onCommit();
+
+    expect(reloadCurrentPage).not.toHaveBeenCalled();
+  });
+
+  it("reverts everything when every request is refused", async () => {
+    const onPartialFailure = vi.fn();
+    const { onUndo } = defer([refused, null], { onPartialFailure });
+
+    await undoToast.onCommit();
+
+    expect(showErrorToast).toHaveBeenCalledWith("Failed to delete");
+    expect(onUndo).toHaveBeenCalledOnce();
+    expect(onPartialFailure).not.toHaveBeenCalled();
   });
 
   it("reverts and reports a failed request", async () => {

@@ -549,16 +549,27 @@ function applyCategories() {
   renderInvoices();
 
   const revert = () => restoreRows(previous);
+  const groups = [...idsByCategory.entries()];
 
   deferCommit(`${pluralize(count, "invoice")} categorized`, {
-    send: (init) =>
-      Promise.all(
-        [...idsByCategory.entries()].map(([category, ids]) =>
+    send: async (init) => {
+      const results = await Promise.allSettled(
+        groups.map(([category, ids]) =>
           sendJson("/api/invoices/bulk-update", "PUT", { ids, category }, init),
         ),
-      ),
+      );
+      return results.map((result) =>
+        result.status === "fulfilled" ? result.value : null,
+      );
+    },
     onUndo: revert,
+    // The accepted groups are saved, so only the refused ones' rows go back.
+    onPartialFailure: (refused) => {
+      const refusedIds = new Set(refused.flatMap((index) => groups[index][1]));
+      restoreRows(previous.filter((invoice) => refusedIds.has(invoice.id)));
+    },
     errorText: "Failed to apply categories",
+    partialErrorText: "Some categories could not be applied",
     // New categories may have been created, so the lookups reload as well.
     onSuccess: loadLookups,
   });

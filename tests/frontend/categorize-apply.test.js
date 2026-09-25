@@ -27,8 +27,8 @@ vi.mock("../../static/js/pagesize.js", () => ({
 }));
 
 // The undo toast owns its own DOM; capture the deferred callbacks instead so a
-// test can invoke the undo directly. The commit is never run here: it reloads
-// from the server, which is exactly the reconcile these assertions must not lean on.
+// test can invoke the undo or the commit directly. A pending newer toast keeps
+// the commit from reloading, which is the reconcile these assertions must not lean on.
 const undoToast = vi.hoisted(() => ({ onUndo: null, onCommit: null }));
 vi.mock("../../static/js/toast.js", () => ({
   showUndoToast: vi.fn((message, { onUndo, onCommit }) => {
@@ -37,6 +37,7 @@ vi.mock("../../static/js/toast.js", () => ({
   }),
   showErrorToast: vi.fn(),
   flushPendingToast: vi.fn(),
+  hasPendingToast: () => true,
 }));
 
 import {
@@ -198,4 +199,39 @@ describe("applyCategories", () => {
     expect(badge().textContent).toBe("2");
     expect(trigger().title).toBe("AI Categories");
   });
+
+  it.each([
+    ["refused", () => Promise.resolve({ ok: false, status: 500 })],
+    ["lost", () => Promise.reject(new TypeError("Failed to fetch"))],
+  ])(
+    "reverts only the rows whose request was %s",
+    async (_label, failedPut) => {
+      await applyAllSuggestions([
+        suggestion(1, "Electronics"),
+        suggestion(3, "Groceries"),
+      ]);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url, init) =>
+          init?.method === "PUT" &&
+          JSON.parse(init.body).category === "Groceries"
+            ? failedPut()
+            : Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve([]),
+              }),
+        ),
+      );
+
+      await undoToast.onCommit();
+
+      const categoryOf = (id) =>
+        invoiceState.invoices.find((invoice) => invoice.id === id).category;
+      expect(categoryOf(1)).toBe("Electronics");
+      expect(categoryOf(3)).toBeNull();
+      expect(invoiceState.uncategorizedCount).toBe(4);
+      expect(badge().textContent).toBe("1");
+    },
+  );
 });
