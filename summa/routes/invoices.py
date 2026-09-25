@@ -48,6 +48,8 @@ ALL_PAGE_SIZE_TOKEN: Final[str] = "all"
 # page. The response `total` lets the client prompt a re-run when a larger view is
 # capped.
 CATEGORIZE_SUGGEST_LIMIT: Final[int] = min(MAX_PAGE_SIZE, MAX_FULLY_BUDGETED_BATCH)
+# How many ids a bulk log line names; select-all can post thousands.
+LOG_ID_SAMPLE: Final[int] = 5
 
 
 def _build_invoice_filter(args: Any) -> tuple[str, list[str]]:
@@ -679,13 +681,19 @@ def bulk_update_invoices() -> ApiResponse:
                 )
                 updated_count += cursor.rowcount
         logger.info(
-            "Bulk update completed: %d invoices updated (ids=%s)",
+            "Bulk update completed: %d of %d invoices updated (first ids=%s)",
             updated_count,
-            invoice_ids,
+            len(invoice_ids),
+            invoice_ids[:LOG_ID_SAMPLE],
         )
         return jsonify({"success": True, "updated": updated_count})
     except sqlite3.Error as e:
-        logger.error("Bulk update failed for ids=%s: %s", invoice_ids, e)
+        logger.error(
+            "Bulk update failed for %d ids (first ids=%s): %s",
+            len(invoice_ids),
+            invoice_ids[:LOG_ID_SAMPLE],
+            e,
+        )
         return error_response("Internal server error", 500)
 
 
@@ -711,11 +719,17 @@ def bulk_delete_invoices() -> ApiResponse:
                 )
                 deleted_count += cursor.rowcount
         logger.info(
-            "Bulk soft-delete completed: %d invoices deleted (ids=%s)",
+            "Bulk soft-delete completed: %d of %d invoices deleted (first ids=%s)",
             deleted_count,
-            invoice_ids,
+            len(invoice_ids),
+            invoice_ids[:LOG_ID_SAMPLE],
         )
         return jsonify({"success": True, "deleted": deleted_count})
     except sqlite3.Error as e:
-        logger.error("Bulk delete failed for ids=%s: %s", invoice_ids, e)
+        logger.error(
+            "Bulk delete failed for %d ids (first ids=%s): %s",
+            len(invoice_ids),
+            invoice_ids[:LOG_ID_SAMPLE],
+            e,
+        )
         return error_response("Internal server error", 500)

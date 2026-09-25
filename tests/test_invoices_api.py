@@ -1090,6 +1090,24 @@ def test_bulk_delete_skips_already_deleted(
     assert stamp == original
 
 
+def test_bulk_delete_logs_a_bounded_id_sample(
+    client: FlaskClient, seed_invoice: SeedInvoice, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The log line names the count and only the first few ids, not the whole list."""
+    ids: list[int] = [seed_invoice() for _ in range(8)]
+
+    with caplog.at_level("INFO", logger="summa.routes.invoices"):
+        client.post("/api/invoices/bulk-delete", json={"ids": ids})
+
+    message: str = next(
+        record.getMessage()
+        for record in caplog.records
+        if "Bulk soft-delete" in record.getMessage()
+    )
+    assert "8 of 8" in message
+    assert f"first ids={ids[:5]})" in message
+
+
 def test_bulk_delete_missing_ids_returns_400(client: FlaskClient) -> None:
     """An empty ids list is rejected with 400."""
     response = client.post("/api/invoices/bulk-delete", json={"ids": []})
