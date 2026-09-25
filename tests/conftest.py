@@ -5,9 +5,10 @@ which monkeypatches ``db.DATABASE`` and calls ``create_app()`` (so ``init_db()``
 runs against the temp database).
 """
 
+import sqlite3
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, NoReturn
 
 import pytest
 from flask.testing import FlaskClient
@@ -26,6 +27,14 @@ ALLOWED_ORIGIN: Final[str] = "https://app.example"
 # Hashed once per session: scrypt is deliberately slow, and every gated test
 # would otherwise pay for it again.
 TEST_PASSWORD_HASH: Final[str] = generate_password_hash(TEST_PASSWORD)
+# Stands in for the schema details a real sqlite3 error message leaks.
+DB_ERROR_DETAIL: Final[str] = "no such table: secret_internal_table"
+
+
+def broken_db_cursor() -> NoReturn:
+    """Stand in for ``db_cursor()`` against a database that fails on first use."""
+    raise sqlite3.OperationalError(DB_ERROR_DETAIL)
+
 
 _CONFIG_ENV_VARS: Final[tuple[str, ...]] = (
     config.AUTH_ENABLED_ENV,

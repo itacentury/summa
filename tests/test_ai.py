@@ -223,15 +223,16 @@ def test_schema_allows_missing_invoice_id() -> None:
 
 
 def test_api_error_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An Anthropic APIError surfaces as AiCategorizationError."""
+    """An Anthropic APIError surfaces as AiCategorizationError with a generic message."""
     request: httpx.Request = httpx.Request("POST", "https://api.anthropic.com")
     _patch_client(
         monkeypatch,
         error=anthropic.APIConnectionError(message="boom", request=request),
     )
 
-    with pytest.raises(ai.AiCategorizationError):
+    with pytest.raises(ai.AiCategorizationError) as caught:
         ai.suggest_categories([{"id": 1, "store": "A", "items": []}], [], _MODEL)
+    assert caught.value.message == "Claude request failed"
 
 
 def test_invalid_json_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:

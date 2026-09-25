@@ -152,8 +152,14 @@ and shared types/helpers in `summa/helpers.py`. Key conventions:
   the environment, so the two can never disagree.
 - **REST API under `/api/`** (invoices CRUD, `/import`, `/bulk-update`,
   `/bulk-delete`, `/stores`, `/categories`, `/stats`). Handlers return
-  `Response | tuple[Response, int]` (the `ApiResponse` alias) and wrap writes in
-  try/commit/except-rollback/finally-close. `strip_text()` normalizes input
+  `Response | tuple[Response, int]` (the `ApiResponse` alias) and run their
+  queries inside `with db_cursor()`, which commits on success and rolls back on
+  any exception. A `sqlite3.Error` is left to propagate: the one app-wide
+  handler in `create_app()` logs it and answers with a generic 500, so the error
+  text (table and column names) never reaches a client. Catch it in a route only
+  to turn a specific failure into its own answer (an `IntegrityError` into a
+  409). Non-JSON (415) and malformed (400) bodies get the same JSON error shape
+  from their own app-wide handlers. `strip_text()` normalizes input
   (empty string -> `None`). CORS is enabled globally for native mobile clients.
 
 **Portfolio — a second area on the same database.** Depots hold positions, a

@@ -8,7 +8,8 @@ import pytest
 from flask.testing import FlaskClient
 
 from summa import db, helpers
-from tests.conftest import SeedInvoice
+from summa.routes import invoices as invoices_route
+from tests.conftest import DB_ERROR_DETAIL, SeedInvoice, broken_db_cursor
 
 
 def _get_json(response: Any) -> Any:
@@ -1159,6 +1160,35 @@ def test_malformed_json_body_returns_json_400(client: FlaskClient) -> None:
     response = client.post("/api/invoices", data="{", content_type="application/json")
     assert response.status_code == 400
     assert _get_json(response) == {"success": False, "error": "Malformed request"}
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("get", "/api/invoices", None),
+        ("post", "/api/invoices", _invoice_payload()),
+        ("post", "/api/invoices/import", [_invoice_payload()]),
+        ("put", "/api/invoices/1", _invoice_payload()),
+        ("delete", "/api/invoices/1", None),
+        ("put", "/api/invoices/bulk-update", {"ids": [1], "store": "X"}),
+        ("post", "/api/invoices/bulk-delete", {"ids": [1]}),
+    ],
+)
+def test_database_error_returns_generic_500(
+    client: FlaskClient,
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    path: str,
+    body: Any,
+) -> None:
+    """Any database failure becomes a JSON 500 that names no table or column."""
+    monkeypatch.setattr(invoices_route, "db_cursor", broken_db_cursor)
+
+    response = getattr(client, method)(path, json=body)
+
+    assert response.status_code == 500
+    assert _get_json(response) == {"success": False, "error": "Internal server error"}
+    assert DB_ERROR_DETAIL not in response.get_data(as_text=True)
 
 
 # --- GET /api/invoices pagination ---------------------------------------------

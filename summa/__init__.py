@@ -7,6 +7,7 @@ side effects; the eager WSGI ``app`` instance lives in :mod:`summa.wsgi`.
 import logging
 import os
 import secrets
+import sqlite3
 from datetime import timedelta
 from pathlib import Path
 from typing import Final
@@ -152,6 +153,18 @@ def create_app() -> Flask:
     def handle_bad_request(_: BadRequest) -> ApiResponse:
         """Return a malformed request's 400 as JSON instead of Werkzeug's HTML page."""
         return error_response("Malformed request", 400)
+
+    @app.errorhandler(sqlite3.Error)
+    def handle_database_error(error: sqlite3.Error) -> ApiResponse:
+        """Log a database failure and answer with a generic 500.
+
+        ``db_cursor()`` has already rolled back by the time this runs. The error
+        text names tables and columns, so it goes to the log, never the client.
+        """
+        logger.error(
+            "Database error on %s %s", request.method, request.path, exc_info=error
+        )
+        return error_response("Internal server error", 500)
 
     app.register_blueprint(web_bp)
     app.register_blueprint(auth_bp)

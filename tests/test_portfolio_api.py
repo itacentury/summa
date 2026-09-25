@@ -13,7 +13,14 @@ from flask.testing import FlaskClient
 
 from summa import config, db
 from summa.routes import portfolio as portfolio_route
-from tests.conftest import SeedDepot, SeedPosition, SeedSnapshot
+from summa.routes import portfolio_writes
+from tests.conftest import (
+    DB_ERROR_DETAIL,
+    SeedDepot,
+    SeedPosition,
+    SeedSnapshot,
+    broken_db_cursor,
+)
 
 
 def _weeks_ago(weeks: int) -> str:
@@ -1762,6 +1769,19 @@ def test_post_depot_non_json_body_returns_json_415(client: FlaskClient) -> None:
         "success": False,
         "error": "Request body must be JSON",
     }
+
+
+def test_post_depot_database_error_returns_generic_500(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A database failure on a portfolio write is a JSON 500 naming no table."""
+    monkeypatch.setattr(portfolio_writes, "db_cursor", broken_db_cursor)
+
+    response = client.post("/api/portfolio/depots", json={"name": "Deka"})
+
+    assert response.status_code == 500
+    assert response.get_json() == {"success": False, "error": "Internal server error"}
+    assert DB_ERROR_DETAIL not in response.get_data(as_text=True)
 
 
 def test_patch_depot_renames_it(client: FlaskClient, seed_depot: SeedDepot) -> None:

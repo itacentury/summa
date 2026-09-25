@@ -99,6 +99,12 @@ OUTPUT_SCHEMA: Final[dict[str, Any]] = {
 class AiCategorizationError(Exception):
     """Raised when the Claude request fails or returns an unusable response."""
 
+    def __init__(self, message: str) -> None:
+        """:param message: user-facing text, returned by the route as is."""
+        super().__init__(message)
+        # Read via `e.message`, never `str(e)`; see ValidationError in summa.helpers.
+        self.message: str = message
+
 
 @dataclass
 class CategorySuggestion:
@@ -249,7 +255,7 @@ def suggest_categories(
         )
     except anthropic.APIError as error:
         logger.error("Claude categorization request failed: %s", error)
-        raise AiCategorizationError(str(error)) from error
+        raise AiCategorizationError("Claude request failed") from error
 
     # A truncated response would otherwise fail JSON parsing below with a
     # misleading "not valid JSON"; surface the real cause instead.
