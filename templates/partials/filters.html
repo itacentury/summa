@@ -1,4 +1,4 @@
-{% from "partials/_macros.html" import combobox %}
+{% from "partials/_macros.html" import combobox, icon_close %}
 <!-- Filters -->
 <div class="filters">
   <div class="filters-row">
@@ -121,17 +121,7 @@
           data-el="search-close"
           aria-label="Close search"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
+          {{ icon_close(12) }}
         </button>
       </div>
 
@@ -214,17 +204,7 @@
           data-action="close-filter-sheet"
           aria-label="Close filters"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
+          {{ icon_close(12) }}
         </button>
       </div>
       <div class="filters-panel">

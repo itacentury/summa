@@ -41,9 +41,9 @@ export function itemRowInnerHtml(item = null) {
       <input type="number" id="${priceId}" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
     </div>
     <button type="button" class="btn btn-danger btn-sm" data-action="remove-item" aria-label="Remove item">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M18 6 6 18"/>
+        <path d="m6 6 12 12"/>
       </svg>
     </button>
   `;

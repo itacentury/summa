@@ -1,4 +1,20 @@
-{# Reusable markup snippets shared across the modal partials. #}
+{# Reusable markup snippets shared across the partials. #}
+
+{# The X glyph of every close/remove control. #}
+{% macro icon_close(size) -%}
+  <svg
+    width="{{ size }}"
+    height="{{ size }}"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    aria-hidden="true"
+  >
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </svg>
+{%- endmacro %}
 
 {% macro modal_close_button(autofocus=false) -%}
   <button
@@ -8,17 +24,7 @@
     title="Close (Esc)"
     {% if autofocus %}data-autofocus{% endif %}
   >
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
+    {{ icon_close(20) }}
   </button>
 {%- endmacro %}
 
