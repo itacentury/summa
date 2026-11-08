@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -702,20 +702,20 @@ dev = [
     { name = "openpyxl", specifier = ">=3.1.5,<4" },
     { name = "pytest", specifier = ">=8.3,<9" },
     { name = "ruff", specifier = ">=0.14.0,<1" },
-    { name = "types-flask-cors", specifier = ">=6.0.0.20250809,<7" },
+    { name = "types-flask-cors", specifier = ">=6.0.3.20260712,<7" },
 ]
 test = [{ name = "pytest", specifier = ">=8.3,<9" }]
 
 [[package]]
 name = "types-flask-cors"
-version = "6.0.3.20260616"
+version = "6.0.3.20260712"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/cc/2edf29ad1e4e2fb886923f64c917cdeffdffe9a8c4aacdbb0254d18bd3d3/types_flask_cors-6.0.3.20260616.tar.gz", hash = "sha256:01be3febe686e1088ed2502e24655edc17fc9f0aa33aceccd70b8a88a954b9ee", size = 10202, upload-time = "2026-06-16T07:12:00.124Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/95/d019181bd47dc32de454ebab4ff2f1cba09d1807da7823522e92b2d8a579/types_flask_cors-6.0.3.20260712.tar.gz", hash = "sha256:05d6dd4c49e2e8e64076b84caf6389d51327e9c4f3a37d4ccf0278b5b0d8daa1", size = 10231, upload-time = "2026-07-12T05:14:23.55Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/b8/012cae29631499068650fb792597fddba5925360c79d9b8d0b78b83bed1a/types_flask_cors-6.0.3.20260616-py3-none-any.whl", hash = "sha256:3bfe91fcc3925f057275efae8371c256f0f71ea79b16d6160011adf987ec8f1f", size = 9927, upload-time = "2026-06-16T07:11:59.302Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/bc/88f077fde1b3139b714e99db06ed592ecf4fa1b6cbfb54eec50a966f7ecb/types_flask_cors-6.0.3.20260712-py3-none-any.whl", hash = "sha256:308ecfa65c17abc59edbed74258d24099c82f5e94cb1bc4f3016313df4e5e4f0", size = 9939, upload-time = "2026-07-12T05:14:22.64Z" },
 ]
 
 [[package]]
