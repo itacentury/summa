@@ -245,3 +245,33 @@ jobs): it builds both `linux/amd64` and `linux/arm64`, scans the image once with
 `grype` and gates the push on _fixable_ critical CVEs (a `jq` step reads the
 scan's JSON `fix.state`), uploads the full scan SARIF to the Security tab and
 attaches an SPDX SBOM to the pushed image.
+
+Dependency updates are not done by hand: `.github/dependabot.yml` checks weekly
+and bundles the minor/patch updates into one grouped PR for each of the `uv`
+lockfile, the GitHub Actions pins
+(including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
+comment it rewrites together with the SHA), the root npm toolchain and the
+separately locked `scripts/screenshots/` package. Its `uv lock` runs still
+honour the certifi floor in `[tool.uv] constraint-dependencies`, and security
+advisories arrive as separate, immediate PRs regardless of the weekly schedule.
+Version updates also wait out a 7-day `cooldown` after a release is published,
+the window in which hijacked releases are usually caught and yanked; security
+updates bypass it.
+Major version bumps are kept out of the groups and arrive as one PR each, so a
+breaking major fails CI on its own instead of holding back the routine patches.
+For the `uv` entry this includes majors beyond a declared upper bound in
+`pyproject.toml`: Dependabot rewrites the requirement itself, moving both
+bounds (e.g. pytest `>=8.3,<9` → `>=9.0.3,<10`), so lifting a cap arrives as a
+reviewable PR rather than a manual edit — and merging it drops the previous
+major entirely. The caps only stop an unattended `uv lock --upgrade` from
+crossing a major.
+The Dockerfile is the exception to the grouping: Dependabot's docker entry
+effectively watches only the `uv` stage (a named `FROM` stage rather than an
+inline `COPY --from=<image>` so Dependabot can see it) and opens one PR per uv
+release. It proposes nothing for `python:3.12-slim` — it keeps the tag's `X.Y`
+precision, and python minor/major bumps are ignored on purpose, because moving
+off 3.12 is a manual change together with `requires-python` and ruff's
+`target-version`. Base-image patches (new 3.12.x builds, Debian security fixes)
+arrive through the floating tag instead: the `docker` workflow's Sunday cron
+sets `REFRESH_BASE`, which rebuilds with `pull` and `no-cache` against the
+current base.
