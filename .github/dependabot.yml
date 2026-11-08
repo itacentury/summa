@@ -15,3 +15,30 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      frontend-tooling:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /scripts/screenshots
+    schedule:
+      interval: weekly
+    groups:
+      screenshots:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # The image tracks the project's minimum Python (requires-python >=3.12,
+      # ruff target py312); moving it is a deliberate decision, not a bump.
+      - dependency-name: python
+        update-types:
+          ["version-update:semver-major", "version-update:semver-minor"]

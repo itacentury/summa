@@ -1,7 +1,9 @@
+FROM ghcr.io/astral-sh/uv:0.11.29 AS uv
+
 FROM python:3.12-slim AS builder
 
 # Provide uv (pinned for reproducible builds)
-COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /bin/
+COPY --from=uv /uv /bin/
 
 WORKDIR /app
 

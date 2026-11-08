@@ -247,8 +247,14 @@ scan's JSON `fix.state`), uploads the full scan SARIF to the Security tab and
 attaches an SPDX SBOM to the pushed image.
 
 Dependency updates are not done by hand: `.github/dependabot.yml` opens one
-grouped PR per week each for the `uv` lockfile and the GitHub Actions pins —
-including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
-comment it rewrites together with the SHA. Its `uv lock` runs still honour the
-certifi floor in `[tool.uv] constraint-dependencies`, and security advisories
-arrive as separate, immediate PRs regardless of the weekly schedule.
+grouped PR per week for each of the `uv` lockfile, the GitHub Actions pins
+(including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
+comment it rewrites together with the SHA), the root npm toolchain, the
+separately locked `scripts/screenshots/` package and the Dockerfile's images
+(`python:*-slim` and the `uv` stage — a named `FROM` stage rather than an
+inline `COPY --from=<image>` so Dependabot can see it). Its `uv lock` runs still
+honour the certifi floor in `[tool.uv] constraint-dependencies`, and security
+advisories arrive as separate, immediate PRs regardless of the weekly schedule.
+Minor and major bumps of the Python base image are ignored on purpose: moving
+off 3.12 is a manual change together with `requires-python` and ruff's
+`target-version`.
