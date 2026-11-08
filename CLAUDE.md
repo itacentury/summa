@@ -259,8 +259,11 @@ the window in which hijacked releases are usually caught and yanked; security
 updates bypass it.
 Major version bumps are kept out of the groups and arrive as one PR each, so a
 breaking major fails CI on its own instead of holding back the routine patches.
-A major that a declared upper bound in `pyproject.toml` excludes (e.g. pytest
-`<9`) may never be proposed — lifting such a cap stays a manual step.
+For the `uv` entry this includes majors beyond a declared upper bound in
+`pyproject.toml`: Dependabot rewrites the requirement itself (e.g. pytest
+`>=8.3,<9` → `>=8.3,<10`), so lifting a cap arrives as a reviewable PR rather
+than a manual edit. The caps only stop an unattended `uv lock --upgrade` from
+crossing a major.
 The Dockerfile is the exception to the grouping: Dependabot's docker entry
 effectively watches only the `uv` stage (a named `FROM` stage rather than an
 inline `COPY --from=<image>` so Dependabot can see it) and opens one PR per uv
