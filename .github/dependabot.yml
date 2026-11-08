@@ -7,6 +7,7 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -15,6 +16,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: /
@@ -23,6 +25,7 @@ updates:
     groups:
       frontend-tooling:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: /scripts/screenshots
@@ -31,6 +34,7 @@ updates:
     groups:
       screenshots:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: docker
     directory: /

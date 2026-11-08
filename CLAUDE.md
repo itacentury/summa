@@ -246,8 +246,9 @@ jobs): it builds both `linux/amd64` and `linux/arm64`, scans the image once with
 scan's JSON `fix.state`), uploads the full scan SARIF to the Security tab and
 attaches an SPDX SBOM to the pushed image.
 
-Dependency updates are not done by hand: `.github/dependabot.yml` opens one
-grouped PR per week for each of the `uv` lockfile, the GitHub Actions pins
+Dependency updates are not done by hand: `.github/dependabot.yml` checks weekly
+and bundles the minor/patch updates into one grouped PR for each of the `uv`
+lockfile, the GitHub Actions pins
 (including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
 comment it rewrites together with the SHA), the root npm toolchain, the
 separately locked `scripts/screenshots/` package and the Dockerfile's images
@@ -255,6 +256,10 @@ separately locked `scripts/screenshots/` package and the Dockerfile's images
 inline `COPY --from=<image>` so Dependabot can see it). Its `uv lock` runs still
 honour the certifi floor in `[tool.uv] constraint-dependencies`, and security
 advisories arrive as separate, immediate PRs regardless of the weekly schedule.
+Major version bumps are kept out of the groups and arrive as one PR each, so a
+breaking major fails CI on its own instead of holding back the routine patches.
+A major that a declared upper bound in `pyproject.toml` excludes (e.g. pytest
+`<9`) may never be proposed — lifting such a cap stays a manual step.
 Minor and major bumps of the Python base image are ignored on purpose: moving
 off 3.12 is a manual change together with `requires-python` and ruff's
 `target-version`.
