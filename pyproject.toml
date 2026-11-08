@@ -18,7 +18,7 @@ dev = [
     "openpyxl>=3.1.5,<4",
     {include-group = "test"},
 ]
-test = ["pytest>=8.3,<9"]
+test = ["pytest>=9.2.0,<10"]
 
 [tool.uv]
 # certifi is transitive (anthropic -> httpx); floor it so a regenerated lock
