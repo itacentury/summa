@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Invoice management and expense tracking web application."
 requires-python = ">=3.12"
 dependencies = [
-    "anthropic>=0.116,<1",
+    "anthropic>=2.3.0,<3",
     "flask>=3.1.2,<4",
     "flask-cors>=6.0.2,<7",
     "gunicorn>=25.0.0,<27",
