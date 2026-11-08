@@ -4,6 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       python:
         patterns: ["*"]
@@ -13,6 +15,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -22,6 +26,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       frontend-tooling:
         patterns: ["*"]
@@ -31,6 +37,8 @@ updates:
     directory: /scripts/screenshots
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       screenshots:
         patterns: ["*"]
@@ -40,6 +48,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     ignore:
       # The image tracks the project's minimum Python (requires-python >=3.12,
       # ruff target py312); moving it is a deliberate decision, not a bump.

@@ -256,6 +256,9 @@ separately locked `scripts/screenshots/` package and the Dockerfile's images
 inline `COPY --from=<image>` so Dependabot can see it). Its `uv lock` runs still
 honour the certifi floor in `[tool.uv] constraint-dependencies`, and security
 advisories arrive as separate, immediate PRs regardless of the weekly schedule.
+Version updates also wait out a 7-day `cooldown` after a release is published,
+the window in which hijacked releases are usually caught and yanked; security
+updates bypass it.
 Major version bumps are kept out of the groups and arrive as one PR each, so a
 breaking major fails CI on its own instead of holding back the routine patches.
 A major that a declared upper bound in `pyproject.toml` excludes (e.g. pytest
