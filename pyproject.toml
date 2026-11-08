@@ -20,6 +20,11 @@ dev = [
 ]
 test = ["pytest>=8.3,<9"]
 
+[tool.uv]
+# certifi is transitive (anthropic -> httpx); floor it so a regenerated lock
+# cannot resolve a release older than the critical-CVE fix.
+constraint-dependencies = ["certifi>=2026.10.23"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"
