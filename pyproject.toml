@@ -7,12 +7,12 @@ dependencies = [
     "anthropic>=0.116,<1",
     "flask>=3.1.2,<4",
     "flask-cors>=6.0.2,<7",
-    "gunicorn>=25.0.0,<27",
+    "gunicorn>=26.2.0,<27",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.14.0,<1",
+    "ruff>=0.17.3,<1",
     "mypy>=1.13.0,<2",
     "types-flask-cors>=6.0.0.20250809,<7",
     "openpyxl>=3.1.5,<4",
