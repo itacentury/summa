@@ -14,7 +14,7 @@ dependencies = [
 dev = [
     "ruff>=0.14.0,<1",
     "mypy>=1.13.0,<2",
-    "types-flask-cors>=6.0.0.20250809,<7",
+    "types-flask-cors>=6.0.3.20260712,<7",
     "openpyxl>=3.1.5,<4",
     {include-group = "test"},
 ]
