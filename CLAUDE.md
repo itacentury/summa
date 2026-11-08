@@ -250,10 +250,8 @@ Dependency updates are not done by hand: `.github/dependabot.yml` checks weekly
 and bundles the minor/patch updates into one grouped PR for each of the `uv`
 lockfile, the GitHub Actions pins
 (including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
-comment it rewrites together with the SHA), the root npm toolchain, the
-separately locked `scripts/screenshots/` package and the Dockerfile's images
-(`python:*-slim` and the `uv` stage — a named `FROM` stage rather than an
-inline `COPY --from=<image>` so Dependabot can see it). Its `uv lock` runs still
+comment it rewrites together with the SHA), the root npm toolchain and the
+separately locked `scripts/screenshots/` package. Its `uv lock` runs still
 honour the certifi floor in `[tool.uv] constraint-dependencies`, and security
 advisories arrive as separate, immediate PRs regardless of the weekly schedule.
 Version updates also wait out a 7-day `cooldown` after a release is published,
@@ -263,6 +261,13 @@ Major version bumps are kept out of the groups and arrive as one PR each, so a
 breaking major fails CI on its own instead of holding back the routine patches.
 A major that a declared upper bound in `pyproject.toml` excludes (e.g. pytest
 `<9`) may never be proposed — lifting such a cap stays a manual step.
-Minor and major bumps of the Python base image are ignored on purpose: moving
+The Dockerfile is the exception to the grouping: Dependabot's docker entry
+effectively watches only the `uv` stage (a named `FROM` stage rather than an
+inline `COPY --from=<image>` so Dependabot can see it) and opens one PR per uv
+release. It proposes nothing for `python:3.12-slim` — it keeps the tag's `X.Y`
+precision, and python minor/major bumps are ignored on purpose, because moving
 off 3.12 is a manual change together with `requires-python` and ruff's
-`target-version`.
+`target-version`. Base-image patches (new 3.12.x builds, Debian security fixes)
+arrive through the floating tag instead: the `docker` workflow's Sunday cron
+sets `REFRESH_BASE`, which rebuilds with `pull` and `no-cache` against the
+current base.
