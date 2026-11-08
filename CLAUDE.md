@@ -245,3 +245,10 @@ jobs): it builds both `linux/amd64` and `linux/arm64`, scans the image once with
 `grype` and gates the push on _fixable_ critical CVEs (a `jq` step reads the
 scan's JSON `fix.state`), uploads the full scan SARIF to the Security tab and
 attaches an SPDX SBOM to the pushed image.
+
+Dependency updates are not done by hand: `.github/dependabot.yml` opens one
+grouped PR per week each for the `uv` lockfile and the GitHub Actions pins —
+including the SHA-pinned `astral-sh/setup-uv` in `ci.yml`, whose `# vX.Y.Z`
+comment it rewrites together with the SHA. Its `uv lock` runs still honour the
+certifi floor in `[tool.uv] constraint-dependencies`, and security advisories
+arrive as separate, immediate PRs regardless of the weekly schedule.
