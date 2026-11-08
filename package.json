@@ -19,16 +19,16 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@html-eslint/eslint-plugin": "^0.62.0",
-    "@html-eslint/parser": "^0.62.0",
+    "@html-eslint/eslint-plugin": "^0.67.0",
+    "@html-eslint/parser": "^0.67.0",
     "cross-env": "^10.1.0",
-    "eslint": "^10.5.0",
-    "globals": "^17.7.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "happy-dom": "^20.0.0",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.10",
     "prettier-plugin-jinja-template": "^2.2.0",
-    "stylelint": "^17.13.0",
-    "stylelint-config-recess-order": "^7.7.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-recess-order": "^7.9.0",
     "stylelint-config-standard": "^40.0.0",
     "vitest": "^4.0.18"
   }
