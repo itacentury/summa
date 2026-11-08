@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Build the exact commit CI validated; empty on other events, so
           # checkout falls back to its default ref there.
@@ -55,24 +55,24 @@ jobs:
           echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           # Only linux/arm64 is cross-built; amd64 runs natively on the runner
           platforms: arm64
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKER_USERNAME }}/summa
           tags: |
@@ -96,7 +96,7 @@ jobs:
       # arm64 layers would be dropped — silently reintroducing a second, emulated
       # arm64 compile in the push step. Keep the scopes distinct.
       - name: Build local image for scan
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
@@ -118,7 +118,7 @@ jobs:
 
       - name: Install grype
         id: grype
-        uses: anchore/scan-action/download-grype@v6
+        uses: anchore/scan-action/download-grype@v7
 
       # One grype run over the loaded amd64 image, emitting three outputs from a
       # single scan (no second catalog pass): a full-inventory table (the report
@@ -176,7 +176,7 @@ jobs:
           always()
           && hashFiles('grype-results.sarif') != ''
           && github.event.pull_request.head.repo.fork != true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: grype-results.sarif
 
@@ -187,7 +187,7 @@ jobs:
       # the amd64 scan-build step's refresh semantics so arm64 is genuinely
       # rebuilt on schedule/manual runs.
       - name: Build arm64 for cache
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/arm64
@@ -199,7 +199,7 @@ jobs:
           no-cache: ${{ env.REFRESH_BASE == 'true' }}
 
       - name: Build and push with cache
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
