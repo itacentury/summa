@@ -36,7 +36,7 @@ export function itemRowInnerHtml(item = null) {
     </div>
     <div class="form-group">
       <label class="form-label">Price</label>
-      <input type="text" inputmode="decimal" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <input type="text" class="form-input item-price" placeholder="0.00"${priceValue}>
     </div>
     <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

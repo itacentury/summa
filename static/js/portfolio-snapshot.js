@@ -88,7 +88,7 @@ function rowHtml(position) {
       </label>
       <label class="snapshot-input snapshot-cell-deposit">
         <span class="snapshot-input-prefix" aria-hidden="true">${symbol}</span>
-        <input type="text" inputmode="decimal" data-field="deposit"
+        <input type="text" data-field="deposit"
                aria-label="${name} deposit" placeholder="0.00" />
       </label>
       <span class="snapshot-cell-delta"></span>
