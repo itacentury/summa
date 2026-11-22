@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ambiguousAmountReadings,
   applyCategoryBadge,
   capAtToday,
   categoryColorVar,
@@ -438,5 +439,36 @@ describe("isAmbiguousAmountInput", () => {
 
     input.value = "2.500";
     expect(isAmbiguousAmountInput(input)).toBe(true);
+  });
+});
+
+describe("ambiguousAmountReadings", () => {
+  it("offers both spellings in the user's own separator", () => {
+    expect(ambiguousAmountReadings("1,799")).toEqual({
+      thousands: "1799",
+      decimal: "1,7990",
+    });
+    expect(ambiguousAmountReadings("1.799")).toEqual({
+      thousands: "1799",
+      decimal: "1.7990",
+    });
+  });
+
+  it("keeps the sign and drops currency symbols and spaces", () => {
+    expect(ambiguousAmountReadings("-1.250")).toEqual({
+      thousands: "-1250",
+      decimal: "-1.2500",
+    });
+    expect(ambiguousAmountReadings(" €1.799 ")).toEqual({
+      thousands: "1799",
+      decimal: "1.7990",
+    });
+  });
+
+  // Each suggestion must read back as the value it promises.
+  it("suggests spellings the parser reads unambiguously", () => {
+    const { thousands, decimal } = ambiguousAmountReadings("1,799");
+    expect(parseAmountInput(thousands)).toBe(1799);
+    expect(parseAmountInput(decimal)).toBe(1.799);
   });
 });

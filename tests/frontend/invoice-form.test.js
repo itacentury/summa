@@ -249,7 +249,10 @@ describe("invoice price fields", () => {
   // `1.799` is both 1799 (grouping) and 1.799 (three decimals); saving either
   // reading silently could be off by a factor of 1000.
   it("blocks the save on an ambiguous three-digit price", async () => {
-    for (const text of ["1.799", "1,799"]) {
+    for (const [text, decimal] of [
+      ["1.799", "1.7990"],
+      ["1,799", "1,7990"],
+    ]) {
       vi.mocked(showErrorToast).mockClear();
       mountForm([["Diesel", text]]);
 
@@ -257,10 +260,20 @@ describe("invoice price fields", () => {
 
       expect(sendJson, text).not.toHaveBeenCalled();
       expect(showErrorToast).toHaveBeenCalledWith(
-        'Ambiguous price for "Diesel": write 1799 or 1.799,00 for thousands',
+        `Ambiguous price for "Diesel": write 1799 for thousands or ${decimal} for three decimals`,
       );
       const price = document.querySelector(".item-price");
       expect(document.activeElement).toBe(price);
     }
+  });
+
+  // The toast's three-decimal suggestion must itself be accepted.
+  it("saves the suggested four-digit spelling as three decimals", async () => {
+    mountForm([["Diesel", "1,7990"]]);
+
+    await saveInvoice();
+
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items).toEqual([{ item_name: "Diesel", item_price: 1.799 }]);
   });
 });

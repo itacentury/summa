@@ -352,3 +352,14 @@ export function isAmbiguousAmountInput(input) {
   if (stored !== undefined && input.value === input.defaultValue) return false;
   return /^-?[1-9]\d{0,2}[.,]\d{3}$/.test(cleanAmountText(input.value));
 }
+
+/**
+ * The two unambiguous spellings of an ambiguous amount (`1,799`): grouping
+ * dropped (`1799`) and a fourth fraction digit (`1,7990`), which the parser
+ * keeps as a decimal. Built from the user's own text so the hint keeps their
+ * separator.
+ */
+export function ambiguousAmountReadings(text) {
+  const cleaned = cleanAmountText(text);
+  return { thousands: cleaned.replace(/[.,]/, ""), decimal: `${cleaned}0` };
+}

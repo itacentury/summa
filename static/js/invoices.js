@@ -30,6 +30,7 @@ import {
 } from "./render.js";
 import { apiFetch, sendJson } from "./http.js";
 import {
+  ambiguousAmountReadings,
   isAmbiguousAmountInput,
   readAmountInput,
   withBusyButton,
@@ -78,8 +79,9 @@ export async function saveInvoice() {
       return;
     }
     if (isAmbiguousAmountInput(priceInput)) {
+      const { thousands, decimal } = ambiguousAmountReadings(priceInput.value);
       showErrorToast(
-        `Ambiguous price for "${name}": write 1799 or 1.799,00 for thousands`,
+        `Ambiguous price for "${name}": write ${thousands} for thousands or ${decimal} for three decimals`,
       );
       priceInput.focus();
       return;
