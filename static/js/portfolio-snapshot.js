@@ -76,6 +76,8 @@ function rowHtml(position) {
     ? `<span class="snapshot-row-stale" title="The previous reading was carried forward, not entered — this row compares against a copied value."> · last value carried</span>`
     : "";
 
+  // Known limitation: inputmode="decimal" gives iOS a pad without a minus key,
+  // so a withdrawal (negative deposit) has to be pasted or entered on desktop.
   return `
     <div class="snapshot-row" data-position-id="${position.id}">
       <span class="snapshot-cell-name">${name}<span class="snapshot-row-currency"> · ${escapeHtml(
@@ -88,7 +90,7 @@ function rowHtml(position) {
       </label>
       <label class="snapshot-input snapshot-cell-deposit">
         <span class="snapshot-input-prefix" aria-hidden="true">${symbol}</span>
-        <input type="text" data-field="deposit"
+        <input type="text" inputmode="decimal" data-field="deposit"
                aria-label="${name} deposit" placeholder="0.00" />
       </label>
       <span class="snapshot-cell-delta"></span>

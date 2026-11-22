@@ -84,10 +84,13 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Price</label>
-                {# No inputmode="decimal": iOS's decimal pad has no minus key,
-                   and discounts / deposit returns are negative prices. #}
+                {# Known limitation: iOS's decimal pad has no minus key, so a
+                   negative price (discount, deposit return) can't be typed
+                   there; paste it or enter it on desktop. Accepted so phones
+                   open a keypad for the everyday positive price. #}
                 <input
                   type="text"
+                  inputmode="decimal"
                   class="form-input item-price"
                   placeholder="0.00"
                 />
