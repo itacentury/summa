@@ -58,7 +58,12 @@ export async function saveInvoice() {
     const name = row.querySelector(".item-name").value;
     const priceInput = row.querySelector(".item-price");
     const price = readAmountInput(priceInput);
-    if (!name || price === null) continue;
+    if (!name) continue;
+    if (price === null) {
+      showErrorToast(`Missing price for "${name}"`);
+      priceInput.focus();
+      return;
+    }
     if (Number.isNaN(price)) {
       showErrorToast(`Invalid price for "${name}"`);
       priceInput.focus();

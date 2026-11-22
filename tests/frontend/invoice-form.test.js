@@ -175,6 +175,23 @@ describe("invoice price fields", () => {
     expect(document.activeElement).toBe(breadPrice);
   });
 
+  it("blocks the save on a named item without a price", async () => {
+    for (const text of ["", "  "]) {
+      vi.mocked(showErrorToast).mockClear();
+      mountForm([
+        ["Milk", "1,5"],
+        ["Bread", text],
+      ]);
+
+      await saveInvoice();
+
+      expect(sendJson, JSON.stringify(text)).not.toHaveBeenCalled();
+      expect(showErrorToast).toHaveBeenCalledWith('Missing price for "Bread"');
+      const breadPrice = document.querySelectorAll(".item-price")[1];
+      expect(document.activeElement).toBe(breadPrice);
+    }
+  });
+
   // `1.799` is both 1799 (grouping) and 1.799 (three decimals); saving either
   // reading silently could be off by a factor of 1000.
   it("blocks the save on an ambiguous three-digit price", async () => {
