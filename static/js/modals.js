@@ -61,34 +61,44 @@ export function itemRowInnerHtml(item = null) {
 }
 
 /**
- * Show or clear the ambiguous-price flag and its text hint on one price field,
- * and report whether the field is ambiguous.
+ * Why save would refuse this price field, or `null` when it would accept it.
+ * A blank field is not invalid here; save reports a missing price itself.
  */
-export function flagAmbiguousPrice(input) {
-  const isAmbiguous = isAmbiguousAmountInput(input);
-  const hint = input
-    .closest(".item-input-row")
-    .querySelector(".item-price-error");
-  input.setAttribute("aria-invalid", String(isAmbiguous));
-  hint.classList.toggle("is-hidden", !isAmbiguous);
-  if (!isAmbiguous) {
-    hint.textContent = "";
-    return false;
+function invalidPriceHint(input) {
+  if (isAmbiguousAmountInput(input)) {
+    const { thousands, decimal } = ambiguousAmountReadings(input.value);
+    return `Ambiguous: write ${thousands} for thousands or ${decimal} for three decimals.`;
   }
-  const { thousands, decimal } = ambiguousAmountReadings(input.value);
-  hint.textContent = `Ambiguous: write ${thousands} for thousands or ${decimal} for three decimals.`;
-  return true;
+  if (Number.isNaN(readAmountInput(input))) {
+    return "Invalid price: use digits with , or . as the decimal separator.";
+  }
+  return null;
 }
 
 /**
- * Clear a flagged price field as soon as its value is no longer ambiguous.
- * Never raises the flag: `1.234,56` passes through `1.234` while typing, so
- * only leaving the field (or a refused save) may do that.
+ * Show or clear the invalid-price flag and its text hint on one price field
+ * (ambiguous or unparseable), and report whether the field is flagged.
+ */
+export function flagInvalidPrice(input) {
+  const message = invalidPriceHint(input);
+  const hint = input
+    .closest(".item-input-row")
+    .querySelector(".item-price-error");
+  input.setAttribute("aria-invalid", String(message !== null));
+  hint.classList.toggle("is-hidden", message === null);
+  hint.textContent = message ?? "";
+  return message !== null;
+}
+
+/**
+ * Clear a flagged price field as soon as its value is valid again. Never
+ * raises the flag: `1.234,56` passes through `1.234` and `12,5` through `12,`
+ * while typing, so only leaving the field (or a refused save) may do that.
  */
 export function clearPriceFlagIfResolved(input) {
   if (input.getAttribute("aria-invalid") !== "true") return;
-  if (isAmbiguousAmountInput(input)) return;
-  flagAmbiguousPrice(input);
+  if (invalidPriceHint(input) !== null) return;
+  flagInvalidPrice(input);
 }
 
 /**
@@ -258,11 +268,13 @@ export function calculateTotal() {
   const prices = document.querySelectorAll(".item-input-row .item-price");
   let total = 0;
   prices.forEach((input) => {
-    // Save refuses an ambiguous price, so the total must not count its
-    // thousands reading either; flagAmbiguousPrice explains why once the
-    // user leaves the field.
+    // Save refuses an ambiguous or unparseable price, so the total must not
+    // count it either; flagInvalidPrice explains why once the user leaves
+    // the field.
     if (isAmbiguousAmountInput(input)) return;
-    total += readAmountInput(input) || 0;
+    const price = readAmountInput(input);
+    if (Number.isNaN(price)) return;
+    total += price ?? 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
     formatCurrency(total),
@@ -314,7 +326,7 @@ export function setupModalListeners() {
   });
   // focusout, not blur: blur doesn't bubble to the delegating container.
   itemsContainer.addEventListener("focusout", (event) => {
-    if (event.target.matches(".item-price")) flagAmbiguousPrice(event.target);
+    if (event.target.matches(".item-price")) flagInvalidPrice(event.target);
   });
   itemsContainer.addEventListener("click", (event) => {
     const removeButton = event.target.closest('[data-action="remove-item"]');

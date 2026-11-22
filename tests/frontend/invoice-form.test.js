@@ -29,7 +29,7 @@ import { showErrorToast } from "../../static/js/toast.js";
 import {
   calculateTotal,
   clearPriceFlagIfResolved,
-  flagAmbiguousPrice,
+  flagInvalidPrice,
   itemRowInnerHtml,
 } from "../../static/js/modals.js";
 import { saveInvoice } from "../../static/js/invoices.js";
@@ -147,8 +147,8 @@ describe("invoice price fields", () => {
     const [ambiguous, plain] = document.querySelectorAll(".item-price");
     const [hint, plainHint] = document.querySelectorAll(".item-price-error");
 
-    expect(flagAmbiguousPrice(ambiguous)).toBe(true);
-    expect(flagAmbiguousPrice(plain)).toBe(false);
+    expect(flagInvalidPrice(ambiguous)).toBe(true);
+    expect(flagInvalidPrice(plain)).toBe(false);
 
     expect(ambiguous.getAttribute("aria-invalid")).toBe("true");
     expect(plain.getAttribute("aria-invalid")).toBe("false");
@@ -170,12 +170,53 @@ describe("invoice price fields", () => {
     expect(price.getAttribute("aria-invalid")).not.toBe("true");
     expect(hint.classList.contains("is-hidden")).toBe(true);
 
-    flagAmbiguousPrice(price);
+    flagInvalidPrice(price);
     price.value = "2,5000";
     clearPriceFlagIfResolved(price);
 
     expect(price.getAttribute("aria-invalid")).toBe("false");
     expect(hint.classList.contains("is-hidden")).toBe(true);
+  });
+
+  // The live total drops an unparseable price, so the flag must explain why.
+  it("flags an unparseable price the total leaves out", () => {
+    mountForm([
+      ["Milk", "1,5"],
+      ["Bread", "12,5x"],
+    ]);
+    const [, broken] = document.querySelectorAll(".item-price");
+    const [, hint] = document.querySelectorAll(".item-price-error");
+
+    calculateTotal();
+    expect(
+      document.querySelector('[data-el="calculated-total"]').textContent,
+    ).toBe("1.50 €");
+
+    expect(flagInvalidPrice(broken)).toBe(true);
+    expect(broken.getAttribute("aria-invalid")).toBe("true");
+    expect(hint.classList.contains("is-hidden")).toBe(false);
+    expect(hint.textContent).toBe(
+      "Invalid price: use digits with , or . as the decimal separator.",
+    );
+  });
+
+  it("clears an unparseable flag once corrected, never raises it mid-typing", () => {
+    mountForm([["Bread", "12"]]);
+    const price = document.querySelector(".item-price");
+    const hint = document.querySelector(".item-price-error");
+
+    price.value = "12,";
+    clearPriceFlagIfResolved(price);
+    expect(price.getAttribute("aria-invalid")).not.toBe("true");
+
+    flagInvalidPrice(price);
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+    price.value = "12,5";
+    clearPriceFlagIfResolved(price);
+
+    expect(price.getAttribute("aria-invalid")).toBe("false");
+    expect(hint.classList.contains("is-hidden")).toBe(true);
+    expect(hint.textContent).toBe("");
   });
 
   // Edit pre-fills the stored number in JS notation, which the parser would
@@ -333,6 +374,20 @@ describe("invoice price fields", () => {
       const hint = document.querySelector(".item-price-error");
       expect(hint.classList.contains("is-hidden")).toBe(false);
     }
+  });
+
+  it("flags an unparseable price when the save refuses it", async () => {
+    mountForm([["Bread", "12,5x"]]);
+
+    await saveInvoice();
+
+    expect(sendJson).not.toHaveBeenCalled();
+    expect(showErrorToast).toHaveBeenCalledWith('Invalid price for "Bread"');
+    const price = document.querySelector(".item-price");
+    expect(document.activeElement).toBe(price);
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+    const hint = document.querySelector(".item-price-error");
+    expect(hint.classList.contains("is-hidden")).toBe(false);
   });
 
   // The toast's three-decimal suggestion must itself be accepted.

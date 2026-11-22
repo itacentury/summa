@@ -15,7 +15,7 @@ import {
 } from "./api.js";
 import {
   closeAddModal,
-  flagAmbiguousPrice,
+  flagInvalidPrice,
   validateInvoiceDate,
 } from "./modals.js";
 import { getCombobox } from "./combobox.js";
@@ -79,6 +79,7 @@ export async function saveInvoice() {
     }
     if (Number.isNaN(price)) {
       showErrorToast(`Invalid price for "${name}"`);
+      flagInvalidPrice(priceInput);
       priceInput.focus();
       return;
     }
@@ -87,7 +88,7 @@ export async function saveInvoice() {
       showErrorToast(
         `Ambiguous price for "${name}": write ${thousands} for thousands or ${decimal} for three decimals`,
       );
-      flagAmbiguousPrice(priceInput);
+      flagInvalidPrice(priceInput);
       priceInput.focus();
       return;
     }
