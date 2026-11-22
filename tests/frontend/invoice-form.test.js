@@ -1,0 +1,106 @@
+/**
+ * Frontend unit tests for the price fields of the add/edit invoice form: they
+ * share the portfolio's parser, so a German `12,50` reads the same as `12.50`
+ * in both the live total and the saved payload.
+ */
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../static/js/http.js", () => ({
+  apiFetch: vi.fn(),
+  sendJson: vi.fn(),
+}));
+vi.mock("../../static/js/api.js", () => ({
+  fetchInvoiceItems: vi.fn(),
+  loadCategories: vi.fn(),
+  loadInvoices: vi.fn(),
+  loadStores: vi.fn(),
+  reloadCurrentPage: vi.fn(),
+}));
+vi.mock("../../static/js/toast.js", () => ({
+  hasPendingToast: vi.fn(() => false),
+  showErrorToast: vi.fn(),
+  showNoticeToast: vi.fn(),
+  showUndoToast: vi.fn(),
+}));
+
+import { sendJson } from "../../static/js/http.js";
+import { showErrorToast } from "../../static/js/toast.js";
+import { calculateTotal, itemRowInnerHtml } from "../../static/js/modals.js";
+import { saveInvoice } from "../../static/js/invoices.js";
+import { state } from "../../static/js/state.js";
+import { todayIso } from "../../static/js/dom.js";
+
+function mountForm(rows) {
+  const rowHtml = rows
+    .map(
+      ([name, price]) =>
+        `<div class="item-input-row">${itemRowInnerHtml({ item_name: name, item_price: price })}</div>`,
+    )
+    .join("");
+  document.body.innerHTML = `
+    <div data-el="add-invoice-modal">
+      <input data-el="invoice-date" value="${todayIso()}" />
+      <p class="is-hidden" data-el="invoice-date-error"></p>
+      <input data-el="invoice-store" value="Rewe" />
+      <input data-el="invoice-type" value="" />
+      <div data-el="items-container">${rowHtml}</div>
+      <span data-el="calculated-total"></span>
+      <button data-action="save"></button>
+    </div>
+  `;
+}
+
+beforeEach(() => {
+  state.editingInvoiceId = null;
+  vi.mocked(sendJson).mockReset();
+  vi.mocked(sendJson).mockResolvedValue({ ok: true, json: async () => ({}) });
+  vi.mocked(showErrorToast).mockClear();
+});
+
+describe("invoice price fields", () => {
+  it("counts a comma decimal in the live total", () => {
+    mountForm([
+      ["Milk", "12,50"],
+      ["Bread", "1.234,5"],
+    ]);
+
+    calculateTotal();
+
+    const total = document.querySelector('[data-el="calculated-total"]');
+    expect(total.textContent).toBe("1247.00 €");
+  });
+
+  it("sends both notations as numbers", async () => {
+    mountForm([
+      ["Milk", "1,5"],
+      ["Bread", "2.25"],
+    ]);
+
+    await saveInvoice();
+
+    expect(sendJson).toHaveBeenCalledTimes(1);
+    const [url, method, payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(url).toBe("/api/invoices");
+    expect(method).toBe("POST");
+    expect(payload.items).toEqual([
+      { item_name: "Milk", item_price: 1.5 },
+      { item_name: "Bread", item_price: 2.25 },
+    ]);
+    expect(payload.total).toBe(3.75);
+  });
+
+  it("blocks the save on an unparseable price", async () => {
+    mountForm([
+      ["Milk", "1,5"],
+      ["Bread", "abc"],
+    ]);
+
+    await saveInvoice();
+
+    expect(sendJson).not.toHaveBeenCalled();
+    expect(showErrorToast).toHaveBeenCalledWith('Invalid price for "Bread"');
+    const breadPrice = document.querySelectorAll(".item-price")[1];
+    expect(document.activeElement).toBe(breadPrice);
+  });
+});

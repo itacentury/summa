@@ -14,7 +14,6 @@ import {
   setupSnapshotListeners,
 } from "../../static/js/portfolio-snapshot.js";
 import { setupPositionListeners } from "../../static/js/portfolio-position.js";
-import { parseAmountInput } from "../../static/js/portfolio-format.js";
 import { loadPortfolio } from "../../static/js/portfolio.js";
 import { showErrorToast, showNoticeToast } from "../../static/js/toast.js";
 import { todayIso } from "../../static/js/dom.js";
@@ -155,44 +154,6 @@ async function openForm(payload = prefill()) {
 
 const lastRequest = () => global.fetch.mock.calls.at(-1);
 const lastBody = () => JSON.parse(lastRequest()[1].body);
-
-describe("parseAmountInput", () => {
-  it("reads both the German and the English notation", () => {
-    const cases = [
-      ["1.234,56", 1234.56],
-      ["1234,56", 1234.56],
-      ["1,234.56", 1234.56],
-      ["1234.56", 1234.56],
-      ["1.234", 1234],
-      ["1,234", 1234],
-      ["12.34", 12.34],
-      ["12,34", 12.34],
-      ["-12,5", -12.5],
-      ["1 234,56", 1234.56],
-      ["€1.437,38", 1437.38],
-      ["$1,234.56", 1234.56],
-      ["£1,234.56", 1234.56],
-      ["0", 0],
-    ];
-    for (const [text, expected] of cases) {
-      expect(parseAmountInput(text), text).toBe(expected);
-    }
-  });
-
-  it("reports a blank field as null, not as zero", () => {
-    // The API reads null as "carry the previous value forward"; zero would
-    // record the position as worthless.
-    expect(parseAmountInput("")).toBeNull();
-    expect(parseAmountInput("   ")).toBeNull();
-    expect(parseAmountInput(null)).toBeNull();
-  });
-
-  it("reports an unparseable field as NaN", () => {
-    for (const text of ["abc", "1.2.3", "12abc", "-", ","]) {
-      expect(parseAmountInput(text), text).toBeNaN();
-    }
-  });
-});
 
 describe("snapshot form", () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
 /**
- * The portfolio's number and date formatting and input parsing. Pure: no DOM,
+ * The portfolio's number and date formatting. Pure: no DOM,
  * no `fetch`, no `state`.
  */
 
@@ -54,45 +54,6 @@ export function formatDateDots(isoDate) {
   if (!isoDate) return "";
   const [year, month, day] = isoDate.split("-");
   return `${day}.${month}.${year}`;
-}
-
-/** Whether a single-separator number groups perfectly into thousands (`1.234`). */
-function isGroupedThousands(text, separator) {
-  const pattern =
-    separator === "," ? /^-?\d{1,3}(,\d{3})+$/ : /^-?\d{1,3}(\.\d{3})+$/;
-  return pattern.test(text);
-}
-
-/**
- * Parse a typed amount in German (`1.234,56`) or English (`1,234.56`) notation.
- * With both separators the later one is the decimal point; a single kind counts
- * as grouping only when the digits group perfectly into thousands.
- *
- * Returns `null` for a blank field (the API's "carry forward" signal, not zero)
- * and `NaN` for anything unparseable.
- */
-export function parseAmountInput(text) {
-  const cleaned = String(text ?? "").replace(/[\s\u00a0\u202f\p{Sc}]/gu, "");
-  if (cleaned === "") return null;
-
-  const lastComma = cleaned.lastIndexOf(",");
-  const lastDot = cleaned.lastIndexOf(".");
-
-  let normalized = cleaned;
-  if (lastComma >= 0 && lastDot >= 0) {
-    normalized =
-      lastComma > lastDot
-        ? cleaned.replace(/\./g, "").replace(",", ".")
-        : cleaned.replace(/,/g, "");
-  } else if (lastComma >= 0 || lastDot >= 0) {
-    const separator = lastComma >= 0 ? "," : ".";
-    normalized = isGroupedThousands(cleaned, separator)
-      ? cleaned.split(separator).join("")
-      : cleaned.replace(separator, ".");
-  }
-
-  // Not parseFloat(), which would read `12abc` as 12.
-  return /^-?\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : NaN;
 }
 
 /** Map a signed amount onto its colour class. */

@@ -7,12 +7,16 @@
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { hideOverlay, showOverlay } from "./modals.js";
-import { escapeHtml, todayIso, withBusyButton } from "./dom.js";
+import {
+  escapeHtml,
+  parseAmountInput,
+  todayIso,
+  withBusyButton,
+} from "./dom.js";
 import {
   formatAmount,
   formatDateDots,
   formatEuro,
-  parseAmountInput,
   toneClass,
 } from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";

@@ -10,6 +10,7 @@ import {
   todayIso,
   isFutureIsoDate,
   capAtToday,
+  parseAmountInput,
   withEuro,
 } from "./dom.js";
 import { showErrorToast } from "./toast.js";
@@ -32,7 +33,7 @@ export function itemRowInnerHtml(item = null) {
     </div>
     <div class="form-group">
       <label class="form-label">Price</label>
-      <input type="number" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <input type="text" inputmode="decimal" class="form-input item-price" placeholder="0.00"${priceValue}>
     </div>
     <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -210,7 +211,7 @@ export function calculateTotal() {
   const prices = document.querySelectorAll(".item-price");
   let total = 0;
   prices.forEach((input) => {
-    total += parseFloat(input.value) || 0;
+    total += parseAmountInput(input.value) || 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
     formatCurrency(total),
