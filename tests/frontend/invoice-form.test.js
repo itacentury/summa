@@ -177,8 +177,24 @@ describe("invoice price fields", () => {
     expect(hint.classList.contains("is-hidden")).toBe(false);
     expect(hint.hasAttribute("role")).toBe(false);
 
+    // Leaving the field afterwards changes nothing, so it must stay silent.
     flagInvalidPrice(price);
+    expect(hint.hasAttribute("role")).toBe(false);
+  });
+
+  it("alerts again once the flagged price changes", async () => {
+    mountForm([["Milk", "2,500"]]);
+    const price = document.querySelector(".item-price");
+    const hint = document.querySelector(".item-price-error");
+
+    await saveInvoice();
+    price.value = "1,2,3";
+    flagInvalidPrice(price);
+
     expect(hint.getAttribute("role")).toBe("alert");
+    expect(hint.textContent).toBe(
+      "Invalid price: use digits with , or . as the decimal separator.",
+    );
   });
 
   it("clears the flag while typing but never raises it", () => {
@@ -475,6 +491,30 @@ describe("flagging a price field on leave", () => {
 
     expect(price.getAttribute("aria-invalid")).toBe("true");
     expect(hint.classList.contains("is-hidden")).toBe(false);
+  });
+
+  // Focus leaves on mousedown, so the deferred flag runs after the click's
+  // save has already flagged the field quietly; it must not add an alert.
+  it("keeps a mouse-clicked refused save silent", async () => {
+    const price = mountWired([["Milk", "2,500"]]);
+    const saveButton = document.querySelector('[data-action="save"]');
+    const hint = document.querySelector(".item-price-error");
+
+    press(saveButton);
+    leave(price);
+    await saveInvoice();
+    const mutations = [];
+    new MutationObserver((records) => mutations.push(...records)).observe(
+      hint,
+      { attributes: true, childList: true, characterData: true, subtree: true },
+    );
+    release(saveButton);
+    vi.runAllTimers();
+    await Promise.resolve();
+
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+    expect(hint.hasAttribute("role")).toBe(false);
+    expect(mutations).toEqual([]);
   });
 
   it("skips the flag when the press removed the field", () => {

@@ -86,6 +86,16 @@ export function flagInvalidPrice(input, { announce = true } = {}) {
   const hint = input
     .closest(".item-input-row")
     .querySelector(".item-price-error");
+  const flagged = message !== null;
+  // An unchanged flag must not touch role or text: after a mouse-clicked save
+  // the deferred focusout flag would turn the hint back into an alert and
+  // re-fire it after the toast already spoke.
+  if (
+    input.getAttribute("aria-invalid") === String(flagged) &&
+    hint.textContent === (message ?? "")
+  ) {
+    return flagged;
+  }
   // A refused save already speaks through its toast and the focused field's
   // description, so its alert would be a third copy. The role must be set
   // before the hint is revealed: an alert fires on the content change.
@@ -94,10 +104,10 @@ export function flagInvalidPrice(input, { announce = true } = {}) {
   } else {
     hint.removeAttribute("role");
   }
-  input.setAttribute("aria-invalid", String(message !== null));
-  hint.classList.toggle("is-hidden", message === null);
+  input.setAttribute("aria-invalid", String(flagged));
+  hint.classList.toggle("is-hidden", !flagged);
   hint.textContent = message ?? "";
-  return message !== null;
+  return flagged;
 }
 
 /**
