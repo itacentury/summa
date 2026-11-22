@@ -228,7 +228,7 @@ function rowHtml(row, index) {
             : `<span class="categorize-meta-line">
                  ${
                    itemName
-                     ? `<span class="categorize-meta-text" title="${itemName}">${itemName}</span>`
+                     ? `<span class="categorize-meta-name">${itemName}</span>`
                      : ""
                  }
                  <span class="categorize-meta-count">${

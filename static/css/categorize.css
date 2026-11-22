@@ -466,20 +466,20 @@
   white-space: nowrap;
 }
 
-/* Single-item rows: the name shrinks and truncates, the count and total stay. */
+/* Single-item rows have no expand, so the name wraps instead of truncating:
+   that keeps the full text readable without hover (the markup's whitespace
+   spaces the separator). */
 .categorize-meta-line {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
+  display: block;
+  font-size: 12px;
+  color: #8a7c62;
+}
+
+.categorize-meta-name {
+  overflow-wrap: anywhere;
 }
 
 .categorize-meta-count {
-  display: inline-flex;
-  flex: none;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 12px;
-  color: #8a7c62;
   white-space: nowrap;
 }
 
@@ -636,18 +636,7 @@
   }
 
   .categorize-meta-text {
-    overflow-wrap: anywhere;
     white-space: normal;
-  }
-
-  /* Wrapping replaces truncation here, so the line flows as plain text (the
-     markup's whitespace supplies the spaces the flex gap gave on desktop). */
-  .categorize-meta-line {
-    display: block;
-  }
-
-  .categorize-meta-count {
-    display: inline;
   }
 
   .categorize-combobox {
