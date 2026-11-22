@@ -211,7 +211,7 @@ export function removeItemRow(button) {
 }
 
 export function calculateTotal() {
-  const prices = document.querySelectorAll(".item-price");
+  const prices = document.querySelectorAll(".item-input-row .item-price");
   let total = 0;
   prices.forEach((input) => {
     total += readAmountInput(input) || 0;
