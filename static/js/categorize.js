@@ -228,11 +228,14 @@ function rowHtml(row, index) {
             : `<span class="categorize-meta-line">
                  ${
                    itemName
-                     ? `<span class="categorize-meta-text" title="${itemName}">${itemName}</span>
-                        <span class="categorize-meta-sep" aria-hidden="true">·</span>`
+                     ? `<span class="categorize-meta-text" title="${itemName}">${itemName}</span>`
                      : ""
                  }
-                 <span class="categorize-meta-count">${metaLead}</span>
+                 <span class="categorize-meta-count">${
+                   itemName
+                     ? `<span class="categorize-meta-sep" aria-hidden="true">·</span> `
+                     : ""
+                 }${metaLead}</span>
                </span>`
         }
         ${
