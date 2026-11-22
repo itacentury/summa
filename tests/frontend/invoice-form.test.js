@@ -218,6 +218,34 @@ describe("invoice price fields", () => {
     expect(payload.items).toEqual([{ item_name: "Milk", item_price: 1.5 }]);
   });
 
+  // The server strips names before its non-empty check, so a blank-looking
+  // name would otherwise surface only as a generic 400.
+  it("treats a whitespace-only name like an empty one", async () => {
+    mountForm([
+      ["Milk", "1,5"],
+      ["   ", "2,00"],
+    ]);
+
+    await saveInvoice();
+
+    expect(sendJson).not.toHaveBeenCalled();
+    expect(showErrorToast).toHaveBeenCalledWith("Missing name for item 2");
+    const secondName = document.querySelectorAll(".item-name")[1];
+    expect(document.activeElement).toBe(secondName);
+  });
+
+  it("ignores a row with a whitespace-only name and no price", async () => {
+    mountForm([
+      ["  Milk  ", "1,5"],
+      ["   ", ""],
+    ]);
+
+    await saveInvoice();
+
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items).toEqual([{ item_name: "Milk", item_price: 1.5 }]);
+  });
+
   // `1.799` is both 1799 (grouping) and 1.799 (three decimals); saving either
   // reading silently could be off by a factor of 1000.
   it("blocks the save on an ambiguous three-digit price", async () => {

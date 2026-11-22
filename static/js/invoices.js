@@ -57,7 +57,7 @@ export async function saveInvoice() {
   const rows = [...document.querySelectorAll(".item-input-row")];
   for (const [index, row] of rows.entries()) {
     const nameInput = row.querySelector(".item-name");
-    const name = nameInput.value;
+    const name = nameInput.value.trim();
     const priceInput = row.querySelector(".item-price");
     const price = readAmountInput(priceInput);
     if (!name) {
