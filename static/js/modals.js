@@ -39,8 +39,9 @@ export function itemRowInnerHtml(item = null) {
     const priceText = formatAmountForInput(item.item_price);
     priceValue = ` value="${priceText}" data-amount="${item.item_price}"`;
   }
-  // inputmode="decimal" leaves iOS without a minus key; see the known-limitation
-  // note on the price input in add-invoice.html.
+  // Known limitation: iOS's decimal pad has no minus key, so a negative price
+  // (discount, deposit return) can't be typed there; paste it or enter it on
+  // desktop. Accepted so phones open a keypad for the everyday positive price.
   return `
     <div class="form-group">
       <label class="form-label">Item Name</label>
