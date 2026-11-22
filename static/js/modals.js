@@ -12,6 +12,7 @@ import {
   capAtToday,
   readAmountInput,
   isAmbiguousAmountInput,
+  ambiguousAmountReadings,
   formatAmountForInput,
   withEuro,
 } from "./dom.js";
@@ -21,11 +22,17 @@ import { fetchInvoiceItems } from "./api.js";
 import { importJson, setImportCorrectionMode } from "./import.js";
 import { getCombobox } from "./combobox.js";
 
+// Rows come and go at runtime, so each price hint needs its own id for the
+// input's aria-describedby.
+let nextPriceHintId = 0;
+
 /**
  * Build the inner markup for one add/edit item row (name, price, remove button).
  * Pre-fills the inputs when an existing item is passed.
  */
 export function itemRowInnerHtml(item = null) {
+  nextPriceHintId += 1;
+  const hintId = `item-price-error-${nextPriceHintId}`;
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
   let priceValue = item ? ` value="${item.item_price}"` : "";
   if (typeof item?.item_price === "number") {
@@ -41,7 +48,7 @@ export function itemRowInnerHtml(item = null) {
     </div>
     <div class="form-group">
       <label class="form-label">Price</label>
-      <input type="text" inputmode="decimal" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <input type="text" inputmode="decimal" class="form-input item-price" placeholder="0.00" aria-describedby="${hintId}"${priceValue}>
     </div>
     <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -49,7 +56,39 @@ export function itemRowInnerHtml(item = null) {
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
+    <p class="field-error item-price-error is-hidden" id="${hintId}" role="alert"></p>
   `;
+}
+
+/**
+ * Show or clear the ambiguous-price flag and its text hint on one price field,
+ * and report whether the field is ambiguous.
+ */
+export function flagAmbiguousPrice(input) {
+  const isAmbiguous = isAmbiguousAmountInput(input);
+  const hint = input
+    .closest(".item-input-row")
+    .querySelector(".item-price-error");
+  input.setAttribute("aria-invalid", String(isAmbiguous));
+  hint.classList.toggle("is-hidden", !isAmbiguous);
+  if (!isAmbiguous) {
+    hint.textContent = "";
+    return false;
+  }
+  const { thousands, decimal } = ambiguousAmountReadings(input.value);
+  hint.textContent = `Ambiguous: write ${thousands} for thousands or ${decimal} for three decimals.`;
+  return true;
+}
+
+/**
+ * Clear a flagged price field as soon as its value is no longer ambiguous.
+ * Never raises the flag: `1.234,56` passes through `1.234` while typing, so
+ * only leaving the field (or a refused save) may do that.
+ */
+export function clearPriceFlagIfResolved(input) {
+  if (input.getAttribute("aria-invalid") !== "true") return;
+  if (isAmbiguousAmountInput(input)) return;
+  flagAmbiguousPrice(input);
 }
 
 /**
@@ -220,10 +259,9 @@ export function calculateTotal() {
   let total = 0;
   prices.forEach((input) => {
     // Save refuses an ambiguous price, so the total must not count its
-    // thousands reading either; the flag tells the user why it didn't move.
-    const isAmbiguous = isAmbiguousAmountInput(input);
-    input.setAttribute("aria-invalid", String(isAmbiguous));
-    if (isAmbiguous) return;
+    // thousands reading either; flagAmbiguousPrice explains why once the
+    // user leaves the field.
+    if (isAmbiguousAmountInput(input)) return;
     total += readAmountInput(input) || 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
@@ -268,7 +306,16 @@ export function setupModalListeners() {
 
   // Item rows are rebuilt at runtime, so delegate from the stable container
   const itemsContainer = document.querySelector('[data-el="items-container"]');
-  itemsContainer.addEventListener("input", calculateTotal);
+  itemsContainer.addEventListener("input", (event) => {
+    calculateTotal();
+    if (event.target.matches(".item-price")) {
+      clearPriceFlagIfResolved(event.target);
+    }
+  });
+  // focusout, not blur: blur doesn't bubble to the delegating container.
+  itemsContainer.addEventListener("focusout", (event) => {
+    if (event.target.matches(".item-price")) flagAmbiguousPrice(event.target);
+  });
   itemsContainer.addEventListener("click", (event) => {
     const removeButton = event.target.closest('[data-action="remove-item"]');
     if (removeButton) removeItemRow(removeButton);

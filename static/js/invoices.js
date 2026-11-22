@@ -13,7 +13,11 @@ import {
   loadStores,
   reloadCurrentPage,
 } from "./api.js";
-import { closeAddModal, validateInvoiceDate } from "./modals.js";
+import {
+  closeAddModal,
+  flagAmbiguousPrice,
+  validateInvoiceDate,
+} from "./modals.js";
 import { getCombobox } from "./combobox.js";
 import {
   showUndoToast,
@@ -83,6 +87,7 @@ export async function saveInvoice() {
       showErrorToast(
         `Ambiguous price for "${name}": write ${thousands} for thousands or ${decimal} for three decimals`,
       );
+      flagAmbiguousPrice(priceInput);
       priceInput.focus();
       return;
     }

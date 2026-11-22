@@ -26,7 +26,12 @@ vi.mock("../../static/js/toast.js", () => ({
 
 import { sendJson } from "../../static/js/http.js";
 import { showErrorToast } from "../../static/js/toast.js";
-import { calculateTotal, itemRowInnerHtml } from "../../static/js/modals.js";
+import {
+  calculateTotal,
+  clearPriceFlagIfResolved,
+  flagAmbiguousPrice,
+  itemRowInnerHtml,
+} from "../../static/js/modals.js";
 import { saveInvoice } from "../../static/js/invoices.js";
 import { state } from "../../static/js/state.js";
 import { todayIso } from "../../static/js/dom.js";
@@ -114,25 +119,63 @@ describe("invoice price fields", () => {
   });
 
   // Save refuses `2,500`, so the total must not show its thousands reading.
-  it("leaves an ambiguous price out of the live total and flags it", () => {
+  // Typing `1.234,56` passes through `1.234`, so the total alone never flags.
+  it("leaves an ambiguous price out of the live total without flagging it", () => {
+    mountForm([
+      ["Milk", "2,500"],
+      ["Bread", "1,5"],
+    ]);
+    const [ambiguous] = document.querySelectorAll(".item-price");
+
+    calculateTotal();
+
+    const total = document.querySelector('[data-el="calculated-total"]');
+    expect(total.textContent).toBe("1.50 €");
+    expect(ambiguous.getAttribute("aria-invalid")).not.toBe("true");
+
+    ambiguous.value = "2,5000";
+    calculateTotal();
+
+    expect(total.textContent).toBe("4.00 €");
+  });
+
+  it("explains a flagged ambiguous price in a linked hint", () => {
     mountForm([
       ["Milk", "2,500"],
       ["Bread", "1,5"],
     ]);
     const [ambiguous, plain] = document.querySelectorAll(".item-price");
+    const [hint, plainHint] = document.querySelectorAll(".item-price-error");
 
-    calculateTotal();
+    expect(flagAmbiguousPrice(ambiguous)).toBe(true);
+    expect(flagAmbiguousPrice(plain)).toBe(false);
 
-    const total = document.querySelector('[data-el="calculated-total"]');
-    expect(total.textContent).toBe("1.50\u00a0€");
     expect(ambiguous.getAttribute("aria-invalid")).toBe("true");
     expect(plain.getAttribute("aria-invalid")).toBe("false");
+    expect(ambiguous.getAttribute("aria-describedby")).toBe(hint.id);
+    expect(hint.id).not.toBe(plainHint.id);
+    expect(hint.classList.contains("is-hidden")).toBe(false);
+    expect(hint.textContent).toBe(
+      "Ambiguous: write 2500 for thousands or 2,5000 for three decimals.",
+    );
+    expect(plainHint.classList.contains("is-hidden")).toBe(true);
+  });
 
-    ambiguous.value = "2,5000";
-    calculateTotal();
+  it("clears the flag while typing but never raises it", () => {
+    mountForm([["Milk", "2,500"]]);
+    const price = document.querySelector(".item-price");
+    const hint = document.querySelector(".item-price-error");
 
-    expect(total.textContent).toBe("4.00\u00a0€");
-    expect(ambiguous.getAttribute("aria-invalid")).toBe("false");
+    clearPriceFlagIfResolved(price);
+    expect(price.getAttribute("aria-invalid")).not.toBe("true");
+    expect(hint.classList.contains("is-hidden")).toBe(true);
+
+    flagAmbiguousPrice(price);
+    price.value = "2,5000";
+    clearPriceFlagIfResolved(price);
+
+    expect(price.getAttribute("aria-invalid")).toBe("false");
+    expect(hint.classList.contains("is-hidden")).toBe(true);
   });
 
   // Edit pre-fills the stored number in JS notation, which the parser would
@@ -286,6 +329,9 @@ describe("invoice price fields", () => {
       );
       const price = document.querySelector(".item-price");
       expect(document.activeElement).toBe(price);
+      expect(price.getAttribute("aria-invalid")).toBe("true");
+      const hint = document.querySelector(".item-price-error");
+      expect(hint.classList.contains("is-hidden")).toBe(false);
     }
   });
 
