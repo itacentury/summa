@@ -87,12 +87,15 @@ export function flagInvalidPrice(input, { announce = true } = {}) {
     .closest(".item-input-row")
     .querySelector(".item-price-error");
   const flagged = message !== null;
+  const flaggedValue = flagged ? input.value : "";
   // An unchanged flag must not touch role or text: after a mouse-clicked save
   // the deferred focusout flag would turn the hint back into an alert and
-  // re-fire it after the toast already spoke.
+  // re-fire it after the toast already spoke. Keyed on the value, not the
+  // message: every unparseable value shares one message, and a still-invalid
+  // edit must be announced again.
   if (
     input.getAttribute("aria-invalid") === String(flagged) &&
-    hint.textContent === (message ?? "")
+    input.dataset.flaggedValue === flaggedValue
   ) {
     return flagged;
   }
@@ -105,6 +108,7 @@ export function flagInvalidPrice(input, { announce = true } = {}) {
     hint.removeAttribute("role");
   }
   input.setAttribute("aria-invalid", String(flagged));
+  input.dataset.flaggedValue = flaggedValue;
   hint.classList.toggle("is-hidden", !flagged);
   hint.textContent = message ?? "";
   return flagged;

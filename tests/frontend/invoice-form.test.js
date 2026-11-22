@@ -197,6 +197,23 @@ describe("invoice price fields", () => {
     );
   });
 
+  // Every unparseable value shares one message, so only the value tells an
+  // edited, still-wrong field apart from an untouched one.
+  it("alerts again when an unparseable price changes to another", () => {
+    mountForm([["Milk", "abc"]]);
+    const price = document.querySelector(".item-price");
+    const hint = document.querySelector(".item-price-error");
+
+    flagInvalidPrice(price, { announce: false });
+    price.value = "12a";
+    flagInvalidPrice(price);
+
+    expect(hint.getAttribute("role")).toBe("alert");
+    expect(hint.textContent).toBe(
+      "Invalid price: use digits with , or . as the decimal separator.",
+    );
+  });
+
   it("clears the flag while typing but never raises it", () => {
     mountForm([["Milk", "2,500"]]);
     const price = document.querySelector(".item-price");
