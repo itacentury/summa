@@ -213,6 +213,10 @@
   width: 100px;
 }
 
+.item-input-row .item-price[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 /* Nudge the remove button up so it lines up with the inputs, not their labels */
 .item-input-row [data-action="remove-item"] {
   margin-bottom: 0.375rem;

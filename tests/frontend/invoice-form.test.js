@@ -113,6 +113,28 @@ describe("invoice price fields", () => {
     });
   });
 
+  // Save refuses `2,500`, so the total must not show its thousands reading.
+  it("leaves an ambiguous price out of the live total and flags it", () => {
+    mountForm([
+      ["Milk", "2,500"],
+      ["Bread", "1,5"],
+    ]);
+    const [ambiguous, plain] = document.querySelectorAll(".item-price");
+
+    calculateTotal();
+
+    const total = document.querySelector('[data-el="calculated-total"]');
+    expect(total.textContent).toBe("1.50\u00a0€");
+    expect(ambiguous.getAttribute("aria-invalid")).toBe("true");
+    expect(plain.getAttribute("aria-invalid")).toBe("false");
+
+    ambiguous.value = "2,5000";
+    calculateTotal();
+
+    expect(total.textContent).toBe("4.00\u00a0€");
+    expect(ambiguous.getAttribute("aria-invalid")).toBe("false");
+  });
+
   // Edit pre-fills the stored number in JS notation, which the parser would
   // misread (`1.799` as grouping, `1e-7` as invalid) if it re-read it.
   it("keeps an untouched stored price exactly as loaded", async () => {

@@ -11,6 +11,7 @@ import {
   isFutureIsoDate,
   capAtToday,
   readAmountInput,
+  isAmbiguousAmountInput,
   formatAmountForInput,
   withEuro,
 } from "./dom.js";
@@ -218,6 +219,11 @@ export function calculateTotal() {
   const prices = document.querySelectorAll(".item-input-row .item-price");
   let total = 0;
   prices.forEach((input) => {
+    // Save refuses an ambiguous price, so the total must not count its
+    // thousands reading either; the flag tells the user why it didn't move.
+    const isAmbiguous = isAmbiguousAmountInput(input);
+    input.setAttribute("aria-invalid", String(isAmbiguous));
+    if (isAmbiguous) return;
     total += readAmountInput(input) || 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
