@@ -281,6 +281,56 @@ export function calculateTotal() {
   );
 }
 
+/** Run `callback` once the current press ends, after its click has fired. */
+function afterPress(callback) {
+  const finish = () => {
+    document.removeEventListener("pointerup", finish);
+    document.removeEventListener("pointercancel", finish);
+    setTimeout(callback);
+  };
+  document.addEventListener("pointerup", finish);
+  document.addEventListener("pointercancel", finish);
+}
+
+/**
+ * Keep the live total and the invalid-price flags of the item rows current.
+ * Item rows are rebuilt at runtime, so this delegates from the stable container.
+ */
+export function setupItemPriceListeners(addModal) {
+  const itemsContainer = addModal.querySelector('[data-el="items-container"]');
+  let pointerIsDown = false;
+  addModal.addEventListener("pointerdown", () => {
+    pointerIsDown = true;
+  });
+  const releasePointer = () => {
+    pointerIsDown = false;
+  };
+  document.addEventListener("pointerup", releasePointer);
+  document.addEventListener("pointercancel", releasePointer);
+
+  itemsContainer.addEventListener("input", (event) => {
+    calculateTotal();
+    if (event.target.matches(".item-price")) {
+      clearPriceFlagIfResolved(event.target);
+    }
+  });
+  // focusout, not blur: blur doesn't bubble to the delegating container.
+  itemsContainer.addEventListener("focusout", (event) => {
+    if (!event.target.matches(".item-price")) return;
+    const input = event.target;
+    if (!pointerIsDown) {
+      flagInvalidPrice(input);
+      return;
+    }
+    // Focus leaves on mousedown. Showing the hint now would push the rows
+    // below it down before mouseup, so the release would miss the pressed
+    // button and its click would never fire.
+    afterPress(() => {
+      if (input.isConnected) flagInvalidPrice(input);
+    });
+  });
+}
+
 /**
  * Wire the modal open/close buttons and the add/edit form, including delegation
  * on the items container for the dynamically added item rows.
@@ -316,18 +366,8 @@ export function setupModalListeners() {
     .querySelector('[data-el="invoice-date"]')
     .addEventListener("input", validateInvoiceDate);
 
-  // Item rows are rebuilt at runtime, so delegate from the stable container
-  const itemsContainer = document.querySelector('[data-el="items-container"]');
-  itemsContainer.addEventListener("input", (event) => {
-    calculateTotal();
-    if (event.target.matches(".item-price")) {
-      clearPriceFlagIfResolved(event.target);
-    }
-  });
-  // focusout, not blur: blur doesn't bubble to the delegating container.
-  itemsContainer.addEventListener("focusout", (event) => {
-    if (event.target.matches(".item-price")) flagInvalidPrice(event.target);
-  });
+  setupItemPriceListeners(addModal);
+  const itemsContainer = addModal.querySelector('[data-el="items-container"]');
   itemsContainer.addEventListener("click", (event) => {
     const removeButton = event.target.closest('[data-action="remove-item"]');
     if (removeButton) removeItemRow(removeButton);

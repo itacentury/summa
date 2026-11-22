@@ -4,7 +4,7 @@
  * in both the live total and the saved payload.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../static/js/http.js", () => ({
   apiFetch: vi.fn(),
@@ -31,6 +31,7 @@ import {
   clearPriceFlagIfResolved,
   flagInvalidPrice,
   itemRowInnerHtml,
+  setupItemPriceListeners,
 } from "../../static/js/modals.js";
 import { saveInvoice } from "../../static/js/invoices.js";
 import { state } from "../../static/js/state.js";
@@ -398,5 +399,80 @@ describe("invoice price fields", () => {
 
     const [, , payload] = vi.mocked(sendJson).mock.calls[0];
     expect(payload.items).toEqual([{ item_name: "Diesel", item_price: 1.799 }]);
+  });
+});
+
+describe("flagging a price field on leave", () => {
+  function mountWired(rows) {
+    mountForm(rows);
+    setupItemPriceListeners(
+      document.querySelector('[data-el="add-invoice-modal"]'),
+    );
+    return document.querySelector(".item-price");
+  }
+
+  const press = (target) =>
+    target.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  const release = (target) =>
+    target.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  const leave = (input) =>
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("flags at once when focus leaves by keyboard", () => {
+    const price = mountWired([["Milk", "2,500"]]);
+
+    leave(price);
+
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  // The hint is a new grid row; showing it between mousedown and mouseup
+  // moves the pressed button away, and its click is lost.
+  it("waits for the press to end before flagging", () => {
+    const price = mountWired([
+      ["Milk", "2,500"],
+      ["Bread", "1,5"],
+    ]);
+    const [, removeButton] = document.querySelectorAll(
+      '[data-action="remove-item"]',
+    );
+    const hint = document.querySelector(".item-price-error");
+
+    press(removeButton);
+    leave(price);
+
+    expect(hint.classList.contains("is-hidden")).toBe(true);
+
+    release(removeButton);
+    vi.runAllTimers();
+
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+    expect(hint.classList.contains("is-hidden")).toBe(false);
+  });
+
+  it("skips the flag when the press removed the field", () => {
+    const price = mountWired([
+      ["Milk", "2,500"],
+      ["Bread", "1,5"],
+    ]);
+    const [removeButton] = document.querySelectorAll(
+      '[data-action="remove-item"]',
+    );
+
+    press(removeButton);
+    leave(price);
+    removeButton.closest(".item-input-row").remove();
+    release(document.body);
+
+    expect(() => vi.runAllTimers()).not.toThrow();
+    expect(price.getAttribute("aria-invalid")).not.toBe("true");
   });
 });
