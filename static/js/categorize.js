@@ -197,10 +197,8 @@ function rowHtml(row, index) {
   const hasExpandableItems = itemCount > 1;
   const isExpanded = reviewRows[index].expanded;
   const total = withEuro(formatCurrency(row.total));
-  const metaLead =
-    itemCount === 1
-      ? `${escapeHtml(groups[0]?.name || "No items")} · 1 item · ${total}`
-      : `${itemCount} items · ${total}`;
+  const metaLead = `${itemCount} item${itemCount === 1 ? "" : "s"} · ${total}`;
+  const itemName = itemCount === 1 ? escapeHtml(groups[0].name) : "";
   const toggleLabel = isExpanded ? "Show less" : "Show items";
 
   return `
@@ -227,7 +225,18 @@ function rowHtml(row, index) {
                  <span class="categorize-meta-sep" aria-hidden="true">·</span>
                  <span class="categorize-meta-toggle" data-el="categorize-toggle-label">${toggleLabel}</span>
                </button>`
-            : `<span class="categorize-meta-text">${metaLead}</span>`
+            : `<span class="categorize-meta-line">
+                 ${
+                   itemName
+                     ? `<span class="categorize-meta-name">${itemName}</span>`
+                     : ""
+                 }
+                 <span class="categorize-meta-count">${
+                   itemName
+                     ? `<span class="categorize-meta-sep" aria-hidden="true">·</span> `
+                     : ""
+                 }${metaLead}</span>
+               </span>`
         }
         ${
           hasExpandableItems

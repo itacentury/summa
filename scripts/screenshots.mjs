@@ -401,6 +401,7 @@ const SUGGESTED_CATEGORY = new Map([
   ["Boots Pharmacy", { category: "Personal Care", is_new: true }],
   ["Espresso House", { category: "Dining", is_new: false }],
   ["IKEA", { category: "Household", is_new: false }],
+  ["Shell", { category: "Transport", is_new: false }],
 ]);
 
 const suggestionFor = (store) => {
@@ -589,7 +590,8 @@ const captureCategorize = async (context) => {
 
   await step("categorize-row-expanded", DESKTOP, async (file) => {
     // The current month holds a single uncategorized invoice, which would make
-    // for a one-row review list; "All" widens it to two. The demo data's other two
+    // for a one-row review list; "All" widens it to three, one of them a
+    // single-item row with its name on the meta line. The demo data's other two
     // uncategorized invoices fall on page 2 — which is exactly what the modal's
     // cross-page note names in the shot.
     await page.locator('.quick-filter-btn[data-filter="all"]').click();

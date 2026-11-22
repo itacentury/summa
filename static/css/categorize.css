@@ -466,6 +466,23 @@
   white-space: nowrap;
 }
 
+/* Single-item rows have no expand, so the name wraps instead of truncating:
+   that keeps the full text readable without hover (the markup's whitespace
+   spaces the separator). */
+.categorize-meta-line {
+  display: block;
+  font-size: 12px;
+  color: #8a7c62;
+}
+
+.categorize-meta-name {
+  overflow-wrap: anywhere;
+}
+
+.categorize-meta-count {
+  white-space: nowrap;
+}
+
 .categorize-meta-toggle {
   flex: none;
   font-size: 12px;
