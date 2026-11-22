@@ -209,7 +209,7 @@
   flex: 1;
 }
 
-.item-input-row .form-input[type="number"] {
+.item-input-row .item-price {
   width: 100px;
 }
 
@@ -468,7 +468,7 @@
     padding: 11px 13px;
   }
 
-  .item-input-row .form-input[type="number"] {
+  .item-input-row .item-price {
     width: auto;
     padding: 11px 10px;
   }
