@@ -315,6 +315,11 @@ describe("parseAmountInput", () => {
       ["$1,234.56", 1234.56],
       ["£1,234.56", 1234.56],
       ["0", 0],
+      // A leading 0 never opens a thousands group, so these are decimals.
+      ["0.125", 0.125],
+      ["0,500", 0.5],
+      ["0,250", 0.25],
+      ["-0,125", -0.125],
     ];
     for (const [text, expected] of cases) {
       expect(parseAmountInput(text), text).toBe(expected);

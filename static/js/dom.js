@@ -266,10 +266,16 @@ export function getSearchValue() {
   return document.querySelector('[data-el="search"]')?.value || "";
 }
 
-/** Whether a single-separator number groups perfectly into thousands (`1.234`). */
+/**
+ * Whether a single-separator number groups perfectly into thousands (`1.234`).
+ * The leading group must not start with 0: no real grouping does, so `0,500`
+ * is a decimal.
+ */
 function isGroupedThousands(text, separator) {
   const pattern =
-    separator === "," ? /^-?\d{1,3}(,\d{3})+$/ : /^-?\d{1,3}(\.\d{3})+$/;
+    separator === ","
+      ? /^-?[1-9]\d{0,2}(,\d{3})+$/
+      : /^-?[1-9]\d{0,2}(\.\d{3})+$/;
   return pattern.test(text);
 }
 
