@@ -7,12 +7,16 @@
 import { apiFetch, errorMessage, sendJson } from "./http.js";
 import { showErrorToast, showNoticeToast } from "./toast.js";
 import { hideOverlay, showOverlay } from "./modals.js";
-import { escapeHtml, todayIso, withBusyButton } from "./dom.js";
+import {
+  escapeHtml,
+  parseAmountInput,
+  todayIso,
+  withBusyButton,
+} from "./dom.js";
 import {
   formatAmount,
   formatDateDots,
   formatEuro,
-  parseAmountInput,
   toneClass,
 } from "./portfolio-format.js";
 import { loadPortfolio } from "./portfolio.js";
@@ -72,6 +76,8 @@ function rowHtml(position) {
     ? `<span class="snapshot-row-stale" title="The previous reading was carried forward, not entered — this row compares against a copied value."> · last value carried</span>`
     : "";
 
+  // Known limitation: inputmode="decimal" gives iOS a pad without a minus key,
+  // so a withdrawal (negative deposit) has to be pasted or entered on desktop.
   return `
     <div class="snapshot-row" data-position-id="${position.id}">
       <span class="snapshot-cell-name">${name}<span class="snapshot-row-currency"> · ${escapeHtml(

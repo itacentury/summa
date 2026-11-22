@@ -209,8 +209,16 @@
   flex: 1;
 }
 
-.item-input-row .form-input[type="number"] {
+.item-input-row .item-price {
   width: 100px;
+}
+
+.item-input-row .item-price[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.item-input-row .item-price-error {
+  grid-column: 1 / -1;
 }
 
 /* Nudge the remove button up so it lines up with the inputs, not their labels */
@@ -468,7 +476,7 @@
     padding: 11px 13px;
   }
 
-  .item-input-row .form-input[type="number"] {
+  .item-input-row .item-price {
     width: auto;
     padding: 11px 10px;
   }

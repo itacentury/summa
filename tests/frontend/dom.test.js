@@ -1,16 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ambiguousAmountReadings,
   applyCategoryBadge,
   capAtToday,
   categoryColorVar,
   dateToIso,
   debounce,
   escapeHtml,
+  formatAmountForInput,
   formatCurrency,
   formatDate,
   formatDateShort,
+  isAmbiguousAmountInput,
   isFutureIsoDate,
+  parseAmountInput,
+  readAmountInput,
   todayIso,
   withBusyButton,
   withEuro,
@@ -294,5 +299,176 @@ describe("debounce", () => {
     vi.advanceTimersByTime(100);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith("b");
+  });
+});
+
+describe("parseAmountInput", () => {
+  it("reads both the German and the English notation", () => {
+    const cases = [
+      ["1.234,56", 1234.56],
+      ["1234,56", 1234.56],
+      ["1,234.56", 1234.56],
+      ["1234.56", 1234.56],
+      ["1.234", 1234],
+      ["1,234", 1234],
+      ["12.34", 12.34],
+      ["12,34", 12.34],
+      ["-12,5", -12.5],
+      ["1 234,56", 1234.56],
+      ["€1.437,38", 1437.38],
+      ["$1,234.56", 1234.56],
+      ["£1,234.56", 1234.56],
+      ["0", 0],
+      // A leading 0 never opens a thousands group, so these are decimals.
+      ["0.125", 0.125],
+      ["0,500", 0.5],
+      ["0,250", 0.25],
+      ["-0,125", -0.125],
+      // The integer part may be omitted, as type="number" allowed.
+      [".5", 0.5],
+      [",99", 0.99],
+      ["-,5", -0.5],
+      [",500", 0.5],
+    ];
+    for (const [text, expected] of cases) {
+      expect(parseAmountInput(text), text).toBe(expected);
+    }
+  });
+
+  it("reports a blank field as null, not as zero", () => {
+    // The API reads null as "carry the previous value forward"; zero would
+    // record the position as worthless.
+    expect(parseAmountInput("")).toBeNull();
+    expect(parseAmountInput("   ")).toBeNull();
+    expect(parseAmountInput(null)).toBeNull();
+  });
+
+  it("reports an unparseable field as NaN", () => {
+    for (const text of ["abc", "1.2.3", "12abc", "-", ",", ".", "12,"]) {
+      expect(parseAmountInput(text), text).toBeNaN();
+    }
+  });
+});
+
+describe("readAmountInput", () => {
+  function amountInput(attributes) {
+    document.body.innerHTML = `<input ${attributes}>`;
+    return document.querySelector("input");
+  }
+
+  it("parses a field without a stored amount", () => {
+    expect(readAmountInput(amountInput('value="1.299"'))).toBe(1299);
+  });
+
+  it("returns the stored amount while the field is untouched", () => {
+    const input = amountInput('value="1.299" data-amount="1.299"');
+    expect(readAmountInput(input)).toBe(1.299);
+    expect(
+      readAmountInput(amountInput('value="1e-7" data-amount="1e-7"')),
+    ).toBe(1e-7);
+  });
+
+  it("parses the field once the user changed it", () => {
+    const input = amountInput('value="1.299" data-amount="1.299"');
+    input.value = "3,5";
+    expect(readAmountInput(input)).toBe(3.5);
+  });
+});
+
+describe("formatAmountForInput", () => {
+  it("pads a three-digit fraction the parser would read as grouping", () => {
+    expect(formatAmountForInput(1.799)).toBe("1.7990");
+    expect(formatAmountForInput(-12.345)).toBe("-12.3450");
+    expect(formatAmountForInput(999.999)).toBe("999.9990");
+  });
+
+  it("leaves every other number in JS notation", () => {
+    expect(formatAmountForInput(1.79)).toBe("1.79");
+    expect(formatAmountForInput(1234.567)).toBe("1234.567");
+    expect(formatAmountForInput(0.125)).toBe("0.125");
+    expect(formatAmountForInput(1799)).toBe("1799");
+  });
+
+  it("produces text the parser reads back unchanged", () => {
+    for (const amount of [
+      1.799, -12.345, 999.999, 1.79, 1234.567, 0.125, 1799,
+    ]) {
+      expect(parseAmountInput(formatAmountForInput(amount)), amount).toBe(
+        amount,
+      );
+    }
+  });
+});
+
+describe("isAmbiguousAmountInput", () => {
+  function amountInput(attributes) {
+    document.body.innerHTML = `<input ${attributes}>`;
+    return document.querySelector("input");
+  }
+
+  it("flags one separator followed by exactly three digits", () => {
+    for (const text of ["1.799", "1,799", "2.500", "-1,250", "€1.799"]) {
+      expect(isAmbiguousAmountInput(amountInput(`value="${text}"`)), text).toBe(
+        true,
+      );
+    }
+  });
+
+  it("leaves every unambiguous shape alone", () => {
+    const texts = [
+      "1799",
+      "1,80",
+      "1.234,00",
+      "1,234.56",
+      "1.234.567",
+      "0,500",
+      ",500",
+      "12.3456",
+      "",
+    ];
+    for (const text of texts) {
+      expect(isAmbiguousAmountInput(amountInput(`value="${text}"`)), text).toBe(
+        false,
+      );
+    }
+  });
+
+  it("trusts an untouched stored amount, but not an edited one", () => {
+    const input = amountInput('value="1.799" data-amount="1.799"');
+    expect(isAmbiguousAmountInput(input)).toBe(false);
+
+    input.value = "2.500";
+    expect(isAmbiguousAmountInput(input)).toBe(true);
+  });
+});
+
+describe("ambiguousAmountReadings", () => {
+  it("offers both spellings in the user's own separator", () => {
+    expect(ambiguousAmountReadings("1,799")).toEqual({
+      thousands: "1799",
+      decimal: "1,7990",
+    });
+    expect(ambiguousAmountReadings("1.799")).toEqual({
+      thousands: "1799",
+      decimal: "1.7990",
+    });
+  });
+
+  it("keeps the sign and drops currency symbols and spaces", () => {
+    expect(ambiguousAmountReadings("-1.250")).toEqual({
+      thousands: "-1250",
+      decimal: "-1.2500",
+    });
+    expect(ambiguousAmountReadings(" €1.799 ")).toEqual({
+      thousands: "1799",
+      decimal: "1.7990",
+    });
+  });
+
+  // Each suggestion must read back as the value it promises.
+  it("suggests spellings the parser reads unambiguously", () => {
+    const { thousands, decimal } = ambiguousAmountReadings("1,799");
+    expect(parseAmountInput(thousands)).toBe(1799);
+    expect(parseAmountInput(decimal)).toBe(1.799);
   });
 });

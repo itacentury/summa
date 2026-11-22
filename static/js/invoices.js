@@ -13,7 +13,11 @@ import {
   loadStores,
   reloadCurrentPage,
 } from "./api.js";
-import { closeAddModal, validateInvoiceDate } from "./modals.js";
+import {
+  closeAddModal,
+  flagInvalidPrice,
+  validateInvoiceDate,
+} from "./modals.js";
 import { getCombobox } from "./combobox.js";
 import {
   showUndoToast,
@@ -29,7 +33,12 @@ import {
   renderInvoices,
 } from "./render.js";
 import { apiFetch, sendJson } from "./http.js";
-import { withBusyButton } from "./dom.js";
+import {
+  ambiguousAmountReadings,
+  isAmbiguousAmountInput,
+  readAmountInput,
+  withBusyButton,
+} from "./dom.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -50,24 +59,48 @@ export async function saveInvoice() {
   }
 
   const items = [];
-  const rows = document.querySelectorAll(".item-input-row");
-  rows.forEach((row) => {
-    const name = row.querySelector(".item-name").value;
-    const price = row.querySelector(".item-price").value;
-    if (name && price) {
-      items.push({ item_name: name, item_price: price });
+  const rows = [...document.querySelectorAll(".item-input-row")];
+  for (const [index, row] of rows.entries()) {
+    const nameInput = row.querySelector(".item-name");
+    const name = nameInput.value.trim();
+    const priceInput = row.querySelector(".item-price");
+    const price = readAmountInput(priceInput);
+    if (!name) {
+      // The live total counts every price, so a priced row may not vanish silently.
+      if (price === null) continue;
+      showErrorToast(`Missing name for item ${index + 1}`);
+      nameInput.focus();
+      return;
     }
-  });
+    if (price === null) {
+      showErrorToast(`Missing price for "${name}"`);
+      priceInput.focus();
+      return;
+    }
+    if (Number.isNaN(price)) {
+      showErrorToast(`Invalid price for "${name}"`);
+      flagInvalidPrice(priceInput, { announce: false });
+      priceInput.focus();
+      return;
+    }
+    if (isAmbiguousAmountInput(priceInput)) {
+      const { thousands, decimal } = ambiguousAmountReadings(priceInput.value);
+      showErrorToast(
+        `Ambiguous price for "${name}": write ${thousands} for thousands or ${decimal} for three decimals`,
+      );
+      flagInvalidPrice(priceInput, { announce: false });
+      priceInput.focus();
+      return;
+    }
+    items.push({ item_name: name, item_price: price });
+  }
 
   if (items.length === 0) {
     showErrorToast("Please add at least one item");
     return;
   }
 
-  const total = items.reduce(
-    (sum, item) => sum + parseFloat(item.item_price),
-    0,
-  );
+  const total = items.reduce((sum, item) => sum + item.item_price, 0);
 
   const editingId = state.editingInvoiceId;
   const payload = { date, store, category: type, total, items };

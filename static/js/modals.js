@@ -10,6 +10,10 @@ import {
   todayIso,
   isFutureIsoDate,
   capAtToday,
+  readAmountInput,
+  isAmbiguousAmountInput,
+  ambiguousAmountReadings,
+  formatAmountForInput,
   withEuro,
 } from "./dom.js";
 import { showErrorToast } from "./toast.js";
@@ -18,13 +22,26 @@ import { fetchInvoiceItems } from "./api.js";
 import { importJson, setImportCorrectionMode } from "./import.js";
 import { getCombobox } from "./combobox.js";
 
+// Rows come and go at runtime, so each price hint needs its own id for the
+// input's aria-describedby.
+let nextPriceHintId = 0;
+
 /**
  * Build the inner markup for one add/edit item row (name, price, remove button).
  * Pre-fills the inputs when an existing item is passed.
  */
 export function itemRowInnerHtml(item = null) {
+  nextPriceHintId += 1;
+  const hintId = `item-price-error-${nextPriceHintId}`;
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
-  const priceValue = item ? ` value="${item.item_price}"` : "";
+  let priceValue = item ? ` value="${item.item_price}"` : "";
+  if (typeof item?.item_price === "number") {
+    const priceText = formatAmountForInput(item.item_price);
+    priceValue = ` value="${priceText}" data-amount="${item.item_price}"`;
+  }
+  // Known limitation: iOS's decimal pad has no minus key, so a negative price
+  // (discount, deposit return) can't be typed there; paste it or enter it on
+  // desktop. Accepted so phones open a keypad for the everyday positive price.
   return `
     <div class="form-group">
       <label class="form-label">Item Name</label>
@@ -32,7 +49,7 @@ export function itemRowInnerHtml(item = null) {
     </div>
     <div class="form-group">
       <label class="form-label">Price</label>
-      <input type="number" step="0.01" class="form-input item-price" placeholder="0.00"${priceValue}>
+      <input type="text" inputmode="decimal" class="form-input item-price" placeholder="0.00" aria-describedby="${hintId}"${priceValue}>
     </div>
     <button type="button" class="btn btn-danger btn-sm" data-action="remove-item">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -40,7 +57,72 @@ export function itemRowInnerHtml(item = null) {
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
+    <p class="field-error item-price-error is-hidden" id="${hintId}" role="alert"></p>
   `;
+}
+
+/**
+ * Why save would refuse this price field, or `null` when it would accept it.
+ * A blank field is not invalid here; save reports a missing price itself.
+ */
+function invalidPriceHint(input) {
+  if (isAmbiguousAmountInput(input)) {
+    const { thousands, decimal } = ambiguousAmountReadings(input.value);
+    return `Ambiguous: write ${thousands} for thousands or ${decimal} for three decimals.`;
+  }
+  if (Number.isNaN(readAmountInput(input))) {
+    return "Invalid price: use digits with , or . as the decimal separator.";
+  }
+  return null;
+}
+
+/**
+ * Show or clear the invalid-price flag and its text hint on one price field
+ * (ambiguous or unparseable), and report whether the field is flagged.
+ * Pass `announce: false` to update the hint without a screen-reader alert.
+ */
+export function flagInvalidPrice(input, { announce = true } = {}) {
+  const message = invalidPriceHint(input);
+  const hint = input
+    .closest(".item-input-row")
+    .querySelector(".item-price-error");
+  const flagged = message !== null;
+  const flaggedValue = flagged ? input.value : "";
+  // An unchanged flag must not touch role or text: after a mouse-clicked save
+  // the deferred focusout flag would turn the hint back into an alert and
+  // re-fire it after the toast already spoke. Keyed on the value, not the
+  // message: every unparseable value shares one message, and a still-invalid
+  // edit must be announced again.
+  if (
+    input.getAttribute("aria-invalid") === String(flagged) &&
+    input.dataset.flaggedValue === flaggedValue
+  ) {
+    return flagged;
+  }
+  // A refused save already speaks through its toast and the focused field's
+  // description, so its alert would be a third copy. The role must be set
+  // before the hint is revealed: an alert fires on the content change.
+  if (announce) {
+    hint.setAttribute("role", "alert");
+  } else {
+    hint.removeAttribute("role");
+  }
+  input.setAttribute("aria-invalid", String(flagged));
+  input.dataset.flaggedValue = flaggedValue;
+  hint.classList.toggle("is-hidden", !flagged);
+  hint.textContent = message ?? "";
+  return flagged;
+}
+
+/**
+ * Clear a flagged price field as soon as its value is valid again. Never
+ * raises the flag: `1.234,56` passes through `1.234` and `12,5` through `12,`
+ * while typing, so only leaving the field (or a refused save) may do that.
+ */
+export function clearPriceFlagIfResolved(input) {
+  if (input.getAttribute("aria-invalid") !== "true") return;
+  if (invalidPriceHint(input) !== null) return;
+  flagInvalidPrice(input);
 }
 
 /**
@@ -207,14 +289,70 @@ export function removeItemRow(button) {
 }
 
 export function calculateTotal() {
-  const prices = document.querySelectorAll(".item-price");
+  const prices = document.querySelectorAll(".item-input-row .item-price");
   let total = 0;
   prices.forEach((input) => {
-    total += parseFloat(input.value) || 0;
+    // Save refuses an ambiguous or unparseable price, so the total must not
+    // count it either; flagInvalidPrice explains why once the user leaves
+    // the field.
+    if (isAmbiguousAmountInput(input)) return;
+    const price = readAmountInput(input);
+    if (Number.isNaN(price)) return;
+    total += price ?? 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
     formatCurrency(total),
   );
+}
+
+/** Run `callback` once the current press ends, after its click has fired. */
+function afterPress(callback) {
+  const finish = () => {
+    document.removeEventListener("pointerup", finish);
+    document.removeEventListener("pointercancel", finish);
+    setTimeout(callback);
+  };
+  document.addEventListener("pointerup", finish);
+  document.addEventListener("pointercancel", finish);
+}
+
+/**
+ * Keep the live total and the invalid-price flags of the item rows current.
+ * Item rows are rebuilt at runtime, so this delegates from the stable container.
+ */
+export function setupItemPriceListeners(addModal) {
+  const itemsContainer = addModal.querySelector('[data-el="items-container"]');
+  let pointerIsDown = false;
+  addModal.addEventListener("pointerdown", () => {
+    pointerIsDown = true;
+  });
+  const releasePointer = () => {
+    pointerIsDown = false;
+  };
+  document.addEventListener("pointerup", releasePointer);
+  document.addEventListener("pointercancel", releasePointer);
+
+  itemsContainer.addEventListener("input", (event) => {
+    calculateTotal();
+    if (event.target.matches(".item-price")) {
+      clearPriceFlagIfResolved(event.target);
+    }
+  });
+  // focusout, not blur: blur doesn't bubble to the delegating container.
+  itemsContainer.addEventListener("focusout", (event) => {
+    if (!event.target.matches(".item-price")) return;
+    const input = event.target;
+    if (!pointerIsDown) {
+      flagInvalidPrice(input);
+      return;
+    }
+    // Focus leaves on mousedown. Showing the hint now would push the rows
+    // below it down before mouseup, so the release would miss the pressed
+    // button and its click would never fire.
+    afterPress(() => {
+      if (input.isConnected) flagInvalidPrice(input);
+    });
+  });
 }
 
 /**
@@ -252,9 +390,8 @@ export function setupModalListeners() {
     .querySelector('[data-el="invoice-date"]')
     .addEventListener("input", validateInvoiceDate);
 
-  // Item rows are rebuilt at runtime, so delegate from the stable container
-  const itemsContainer = document.querySelector('[data-el="items-container"]');
-  itemsContainer.addEventListener("input", calculateTotal);
+  setupItemPriceListeners(addModal);
+  const itemsContainer = addModal.querySelector('[data-el="items-container"]');
   itemsContainer.addEventListener("click", (event) => {
     const removeButton = event.target.closest('[data-action="remove-item"]');
     if (removeButton) removeItemRow(removeButton);

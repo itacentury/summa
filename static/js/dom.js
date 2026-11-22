@@ -265,3 +265,101 @@ export function withEuro(amount) {
 export function getSearchValue() {
   return document.querySelector('[data-el="search"]')?.value || "";
 }
+
+/**
+ * Whether a single-separator number groups perfectly into thousands (`1.234`).
+ * The leading group must not start with 0: no real grouping does, so `0,500`
+ * is a decimal.
+ */
+function isGroupedThousands(text, separator) {
+  const pattern =
+    separator === ","
+      ? /^-?[1-9]\d{0,2}(,\d{3})+$/
+      : /^-?[1-9]\d{0,2}(\.\d{3})+$/;
+  return pattern.test(text);
+}
+
+/** Strip whitespace (incl. NBSP / narrow NBSP) and currency symbols. */
+function cleanAmountText(text) {
+  return String(text ?? "").replace(/[\s\u00a0\u202f\p{Sc}]/gu, "");
+}
+
+/**
+ * Parse a typed amount in German (`1.234,56`) or English (`1,234.56`) notation.
+ * With both separators the later one is the decimal point; a single kind counts
+ * as grouping only when the digits group perfectly into thousands.
+ *
+ * Returns `null` for a blank field (not zero: the portfolio API reads it as
+ * "carry forward") and `NaN` for anything unparseable.
+ */
+export function parseAmountInput(text) {
+  const cleaned = cleanAmountText(text);
+  if (cleaned === "") return null;
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+
+  let normalized = cleaned;
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0 || lastDot >= 0) {
+    const separator = lastComma >= 0 ? "," : ".";
+    normalized = isGroupedThousands(cleaned, separator)
+      ? cleaned.split(separator).join("")
+      : cleaned.replace(separator, ".");
+  }
+
+  // Not parseFloat(), which would read `12abc` as 12. The integer part may be
+  // omitted (`,99`), but then the fraction may not.
+  return /^-?(\d+|\d*\.\d+)$/.test(normalized) ? Number(normalized) : NaN;
+}
+
+/**
+ * Read an amount field. While a field pre-filled from a stored number is
+ * untouched, that number wins: re-parsing its JS notation would misread `1.299`
+ * as grouping and reject `1e-7`.
+ */
+export function readAmountInput(input) {
+  const stored = input.dataset.amount;
+  if (stored !== undefined && input.value === input.defaultValue) {
+    return Number(stored);
+  }
+  return parseAmountInput(input.value);
+}
+
+/**
+ * Format a stored amount as field text that `parseAmountInput()` reads back
+ * unchanged. JS notation writes `1.799`, which the parser takes as grouping; a
+ * fourth fraction digit (`1.7990`) keeps it a decimal once the user edits it.
+ */
+export function formatAmountForInput(amount) {
+  const text = String(amount);
+  return /^-?[1-9]\d{0,2}\.\d{3}$/.test(text) ? `${text}0` : text;
+}
+
+/**
+ * Whether an amount field holds a shape that is grouping and decimal at once:
+ * one separator and exactly three trailing digits (`1.799`, `2,500`). The
+ * parser reads it as thousands, which is undecidable from the text alone, so a
+ * form that must not guess can refuse it. An untouched stored amount is never
+ * ambiguous, for the same reason `readAmountInput()` trusts it.
+ */
+export function isAmbiguousAmountInput(input) {
+  const stored = input.dataset.amount;
+  if (stored !== undefined && input.value === input.defaultValue) return false;
+  return /^-?[1-9]\d{0,2}[.,]\d{3}$/.test(cleanAmountText(input.value));
+}
+
+/**
+ * The two unambiguous spellings of an ambiguous amount (`1,799`): grouping
+ * dropped (`1799`) and a fourth fraction digit (`1,7990`), which the parser
+ * keeps as a decimal. Built from the user's own text so the hint keeps their
+ * separator.
+ */
+export function ambiguousAmountReadings(text) {
+  const cleaned = cleanAmountText(text);
+  return { thousands: cleaned.replace(/[.,]/, ""), decimal: `${cleaned}0` };
+}
