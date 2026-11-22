@@ -29,7 +29,11 @@ import {
   renderInvoices,
 } from "./render.js";
 import { apiFetch, sendJson } from "./http.js";
-import { readAmountInput, withBusyButton } from "./dom.js";
+import {
+  isAmbiguousAmountInput,
+  readAmountInput,
+  withBusyButton,
+} from "./dom.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -57,6 +61,13 @@ export async function saveInvoice() {
     if (!name || price === null) continue;
     if (Number.isNaN(price)) {
       showErrorToast(`Invalid price for "${name}"`);
+      priceInput.focus();
+      return;
+    }
+    if (isAmbiguousAmountInput(priceInput)) {
+      showErrorToast(
+        `Ambiguous price for "${name}": write 1799 or 1.799,00 for thousands`,
+      );
       priceInput.focus();
       return;
     }

@@ -10,6 +10,7 @@ import {
   formatCurrency,
   formatDate,
   formatDateShort,
+  isAmbiguousAmountInput,
   isFutureIsoDate,
   parseAmountInput,
   readAmountInput,
@@ -369,5 +370,47 @@ describe("readAmountInput", () => {
     const input = amountInput('value="1.299" data-amount="1.299"');
     input.value = "3,5";
     expect(readAmountInput(input)).toBe(3.5);
+  });
+});
+
+describe("isAmbiguousAmountInput", () => {
+  function amountInput(attributes) {
+    document.body.innerHTML = `<input ${attributes}>`;
+    return document.querySelector("input");
+  }
+
+  it("flags one separator followed by exactly three digits", () => {
+    for (const text of ["1.799", "1,799", "2.500", "-1,250", "€1.799"]) {
+      expect(isAmbiguousAmountInput(amountInput(`value="${text}"`)), text).toBe(
+        true,
+      );
+    }
+  });
+
+  it("leaves every unambiguous shape alone", () => {
+    const texts = [
+      "1799",
+      "1,80",
+      "1.234,00",
+      "1,234.56",
+      "1.234.567",
+      "0,500",
+      ",500",
+      "12.3456",
+      "",
+    ];
+    for (const text of texts) {
+      expect(isAmbiguousAmountInput(amountInput(`value="${text}"`)), text).toBe(
+        false,
+      );
+    }
+  });
+
+  it("trusts an untouched stored amount, but not an edited one", () => {
+    const input = amountInput('value="1.799" data-amount="1.799"');
+    expect(isAmbiguousAmountInput(input)).toBe(false);
+
+    input.value = "2.500";
+    expect(isAmbiguousAmountInput(input)).toBe(true);
   });
 });

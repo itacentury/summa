@@ -161,4 +161,22 @@ describe("invoice price fields", () => {
     const breadPrice = document.querySelectorAll(".item-price")[1];
     expect(document.activeElement).toBe(breadPrice);
   });
+
+  // `1.799` is both 1799 (grouping) and 1.799 (three decimals); saving either
+  // reading silently could be off by a factor of 1000.
+  it("blocks the save on an ambiguous three-digit price", async () => {
+    for (const text of ["1.799", "1,799"]) {
+      vi.mocked(showErrorToast).mockClear();
+      mountForm([["Diesel", text]]);
+
+      await saveInvoice();
+
+      expect(sendJson, text).not.toHaveBeenCalled();
+      expect(showErrorToast).toHaveBeenCalledWith(
+        'Ambiguous price for "Diesel": write 1799 or 1.799,00 for thousands',
+      );
+      const price = document.querySelector(".item-price");
+      expect(document.activeElement).toBe(price);
+    }
+  });
 });

@@ -279,6 +279,11 @@ function isGroupedThousands(text, separator) {
   return pattern.test(text);
 }
 
+/** Strip whitespace (incl. NBSP / narrow NBSP) and currency symbols. */
+function cleanAmountText(text) {
+  return String(text ?? "").replace(/[\s\u00a0\u202f\p{Sc}]/gu, "");
+}
+
 /**
  * Parse a typed amount in German (`1.234,56`) or English (`1,234.56`) notation.
  * With both separators the later one is the decimal point; a single kind counts
@@ -288,7 +293,7 @@ function isGroupedThousands(text, separator) {
  * "carry forward") and `NaN` for anything unparseable.
  */
 export function parseAmountInput(text) {
-  const cleaned = String(text ?? "").replace(/[\s\u00a0\u202f\p{Sc}]/gu, "");
+  const cleaned = cleanAmountText(text);
   if (cleaned === "") return null;
 
   const lastComma = cleaned.lastIndexOf(",");
@@ -323,4 +328,17 @@ export function readAmountInput(input) {
     return Number(stored);
   }
   return parseAmountInput(input.value);
+}
+
+/**
+ * Whether an amount field holds a shape that is grouping and decimal at once:
+ * one separator and exactly three trailing digits (`1.799`, `2,500`). The
+ * parser reads it as thousands, which is undecidable from the text alone, so a
+ * form that must not guess can refuse it. An untouched stored amount is never
+ * ambiguous, for the same reason `readAmountInput()` trusts it.
+ */
+export function isAmbiguousAmountInput(input) {
+  const stored = input.dataset.amount;
+  if (stored !== undefined && input.value === input.defaultValue) return false;
+  return /^-?[1-9]\d{0,2}[.,]\d{3}$/.test(cleanAmountText(input.value));
 }
