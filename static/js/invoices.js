@@ -79,7 +79,7 @@ export async function saveInvoice() {
     }
     if (Number.isNaN(price)) {
       showErrorToast(`Invalid price for "${name}"`);
-      flagInvalidPrice(priceInput);
+      flagInvalidPrice(priceInput, { announce: false });
       priceInput.focus();
       return;
     }
@@ -88,7 +88,7 @@ export async function saveInvoice() {
       showErrorToast(
         `Ambiguous price for "${name}": write ${thousands} for thousands or ${decimal} for three decimals`,
       );
-      flagInvalidPrice(priceInput);
+      flagInvalidPrice(priceInput, { announce: false });
       priceInput.focus();
       return;
     }

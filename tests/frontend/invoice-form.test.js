@@ -160,6 +160,25 @@ describe("invoice price fields", () => {
       "Ambiguous: write 2500 for thousands or 2,5000 for three decimals.",
     );
     expect(plainHint.classList.contains("is-hidden")).toBe(true);
+    expect(hint.getAttribute("role")).toBe("alert");
+  });
+
+  // The toast and the focused field's description already say it; an alert
+  // from the hint would make a screen reader repeat it a third time.
+  it("flags a price on a refused save without a second alert", async () => {
+    mountForm([["Milk", "2,500"]]);
+    const price = document.querySelector(".item-price");
+    const hint = document.querySelector(".item-price-error");
+
+    await saveInvoice();
+
+    expect(showErrorToast).toHaveBeenCalledTimes(1);
+    expect(price.getAttribute("aria-invalid")).toBe("true");
+    expect(hint.classList.contains("is-hidden")).toBe(false);
+    expect(hint.hasAttribute("role")).toBe(false);
+
+    flagInvalidPrice(price);
+    expect(hint.getAttribute("role")).toBe("alert");
   });
 
   it("clears the flag while typing but never raises it", () => {

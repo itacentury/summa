@@ -78,12 +78,21 @@ function invalidPriceHint(input) {
 /**
  * Show or clear the invalid-price flag and its text hint on one price field
  * (ambiguous or unparseable), and report whether the field is flagged.
+ * Pass `announce: false` to update the hint without a screen-reader alert.
  */
-export function flagInvalidPrice(input) {
+export function flagInvalidPrice(input, { announce = true } = {}) {
   const message = invalidPriceHint(input);
   const hint = input
     .closest(".item-input-row")
     .querySelector(".item-price-error");
+  // A refused save already speaks through its toast and the focused field's
+  // description, so its alert would be a third copy. The role must be set
+  // before the hint is revealed: an alert fires on the content change.
+  if (announce) {
+    hint.setAttribute("role", "alert");
+  } else {
+    hint.removeAttribute("role");
+  }
   input.setAttribute("aria-invalid", String(message !== null));
   hint.classList.toggle("is-hidden", message === null);
   hint.textContent = message ?? "";
