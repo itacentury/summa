@@ -11,6 +11,7 @@ import {
   isFutureIsoDate,
   capAtToday,
   readAmountInput,
+  formatAmountForInput,
   withEuro,
 } from "./dom.js";
 import { showErrorToast } from "./toast.js";
@@ -27,7 +28,8 @@ export function itemRowInnerHtml(item = null) {
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
   let priceValue = item ? ` value="${item.item_price}"` : "";
   if (typeof item?.item_price === "number") {
-    priceValue += ` data-amount="${item.item_price}"`;
+    const priceText = formatAmountForInput(item.item_price);
+    priceValue = ` value="${priceText}" data-amount="${item.item_price}"`;
   }
   // inputmode="decimal" leaves iOS without a minus key; see the known-limitation
   // note on the price input in add-invoice.html.

@@ -331,6 +331,16 @@ export function readAmountInput(input) {
 }
 
 /**
+ * Format a stored amount as field text that `parseAmountInput()` reads back
+ * unchanged. JS notation writes `1.799`, which the parser takes as grouping; a
+ * fourth fraction digit (`1.7990`) keeps it a decimal once the user edits it.
+ */
+export function formatAmountForInput(amount) {
+  const text = String(amount);
+  return /^-?[1-9]\d{0,2}\.\d{3}$/.test(text) ? `${text}0` : text;
+}
+
+/**
  * Whether an amount field holds a shape that is grouping and decimal at once:
  * one separator and exactly three trailing digits (`1.799`, `2,500`). The
  * parser reads it as thousands, which is undecidable from the text alone, so a

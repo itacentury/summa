@@ -148,6 +148,19 @@ describe("invoice price fields", () => {
     expect(payload.items).toEqual([{ item_name: "Diesel", item_price: 2.5 }]);
   });
 
+  // The pre-fill pads `1.799` to `1.7990` so an edit is never read as 1799.
+  it("keeps a stored three-decimal price decimal when the user edits it", async () => {
+    mountForm([["Diesel", 1.799]]);
+    const price = document.querySelector(".item-price");
+    expect(price.value).toBe("1.7990");
+    price.value = "1.8990";
+
+    await saveInvoice();
+
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items).toEqual([{ item_name: "Diesel", item_price: 1.899 }]);
+  });
+
   it("blocks the save on an unparseable price", async () => {
     mountForm([
       ["Milk", "1,5"],

@@ -7,6 +7,7 @@ import {
   dateToIso,
   debounce,
   escapeHtml,
+  formatAmountForInput,
   formatCurrency,
   formatDate,
   formatDateShort,
@@ -370,6 +371,31 @@ describe("readAmountInput", () => {
     const input = amountInput('value="1.299" data-amount="1.299"');
     input.value = "3,5";
     expect(readAmountInput(input)).toBe(3.5);
+  });
+});
+
+describe("formatAmountForInput", () => {
+  it("pads a three-digit fraction the parser would read as grouping", () => {
+    expect(formatAmountForInput(1.799)).toBe("1.7990");
+    expect(formatAmountForInput(-12.345)).toBe("-12.3450");
+    expect(formatAmountForInput(999.999)).toBe("999.9990");
+  });
+
+  it("leaves every other number in JS notation", () => {
+    expect(formatAmountForInput(1.79)).toBe("1.79");
+    expect(formatAmountForInput(1234.567)).toBe("1234.567");
+    expect(formatAmountForInput(0.125)).toBe("0.125");
+    expect(formatAmountForInput(1799)).toBe("1799");
+  });
+
+  it("produces text the parser reads back unchanged", () => {
+    for (const amount of [
+      1.799, -12.345, 999.999, 1.79, 1234.567, 0.125, 1799,
+    ]) {
+      expect(parseAmountInput(formatAmountForInput(amount)), amount).toBe(
+        amount,
+      );
+    }
   });
 });
 
