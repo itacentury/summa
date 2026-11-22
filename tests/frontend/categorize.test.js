@@ -58,12 +58,12 @@ function stubSuggest(suggestResponse, categories = []) {
 }
 
 /** One suggestion row, shaped like the endpoint's. */
-function suggestion(id) {
+function suggestion(id, items = [{ item_name: "Cable", item_price: 42.5 }]) {
   return {
     invoice_id: id,
     store: "MediaMarkt",
     total: 42.5,
-    items: [{ item_name: "Cable", item_price: 42.5 }],
+    items,
     category: "Electronics",
     is_new: false,
   };
@@ -254,4 +254,57 @@ describe("runAnalysis", () => {
 
     expect(document.querySelector(".categorize-note")).toBeNull();
   });
+});
+
+// A single-item row has no expand toggle, so its name and count share one
+// wrapping line: the name may break anywhere, the count stays in one piece.
+describe("single-item meta line", () => {
+  beforeEach(() => {
+    mountModalFixture();
+    state.invoices = [{ id: 1, category: null }];
+    state.uncategorizedCount = 1;
+    state.filterMode = "month";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function renderSingleItem(itemName) {
+    const items = [{ item_name: itemName, item_price: 42.5 }];
+    stubSuggest({ suggestions: [suggestion(1, items)], total: 1, count: 1 });
+    await runAnalysis();
+    return document.querySelector(".categorize-row");
+  }
+
+  it("splits the escaped name from the count", async () => {
+    const rawName = '<b>Tom & "Jerry"</b>';
+    const row = await renderSingleItem(rawName);
+
+    expect(row.querySelector(".categorize-meta-button")).toBeNull();
+    const line = row.querySelector(".categorize-meta-line");
+    expect(line).not.toBeNull();
+
+    const name = line.querySelector(":scope > .categorize-meta-name");
+    expect(name.textContent).toBe(rawName);
+    expect(name.querySelector("b")).toBeNull();
+
+    const count = line.querySelector(":scope > .categorize-meta-count");
+    expect(count.querySelector(".categorize-meta-sep")).not.toBeNull();
+    expect(count.textContent).toContain("1 item ·");
+  });
+
+  it.each(["", null])(
+    "leaves out the name and separator for item name %j",
+    async (itemName) => {
+      const row = await renderSingleItem(itemName);
+
+      expect(row.querySelector(".categorize-meta-name")).toBeNull();
+      expect(row.querySelector(".categorize-meta-sep")).toBeNull();
+      const count = row.querySelector(
+        ".categorize-meta-line > .categorize-meta-count",
+      );
+      expect(count.textContent.trim()).toMatch(/^1 item ·/);
+    },
+  );
 });
