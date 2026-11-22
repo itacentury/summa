@@ -54,11 +54,19 @@ export async function saveInvoice() {
   }
 
   const items = [];
-  for (const row of document.querySelectorAll(".item-input-row")) {
-    const name = row.querySelector(".item-name").value;
+  const rows = [...document.querySelectorAll(".item-input-row")];
+  for (const [index, row] of rows.entries()) {
+    const nameInput = row.querySelector(".item-name");
+    const name = nameInput.value;
     const priceInput = row.querySelector(".item-price");
     const price = readAmountInput(priceInput);
-    if (!name) continue;
+    if (!name) {
+      // The live total counts every price, so a priced row may not vanish silently.
+      if (price === null) continue;
+      showErrorToast(`Missing name for item ${index + 1}`);
+      nameInput.focus();
+      return;
+    }
     if (price === null) {
       showErrorToast(`Missing price for "${name}"`);
       priceInput.focus();
