@@ -29,7 +29,7 @@ import {
   renderInvoices,
 } from "./render.js";
 import { apiFetch, sendJson } from "./http.js";
-import { parseAmountInput, withBusyButton } from "./dom.js";
+import { readAmountInput, withBusyButton } from "./dom.js";
 
 export async function saveInvoice() {
   const date = document.querySelector('[data-el="invoice-date"]').value;
@@ -53,7 +53,7 @@ export async function saveInvoice() {
   for (const row of document.querySelectorAll(".item-input-row")) {
     const name = row.querySelector(".item-name").value;
     const priceInput = row.querySelector(".item-price");
-    const price = parseAmountInput(priceInput.value);
+    const price = readAmountInput(priceInput);
     if (!name || price === null) continue;
     if (Number.isNaN(price)) {
       showErrorToast(`Invalid price for "${name}"`);

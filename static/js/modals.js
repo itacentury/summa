@@ -10,7 +10,7 @@ import {
   todayIso,
   isFutureIsoDate,
   capAtToday,
-  parseAmountInput,
+  readAmountInput,
   withEuro,
 } from "./dom.js";
 import { showErrorToast } from "./toast.js";
@@ -25,7 +25,10 @@ import { getCombobox } from "./combobox.js";
  */
 export function itemRowInnerHtml(item = null) {
   const nameValue = item ? ` value="${escapeHtml(item.item_name)}"` : "";
-  const priceValue = item ? ` value="${item.item_price}"` : "";
+  let priceValue = item ? ` value="${item.item_price}"` : "";
+  if (typeof item?.item_price === "number") {
+    priceValue += ` data-amount="${item.item_price}"`;
+  }
   return `
     <div class="form-group">
       <label class="form-label">Item Name</label>
@@ -211,7 +214,7 @@ export function calculateTotal() {
   const prices = document.querySelectorAll(".item-price");
   let total = 0;
   prices.forEach((input) => {
-    total += parseAmountInput(input.value) || 0;
+    total += readAmountInput(input) || 0;
   });
   document.querySelector('[data-el="calculated-total"]').textContent = withEuro(
     formatCurrency(total),

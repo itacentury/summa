@@ -311,3 +311,16 @@ export function parseAmountInput(text) {
   // omitted (`,99`), but then the fraction may not.
   return /^-?(\d+|\d*\.\d+)$/.test(normalized) ? Number(normalized) : NaN;
 }
+
+/**
+ * Read an amount field. While a field pre-filled from a stored number is
+ * untouched, that number wins: re-parsing its JS notation would misread `1.299`
+ * as grouping and reject `1e-7`.
+ */
+export function readAmountInput(input) {
+  const stored = input.dataset.amount;
+  if (stored !== undefined && input.value === input.defaultValue) {
+    return Number(stored);
+  }
+  return parseAmountInput(input.value);
+}

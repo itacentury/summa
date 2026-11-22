@@ -12,6 +12,7 @@ import {
   formatDateShort,
   isFutureIsoDate,
   parseAmountInput,
+  readAmountInput,
   todayIso,
   withBusyButton,
   withEuro,
@@ -343,5 +344,30 @@ describe("parseAmountInput", () => {
     for (const text of ["abc", "1.2.3", "12abc", "-", ",", ".", "12,"]) {
       expect(parseAmountInput(text), text).toBeNaN();
     }
+  });
+});
+
+describe("readAmountInput", () => {
+  function amountInput(attributes) {
+    document.body.innerHTML = `<input ${attributes}>`;
+    return document.querySelector("input");
+  }
+
+  it("parses a field without a stored amount", () => {
+    expect(readAmountInput(amountInput('value="1.299"'))).toBe(1299);
+  });
+
+  it("returns the stored amount while the field is untouched", () => {
+    const input = amountInput('value="1.299" data-amount="1.299"');
+    expect(readAmountInput(input)).toBe(1.299);
+    expect(
+      readAmountInput(amountInput('value="1e-7" data-amount="1e-7"')),
+    ).toBe(1e-7);
+  });
+
+  it("parses the field once the user changed it", () => {
+    const input = amountInput('value="1.299" data-amount="1.299"');
+    input.value = "3,5";
+    expect(readAmountInput(input)).toBe(3.5);
   });
 });

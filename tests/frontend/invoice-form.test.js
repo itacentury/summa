@@ -113,6 +113,41 @@ describe("invoice price fields", () => {
     });
   });
 
+  // Edit pre-fills the stored number in JS notation, which the parser would
+  // misread (`1.799` as grouping, `1e-7` as invalid) if it re-read it.
+  it("keeps an untouched stored price exactly as loaded", async () => {
+    mountForm([
+      ["Diesel", 1.799],
+      ["Sample", 1e-7],
+    ]);
+
+    calculateTotal();
+    const total = document.querySelector('[data-el="calculated-total"]');
+    expect(total.textContent).toBe("1.80\u00a0€");
+
+    await saveInvoice();
+
+    expect(showErrorToast).not.toHaveBeenCalledWith(
+      'Invalid price for "Sample"',
+    );
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items).toEqual([
+      { item_name: "Diesel", item_price: 1.799 },
+      { item_name: "Sample", item_price: 1e-7 },
+    ]);
+    expect(payload.total).toBe(1.799 + 1e-7);
+  });
+
+  it("re-parses a stored price once the user edits it", async () => {
+    mountForm([["Diesel", 1.799]]);
+    document.querySelector(".item-price").value = "2,5";
+
+    await saveInvoice();
+
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items).toEqual([{ item_name: "Diesel", item_price: 2.5 }]);
+  });
+
   it("blocks the save on an unparseable price", async () => {
     mountForm([
       ["Milk", "1,5"],
