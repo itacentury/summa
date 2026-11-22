@@ -90,6 +90,29 @@ describe("invoice price fields", () => {
     expect(payload.total).toBe(3.75);
   });
 
+  it("accepts a price without a leading zero", async () => {
+    mountForm([
+      ["Kaugummi", ",99"],
+      ["Milk", "1,5"],
+    ]);
+
+    calculateTotal();
+    const total = document.querySelector('[data-el="calculated-total"]');
+    expect(total.textContent).toBe("2.49 €");
+
+    await saveInvoice();
+
+    expect(showErrorToast).not.toHaveBeenCalledWith(
+      'Invalid price for "Kaugummi"',
+    );
+    expect(sendJson).toHaveBeenCalledTimes(1);
+    const [, , payload] = vi.mocked(sendJson).mock.calls[0];
+    expect(payload.items[0]).toEqual({
+      item_name: "Kaugummi",
+      item_price: 0.99,
+    });
+  });
+
   it("blocks the save on an unparseable price", async () => {
     mountForm([
       ["Milk", "1,5"],

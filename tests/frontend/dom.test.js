@@ -320,6 +320,11 @@ describe("parseAmountInput", () => {
       ["0,500", 0.5],
       ["0,250", 0.25],
       ["-0,125", -0.125],
+      // The integer part may be omitted, as type="number" allowed.
+      [".5", 0.5],
+      [",99", 0.99],
+      ["-,5", -0.5],
+      [",500", 0.5],
     ];
     for (const [text, expected] of cases) {
       expect(parseAmountInput(text), text).toBe(expected);
@@ -335,7 +340,7 @@ describe("parseAmountInput", () => {
   });
 
   it("reports an unparseable field as NaN", () => {
-    for (const text of ["abc", "1.2.3", "12abc", "-", ","]) {
+    for (const text of ["abc", "1.2.3", "12abc", "-", ",", ".", "12,"]) {
       expect(parseAmountInput(text), text).toBeNaN();
     }
   });

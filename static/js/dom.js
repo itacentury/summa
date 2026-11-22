@@ -307,6 +307,7 @@ export function parseAmountInput(text) {
       : cleaned.replace(separator, ".");
   }
 
-  // Not parseFloat(), which would read `12abc` as 12.
-  return /^-?\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : NaN;
+  // Not parseFloat(), which would read `12abc` as 12. The integer part may be
+  // omitted (`,99`), but then the fraction may not.
+  return /^-?(\d+|\d*\.\d+)$/.test(normalized) ? Number(normalized) : NaN;
 }
