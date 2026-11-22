@@ -633,6 +633,7 @@
   }
 
   .categorize-meta-text {
+    overflow-wrap: anywhere;
     white-space: normal;
   }
 
