@@ -12,7 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ruff>=0.14.0,<1",
+    "ruff>=0.17.5,<1",
     "mypy>=1.13.0,<2",
     "types-flask-cors>=6.0.0.20250809,<7",
     "openpyxl>=3.1.5,<4",
